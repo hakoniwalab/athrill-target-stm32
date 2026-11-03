@@ -10,6 +10,7 @@
  * registers is reported on stderr.
  */
 #include "stm32_periph_probe.h"
+#include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 #include "stm32_tim_probe.h"
 #include <stdio.h>
@@ -153,6 +154,7 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "read");
 	*d = (uint8)(read_word(r, (uint32)a) >> (8U * (a & 3U)));
 	return STD_E_OK;
@@ -161,6 +163,7 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "read");
 	*d = (uint16)(read_word(r, (uint32)a) >> (8U * (a & 2U)));
 	return STD_E_OK;
@@ -169,6 +172,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "read");
 	*d = read_word(r, (uint32)a);
 	return STD_E_OK;
@@ -177,6 +181,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 1U, d);
 	return STD_E_OK;
@@ -185,6 +190,7 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 2U, d);
 	return STD_E_OK;
@@ -193,6 +199,7 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 4U, d);
 	return STD_E_OK;

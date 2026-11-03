@@ -15,6 +15,8 @@ include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 option(ATHRILL_ENABLE_EXDEV "Enable external device loading" ON)
 
+# Batched execution (cpu_supply_clocks): the core runs up to this many instructions between device ticks.
+add_compile_definitions(ATHRILL_TARGET_BATCH_CLOCKS=1024U)
 add_library(athrill_stm32_config INTERFACE)
 target_compile_definitions(athrill_stm32_config INTERFACE
     CPUEMU_CLOCK_BUG_FIX SEARCH_REGION_OPTIMIZE DISABLE_BUS_ACCESS_LOG

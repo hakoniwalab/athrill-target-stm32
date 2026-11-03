@@ -7,6 +7,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "arm_common/arm_m_exception.h"
+#include "symbol_ops.h"
+#include "device.h"
 
 /* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
 #define STM32_NUM_IRQ		110U
@@ -33,6 +35,26 @@ static void reset_core(TargetCoreType *core)
  * address are read from the first two words of the vector table. This is done
  * at the first clock, once the program has been loaded.
  */
+/*
+ * The idle function of the firmware's OS (DEVICE_CONFIG_IDLE_FUNCTION,
+ * "up_idle" for NuttX by default; "none" for none): when the core reaches it
+ * with no exception to take, it sleeps as at WFI. An idle loop that does not
+ * sleep (NuttX's up_idle on PX4 is empty) then lets the halted CPU skip to
+ * the next event instead of spinning until it.
+ */
+static uint32 idle_function(void)
+{
+	char *name = "up_idle";
+	AthrillAddrType addr;
+	uint32 size;
+
+	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_IDLE_FUNCTION", &name);
+	if (symbol_get_func(name, (uint32)strlen(name), &addr, &size) < 0) {
+		return 0U;
+	}
+	return (uint32)addr & ~1U;
+}
+
 static Std_ReturnType take_reset(TargetCoreType *core)
 {
 	uint32 sp;
@@ -50,17 +72,70 @@ static Std_ReturnType take_reset(TargetCoreType *core)
 		return STD_E_SEGV;
 	}
 	core->m.vtor = boot;	/* the boot address: the flash, aliased at 0 on the device */
-	core->reg.r[CPU_REG_SP] = sp & ~3U;
+	core->idle_pc = idle_function();
+	if (core->idle_pc != 0U) {
+		fprintf(stderr, "INFO: idle function at 0x%08x\n", core->idle_pc);
+	}	core->reg.r[CPU_REG_SP] = sp & ~3U;
 	core->reg.pc = entry & ~1U;
 	core->reg.r[CPU_REG_LR] = 0xFFFFFFFFU;
 	core->reset_pending = FALSE;
 	return STD_E_OK;
 }
 
-/* PROVISIONAL, for investigation: the core's state when the run ends (stderr). */
+/* PROVISIONAL, for investigation: a PC sample every PC_SAMPLE_INTERVAL clocks
+ * (in 64-byte blocks), and halted clocks, printed when the run ends. */
+#define PC_SAMPLE_INTERVAL	1000U
+#define PC_SAMPLE_MAX		4096U
+static uint32 pc_sample_block[PC_SAMPLE_MAX];
+static uint32 pc_sample_count[PC_SAMPLE_MAX];
+static uint32 pc_sample_used;
+static uint64 sampled_clocks;
+static uint64 halted_samples;
+
+static void sample_pc(const TargetCoreType *core)
+{
+	uint32 block = core->reg.pc >> 6;
+	uint32 i;
+
+	static uint32 start_clocks = 0xFFFFFFFFU;
+
+	if (start_clocks == 0xFFFFFFFFU) {
+		start_clocks = 0U;
+		(void)cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &start_clocks);
+	}
+	if ((++sampled_clocks % PC_SAMPLE_INTERVAL) != 0U) {
+		return;
+	}
+	if (sampled_clocks < start_clocks) {
+		return;
+	}
+	if (core->is_halt) {
+		halted_samples++;
+		return;
+	}
+	for (i = 0U; i < pc_sample_used; i++) {
+		if (pc_sample_block[i] == block) {
+			pc_sample_count[i]++;
+			return;
+		}
+	}
+	if (pc_sample_used < PC_SAMPLE_MAX) {
+		pc_sample_block[pc_sample_used] = block;
+		pc_sample_count[pc_sample_used] = 1U;
+		pc_sample_used++;
+	}
+}
+
 static void print_final_state(void)
 {
 	const TargetCoreType *core = &virtual_cpu.cores[0].core;
+	uint32 i;
+
+	fprintf(stderr, "SAMPLES halted=%llu steps=%llu\n", (unsigned long long)halted_samples,
+		(unsigned long long)sampled_clocks);
+	for (i = 0U; i < pc_sample_used; i++) {
+		fprintf(stderr, "SAMPLE 0x%08x %u\n", pc_sample_block[i] << 6, pc_sample_count[i]);
+	}
 
 	fprintf(stderr, "FINAL pc=0x%08x lr=0x%08x sp=0x%08x ipsr=%u halt=%d primask=%u basepri=0x%x\n",
 		core->reg.pc, core->reg.r[14], core->reg.r[13], core->m.ipsr, (int)core->is_halt, core->m.primask, core->m.basepri);
@@ -114,6 +189,7 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		}
 	}
 	core->internal_cycle++;
+	sample_pc(core);
 	virtual_cpu.cores[id].elaps++;
 	if (core->scs.reset_requested) {
 		/* AIRCR.SYSRESETREQ */
@@ -136,6 +212,11 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 			return STD_E_OK;
 		}
 	}
+	if ((core->idle_pc != 0U) && (core->reg.pc == core->idle_pc) && (ArmMPendingToTakeFast(&core->m) == 0U)) {
+		core->is_halt = TRUE;
+		core->wfe = FALSE;
+		return STD_E_OK;
+	}
 	err = thumb_execute(core);
 	if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
 		uint32 insn;
@@ -151,6 +232,31 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		}
 		printf("ERROR: %s 0x%0*x (%s) at 0x%08x\n", what, (int)(length * 2U), insn, name, core->reg.pc);
 	}
+	return err;
+}
+
+/*
+ * Up to max_clocks instructions without the devices in between: stops when
+ * the core halts or touches a device register (the devices then tick and
+ * recompute their next event). The core's budget never passes a device
+ * interrupt (min_intr_interval), and devices read cpuemu_get_clock() on access.
+ */
+Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *clock, uint64 *executed)
+{
+	TargetCoreType *core = &virtual_cpu.cores[core_id].core;
+	Std_ReturnType err = STD_E_OK;
+	uint64 n = 0U;
+
+	stm32_device_accessed = FALSE;
+	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed) {
+		(*clock)++;
+		n++;
+		err = cpu_supply_clock(core_id);
+		if (err != STD_E_OK) {
+			break;
+		}
+	}
+	*executed = n;
 	return err;
 }
 

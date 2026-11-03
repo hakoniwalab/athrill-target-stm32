@@ -44,6 +44,7 @@ typedef struct TargetCoreTypeTag {
     std_bool exc_return_pending;	/* this instruction wrote an EXC_RETURN value to PC in Handler mode */
     uint32 exc_return;
     std_bool wfe;		/* halted by WFE (an event also wakes it) */
+    uint32 idle_pc;		/* the idle function's address (0: none), see cpu_supply_clock */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;

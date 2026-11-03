@@ -11,6 +11,8 @@
 static std_bool exdev_initialized = FALSE;
 #endif
 
+std_bool stm32_device_accessed = FALSE;
+
 void device_init(CpuType *cpu, DeviceClockType *clock)
 {
 	(void)cpu;
@@ -65,5 +67,6 @@ int intc_raise_intr(uint32 intno)
 		return -1;
 	}
 	core->m.pending[ARM_M_EXC_IRQ0 + intno] = 1U;
+	core->m.pending_any = TRUE;
 	return 0;
 }

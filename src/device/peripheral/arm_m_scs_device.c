@@ -10,6 +10,7 @@
  * STM32, the processor clock divided by 8.
  */
 #include "arm_m_scs_device.h"
+#include "device.h"
 #include "cpu.h"
 #include "cpuemu_ops.h"
 #include "arm_common/arm_m_scs.h"
@@ -98,6 +99,7 @@ static void write_register(MpuAddressRegionType *r, AthrillAddrType a, uint32 si
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	*d = (uint8)read_register(r, a, 1U);
 	return STD_E_OK;
 }
@@ -105,6 +107,7 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	*d = (uint16)read_register(r, a, 2U);
 	return STD_E_OK;
 }
@@ -112,6 +115,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	*d = read_register(r, a, 4U);
 	return STD_E_OK;
 }
@@ -119,6 +123,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register(r, a, 1U, d);
 	return STD_E_OK;
 }
@@ -126,6 +131,7 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register(r, a, 2U, d);
 	return STD_E_OK;
 }
@@ -133,6 +139,7 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register(r, a, 4U, d);
 	return STD_E_OK;
 }

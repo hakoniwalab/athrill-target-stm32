@@ -4,6 +4,7 @@
  * manual, USART register map: ISR at 0x1C, TDR at 0x28).
  */
 #include "stm32_usart.h"
+#include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 
 #define USART_ISR 0x1CU
@@ -49,6 +50,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	*d = read_register((uint32)(a - r->start));
 	return STD_E_OK;
 }
@@ -56,6 +58,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register((uint32)(a - r->start), d);
 	return STD_E_OK;
 }
@@ -63,6 +66,7 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register((uint32)(a - r->start), d);
 	return STD_E_OK;
 }
@@ -70,6 +74,7 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
 {
 	(void)c;
+	stm32_device_accessed = TRUE;
 	write_register((uint32)(a - r->start), d);
 	return STD_E_OK;
 }

@@ -63,7 +63,7 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
 	if (core->m.lockup) {
 		return STD_E_EXEC;
 	}
-	n = ArmMPendingToTake(&core->m);
+	n = ArmMPendingToTakeFast(&core->m);
 	if (n != 0U) {
 		return take(core, ArmMExceptionEntry(core, n, core->reg.pc));
 	}
