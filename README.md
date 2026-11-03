@@ -21,14 +21,20 @@ handler), USART3 transmit (ISR, TDR), and Thumb instructions decoded by
 decoders generated from Arm's machine-readable architecture data and
 cross-checked against GNU objdump and llvm-objdump
 ([docs/decoder.md](docs/decoder.md)): a table for every 16-bit encoding and
-generated code for the 32-bit ones (Cortex-M7, sampled). The executor covers
-the 16-bit instructions the hello world uses so far; 32-bit instructions are
-decoded but not executed yet.
+generated code for the 32-bit ones (Cortex-M7, sampled). Instructions are
+executed through the Arm pseudo-code shared with Athrill's other Arm targets
+([athrill-arm-common](https://github.com/hakoniwalab/athrill-arm-common)),
+with this target's M-profile implementation of its profile interface
+(`src/cpu/arm_target_profile.h`). So far ADD (immediate), LDR (immediate) and B
+run that way in all their 16- and 32-bit encodings (`test/insn`), next to the
+other 16-bit instructions the hello world uses. Exceptions, the IT block and
+the MPU are not modelled yet.
 
 ## Build and run
 
-The Athrill core (`toppers/athrill`, branch `cpp`) is expected next to this
-checkout as `../athrill`.
+The Athrill core (`toppers/athrill`, branch `cpp`) and
+[athrill-arm-common](https://github.com/hakoniwalab/athrill-arm-common) are
+expected next to this checkout as `../athrill` and `../athrill-arm-common`.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -37,7 +43,8 @@ cmake --build build --parallel
 ```
 
 prints `Hello, Athrill STM32!` and stops after 100,000 clocks.
-`(cd build && ctest)` runs the same check. `test/hello/hello.elf` is built
+`(cd build && ctest)` runs the same check, the decoder check, and the
+instruction test (`test/insn`, built with `test/insn/build.sh`). `test/hello/hello.elf` is built
 with the toolchain image:
 
 ```bash

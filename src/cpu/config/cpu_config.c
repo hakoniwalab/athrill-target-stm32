@@ -90,12 +90,19 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		return STD_E_OK;
 	}
 	err = thumb_execute(core);
-	if (err == STD_E_INVALID) {
-		uint16 insn = 0U;
+	if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
+		uint32 insn;
+		uint32 length;
+		const char *name = thumb_instruction_at(core, core->reg.pc, &insn, &length);
+		const char *what = "unsupported instruction";
 
-		(void)bus_get_data16(core->core_id, core->reg.pc, &insn);
-		printf("ERROR: unsupported instruction 0x%04x (%s) at 0x%08x\n", insn,
-			thumb_instruction_name(insn), core->reg.pc);
+		if (err == STD_E_INVALID) {
+			what = "UNPREDICTABLE instruction";
+		}
+		else if (err == STD_E_EXEC) {
+			what = "UsageFault (invalid state) at instruction";
+		}
+		printf("ERROR: %s 0x%0*x (%s) at 0x%08x\n", what, (int)(length * 2U), insn, name, core->reg.pc);
 	}
 	return err;
 }

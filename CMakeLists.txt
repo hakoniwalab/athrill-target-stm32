@@ -7,6 +7,9 @@ find_package(Threads REQUIRED)
 # The Athrill core (toppers/athrill, branch cpp) next to this checkout.
 set(ATHRILL_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill" CACHE PATH "Athrill core checkout")
 get_filename_component(ATHRILL_SOURCE_DIR "${ATHRILL_SOURCE_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+# The common part of Athrill's Arm targets (hakoniwalab/athrill-arm-common) next to this checkout.
+set(ATHRILL_ARM_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-arm-common" CACHE PATH "athrill-arm-common checkout")
+get_filename_component(ATHRILL_ARM_COMMON_DIR "${ATHRILL_ARM_COMMON_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(ATHRILL_ADDRESS_WIDTH 32 CACHE STRING "Athrill bus address width" FORCE)
 include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -27,7 +30,7 @@ set(STM32_INCLUDES
     "${ATHRILL_SRC_DIR}/debugger/interaction" "${ATHRILL_SRC_DIR}/debugger/interaction/inc"
     "${ATHRILL_SRC_DIR}/debugger/executor" "${ATHRILL_SRC_DIR}/main"
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu" "${ATHRILL_TARGET_SOURCE_DIR}/cpu/config"
-    "${ATHRILL_TARGET_SOURCE_DIR}/cpu/decoder"
+    "${ATHRILL_TARGET_SOURCE_DIR}/cpu/decoder" "${ATHRILL_ARM_COMMON_DIR}/include"
     "${ATHRILL_TARGET_SOURCE_DIR}/device" "${ATHRILL_TARGET_SOURCE_DIR}/device/peripheral"
     "${ATHRILL_TARGET_SOURCE_DIR}/debugger/interaction/inc")
 function(stm32_target name)
@@ -46,7 +49,9 @@ stm32_target(athrill_cui)
 
 add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
+  src/cpu/thumb_exec.c
   src/cpu/thumb_exec16.c
+  src/cpu/thumb_exec32.c
   src/cpu/decoder/t32_decode16.c
   src/cpu/decoder/t32_decode32.c
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
@@ -103,4 +108,13 @@ if(BUILD_TESTING)
             -d "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/device_config.txt"
             -t 100000 "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/hello.elf")
   set_tests_properties(hello-usart3 PROPERTIES PASS_REGULAR_EXPRESSION "Hello, Athrill STM32!")
+  # ADD (immediate), LDR (immediate) and B in all their encodings (test/insn,
+  # prebuilt ELF); the expected output is worked out by hand from the pseudo-code.
+  add_test(NAME insn-add-ldr-b
+    COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/memory.txt"
+            -d "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/device_config.txt"
+            -t 2000000 "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/insn.elf")
+  set_tests_properties(insn-add-ldr-b PROPERTIES
+    PASS_REGULAR_EXPRESSION "add_t1 00000000 6\nadd_t2 80000000 9\nadd_t3 12DF5723\nadds_t3 00000000 6\nadd_t4 12346677\nldr_t1 22222222\nldr_t2 55555555\nldr_t3 44444444\nldr_t4_off 22222222\nldr_t4_pre 22222222 33333333\nldr_t4_post 11111111 33333333\nldr_t4_sub 22222222 22222222\nb_t1 ok\nb_t2 ok\nb_t3 ok\nb_t4 ok\nend"
+    FAIL_REGULAR_EXPRESSION " NG|ERROR:")
 endif()
