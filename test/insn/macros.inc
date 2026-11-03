@@ -3,8 +3,17 @@
  * r7 = USART3, r5 = the NZCV flags of a case (bit 3 = N ... bit 0 = V);
  * printing uses r1, r3, r4 and r6.
  */
+#ifdef TARGET_AN500
+/* QEMU's mps2-an500 (Cortex-M7 with FPv5-D16, the reference run of the
+ * floating-point tests): UART0, a CMSDK APB UART (DATA, STATE: TXFULL). */
+    .equ USART3_BASE, 0x40004000
+    .equ USART_ISR,   0x04
+    .equ USART_TDR,   0x00
+#else
     .equ USART3_BASE, 0x40004800
-#ifdef USART_STM32F4
+#endif
+#if defined(TARGET_AN500)
+#elif defined(USART_STM32F4)
 /* STM32F4's USART (QEMU's netduinoplus2, the reference run): SR and DR. */
     .equ USART_ISR,   0x00
     .equ USART_TDR,   0x04
@@ -19,6 +28,21 @@
  * same instructions here (a NOP for the store), so that every address of
  * the program is the same in both and addresses can be printed. */
 .macro USART_INIT
+#ifdef TARGET_AN500
+    /* The CMSDK UART: BAUDDIV, then CTRL.TX_EN. The FPU: CPACR CP10 and
+     * CP11 full access (Athrill does not model CPACR: its FPU is enabled). */
+    ldr   r7, =USART3_BASE
+    movs  r1, #16
+    str   r1, [r7, #0x10]
+    movs  r1, #1
+    str   r1, [r7, #0x08]
+    ldr   r0, =0xE000ED88
+    ldr   r1, [r0]
+    orr   r1, r1, #(0xF << 20)
+    str   r1, [r0]
+    dsb
+    isb
+#else
     ldr   r7, =USART3_BASE
     ldr   r1, =0x2008
 #ifdef USART_STM32F4
@@ -26,14 +50,20 @@
 #else
     nop
 #endif
+#endif
 .endm
 
 /* Writes the character in \reg (r1-r6) to USART3. */
 .macro PUTR reg
 1:
     ldr   r3, [r7, #USART_ISR]
+#ifdef TARGET_AN500
+    lsls  r3, r3, #31               /* TXFULL (bit 0) into N */
+    bmi   1b
+#else
     lsls  r3, r3, #24               /* TXE (bit 7) into N */
     bpl   1b
+#endif
     str   \reg, [r7, #USART_TDR]
 .endm
 

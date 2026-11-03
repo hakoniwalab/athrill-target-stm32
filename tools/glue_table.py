@@ -18,7 +18,7 @@ IN_IT_LAST_C = "thumb_in_it_not_last(core)"
 
 class Entry:
     def __init__(self, id, instr, syntax, ops, kind, call, regs, members,
-                 see=(), unpred=None, unpred_c=None, note=None, later_c=None):
+                 see=(), unpred=None, unpred_c=None, note=None, later_c=None, undef=None, undef_c=None):
         self.id = id
         self.instr = instr
         self.syntax = syntax
@@ -32,6 +32,8 @@ class Entry:
         self.unpred_c = unpred_c
         self.note = note
         self.later_c = later_c    # C condition of forms not executed yet (STD_E_DECODE)
+        self.undef = undef        # the manual's UNDEFINED condition, and its C (STD_E_DECODE)
+        self.undef_c = undef_c
 
 
 ENTRIES = []
@@ -676,3 +678,137 @@ for instr, shift_t in (("PKHBT", "SRType_LSL"), ("PKHTB", "SRType_ASR")):
           {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "shift_t": shift_t,
            "shift_n": "thumb_shift_n(%s, thumb_imm5({imm3}, {imm2}))" % ("2U" if tb else "0U")},
           unpred=DSP_UNPRED, unpred_c=DSP_UNPRED_C)
+
+
+# ---------------------------------------------------------------------------
+# Floating point (FPv5-D16): moves, loads and stores
+#
+# Register numbers: Sd = Vd:D, Dd = D:Vd (and N, M likewise). With 16 double
+# registers, a D register number of 16 or more is UNDEFINED (VFPSmallRegisterBank()).
+# ---------------------------------------------------------------------------
+
+S_D, S_N, S_M = "thumb_sreg({Vd}, {D})", "thumb_sreg({Vn}, {N})", "thumb_sreg({Vm}, {M})"
+D_D, D_N, D_M = "thumb_dreg({D}, {Vd})", "thumb_dreg({N}, {Vn})", "thumb_dreg({M}, {Vm})"
+D16_UNDEF = "VFPSmallRegisterBank() && (%s)"
+
+
+def fp(id, instr, call, syntax, ops, dp, d=None, n=None, m=None, imm64="0U", sel_cond="0U", **kw):
+    regs = []
+    undef = []
+    undef_c = []
+    for var, single, double, bit in (("d", S_D, D_D, "D"), ("n", S_N, D_N, "N"), ("m", S_M, D_M, "M")):
+        if {"d": d, "n": n, "m": m}[var]:
+            regs.append((var, double if dp else single))
+            if dp:
+                undef.append("%s == '1'" % bit)
+                undef_c.append("({%s} != 0U)" % bit)
+    if dp and undef:
+        kw.setdefault("undef", D16_UNDEF % " || ".join(undef))
+        kw.setdefault("undef_c", " || ".join(undef_c))
+    entry(id, instr, syntax, ops, "fp", call, regs,
+          {"dp_operation": "TRUE" if dp else "FALSE", "d": "d" if d else "0U", "n": "n" if n else "0U",
+           "m": "m" if m else "0U", "imm64": imm64, "sel_cond": sel_cond}, **kw)
+
+
+for dp, sz in ((False, "S"), (True, "D")):
+    f = "F64" if dp else "F32"
+    ops = "dp_operation = (sz == '1'); d = %s; m = %s;" % (("UInt(D:Vd)", "UInt(M:Vm)") if dp else ("UInt(Vd:D)", "UInt(Vm:M)"))
+    fp("VMOV_r_T2_" + sz, "VMOV", "vmov_reg", "VMOV<c>.%s <%sd>, <%sm>" % (f, sz, sz), ops, dp, d=True, m=True)
+    fp("VABS_T2_" + sz, "VABS", "vabs", "VABS<c>.%s <%sd>, <%sm>" % (f, sz, sz), ops, dp, d=True, m=True)
+    fp("VNEG_T2_" + sz, "VNEG", "vneg", "VNEG<c>.%s <%sd>, <%sm>" % (f, sz, sz), ops, dp, d=True, m=True)
+    fp("VMOV_i_T2_" + sz, "VMOV", "vmov_imm", "VMOV<c>.%s <%sd>, #<imm>" % (f, sz),
+       "dp_operation = (sz == '1'); d = %s; imm%d = VFPExpandImm(imm4H:imm4L, %d);"
+       % ("UInt(D:Vd)" if dp else "UInt(Vd:D)", 64 if dp else 32, 64 if dp else 32), dp, d=True,
+       imm64="VFPExpandImm(({imm4H} << 4) | {imm4L}, %dU)" % (64 if dp else 32))
+    for cc, code in (("EQ", "0x0U"), ("VS", "0x6U"), ("GE", "0xAU"), ("GT", "0xCU")):
+        fp("VSEL%s_T1_%s" % (cc, sz), "VSEL", "vsel", "VSEL%s.%s <%sd>, <%sn>, <%sm>" % (cc, f, sz, sz, sz),
+           "EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1');"
+           " d, n, m by the size;", dp, d=True, n=True, m=True, sel_cond=code,
+           unpred="InITBlock()", unpred_c="Stm32InITBlock(core)",
+           note="(VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.)")
+
+# Core register <-> floating-point register
+FP_T_UNPRED, FP_T_UNPRED_C = "t IN {13,15}", "thumb_sp_or_pc(t)"
+for id, to_arm in (("VMOV_s_T1", "TRUE"), ("VMOV_tos_T1", "FALSE")):
+    entry(id, "VMOV", "VMOV<c> <Rt>, <Sn>" if to_arm == "TRUE" else "VMOV<c> <Sn>, <Rt>",
+          "to_arm_registers = (op == '1'); t = UInt(Rt); n = UInt(Vn:N);", "fp_core", "vmov_core_s",
+          [("t", "{Rt}"), ("n", S_N)], {"to_arm_registers": to_arm, "Rt": "t", "Rt2": None, "fp": "n", "index": "0U"},
+          unpred=FP_T_UNPRED, unpred_c=FP_T_UNPRED_C)
+for id, to_arm in (("VMOV_ss_T1", "TRUE"), ("VMOV_toss_T1", "FALSE")):
+    entry(id, "VMOV", "VMOV<c> <Rt>, <Rt2>, <Sm>, <Sm1>" if to_arm == "TRUE" else "VMOV<c> <Sm>, <Sm1>, <Rt>, <Rt2>",
+          "to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(Vm:M);", "fp_core", "vmov_core_ss",
+          [("t", "{Rt}"), ("t2", "{Rt2}"), ("m", S_M)],
+          {"to_arm_registers": to_arm, "Rt": "t", "Rt2": "t2", "fp": "m", "index": "0U"},
+          unpred="t IN {13,15} || t2 IN {13,15} || m == 31" + ("; to_arm_registers && t == t2" if to_arm == "TRUE" else ""),
+          unpred_c="thumb_sp_or_pc(t) || thumb_sp_or_pc(t2) || (m == 31U)" + (" || (t == t2)" if to_arm == "TRUE" else ""))
+for id, to_arm in (("VMOV_d_T1", "TRUE"), ("VMOV_tod_T1", "FALSE")):
+    entry(id, "VMOV", "VMOV<c> <Rt>, <Rt2>, <Dm>" if to_arm == "TRUE" else "VMOV<c> <Dm>, <Rt>, <Rt2>",
+          "to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(M:Vm);", "fp_core", "vmov_core_d",
+          [("t", "{Rt}"), ("t2", "{Rt2}"), ("m", D_M)],
+          {"to_arm_registers": to_arm, "Rt": "t", "Rt2": "t2", "fp": "m", "index": "0U"},
+          undef=D16_UNDEF % "M == '1'", undef_c="{M} != 0U",
+          unpred="t IN {13,15} || t2 IN {13,15}" + ("; to_arm_registers && t == t2" if to_arm == "TRUE" else ""),
+          unpred_c="thumb_sp_or_pc(t) || thumb_sp_or_pc(t2)" + (" || (t == t2)" if to_arm == "TRUE" else ""))
+entry("VMOV_rs_T1", "VMOV", "VMOV<c>.32 <Dd[x]>, <Rt>",
+      "if opc1<1> == '0' && opc2 == '00' then index = UInt(opc1<0>) (32-bit scalar); d = UInt(D:Vd); t = UInt(Rt);",
+      "fp_core", "vmov_core_scalar", [("t", "{Rt}"), ("d", D_D)],
+      {"to_arm_registers": "FALSE", "Rt": "t", "Rt2": None, "fp": "d", "index": "{opc1} & 1U"},
+      undef="opc1<1> == '1' || opc2 != '00' (8- and 16-bit scalars: Advanced SIMD); " + D16_UNDEF % "D == '1'",
+      undef_c="(({opc1} & 2U) != 0U) || ({opc2} != 0U) || ({D} != 0U)",
+      unpred=FP_T_UNPRED, unpred_c=FP_T_UNPRED_C)
+entry("VMOV_sr_T1", "VMOV", "VMOV<c>.32 <Rt>, <Dn[x]>",
+      "if U == '0' && opc1<1> == '0' && opc2 == '00' then index = UInt(opc1<0>) (32-bit scalar); t = UInt(Rt); n = UInt(N:Vn);",
+      "fp_core", "vmov_core_scalar", [("t", "{Rt}"), ("n", D_N)],
+      {"to_arm_registers": "TRUE", "Rt": "t", "Rt2": None, "fp": "n", "index": "{opc1} & 1U"},
+      undef="U == '1' || opc1<1> == '1' || opc2 != '00' (8- and 16-bit scalars: Advanced SIMD); " + D16_UNDEF % "N == '1'",
+      undef_c="({U} != 0U) || (({opc1} & 2U) != 0U) || ({opc2} != 0U) || ({N} != 0U)",
+      unpred=FP_T_UNPRED, unpred_c=FP_T_UNPRED_C)
+entry("VMRS_T1_AS", "VMRS", "VMRS<c> <Rt>, FPSCR / VMRS<c> APSR_nzcv, FPSCR", "t = UInt(Rt);", "fp_core", "vmrs_vmsr",
+      [("t", "{Rt}")], {"to_arm_registers": "TRUE", "Rt": "t", "Rt2": None, "fp": "0U", "index": "0U"},
+      unpred="t == 13; reg != '0001' (FPSCR is the only floating-point system register of Armv7-M)",
+      unpred_c="(t == 13U) || ({reg} != 1U)")
+entry("VMSR_T1_AS", "VMSR", "VMSR<c> FPSCR, <Rt>", "t = UInt(Rt);", "fp_core", "vmrs_vmsr",
+      [("t", "{Rt}")], {"to_arm_registers": "FALSE", "Rt": "t", "Rt2": None, "fp": "0U", "index": "0U"},
+      unpred="t IN {13,15}; reg != '0001' (FPSCR is the only floating-point system register of Armv7-M)",
+      unpred_c="thumb_sp_or_pc(t) || ({reg} != 1U)")
+
+
+# Loads and stores
+def fp_ls(id, instr, call, syntax, ops, single, d, n, imm32, add, wback="FALSE", regs="0U", regs_var=None, **kw):
+    more = [("regs", regs_var)] if regs_var else []
+    entry(id, instr, syntax, ops, "fp_ls", call, [("d", d), ("n", n)] + more,
+          {"single_regs": single, "d": "d", "Rn": "n", "imm32": imm32, "add": add, "wback": wback,
+           "regs": "regs" if regs_var else regs}, **kw)
+
+
+for sz, single, dreg in (("S", "TRUE", S_D), ("D", "FALSE", D_D)):
+    d16 = {} if single == "TRUE" else {"undef": D16_UNDEF % "D == '1'", "undef_c": "{D} != 0U"}
+    reg = "UInt(Vd:D)" if single == "TRUE" else "UInt(D:Vd)"
+    fp_ls("VLDR_T1_" + sz, "VLDR", "vldr", "VLDR<c> <%sd>, [<Rn>{, #+/-<imm>}]" % sz,
+          "single_reg = %s; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = %s; n = UInt(Rn);" % (single, reg),
+          single, dreg, "{Rn}", "{imm8} << 2", "{U} != 0U", **d16)
+    fp_ls("VLDR_l_T1_" + sz, "VLDR", "vldr", "VLDR<c> <%sd>, <label>" % sz,
+          "single_reg = %s; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = %s; n = 15;" % (single, reg),
+          single, dreg, "15U", "{imm8} << 2", "{U} != 0U", **d16)
+    fp_ls("VSTR_T1_" + sz, "VSTR", "vstr", "VSTR<c> <%sd>, [<Rn>{, #+/-<imm>}]" % sz,
+          "single_reg = %s; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = %s; n = UInt(Rn);" % (single, reg),
+          single, dreg, "{Rn}", "{imm8} << 2", "{U} != 0U", unpred="n == 15", unpred_c="n == 15U", **d16)
+for t, single, dreg in (("T1", "FALSE", D_D), ("T2", "TRUE", S_D)):
+    reg = "UInt(Vd:D)" if single == "TRUE" else "UInt(D:Vd)"
+    regs_ops = "regs = UInt(imm8)" if single == "TRUE" else "regs = UInt(imm8) DIV 2"
+    regs_var = "{imm8}" if single == "TRUE" else "{imm8} >> 1"
+    if single == "TRUE":
+        unpred = "n == 15; regs == 0 || (d+regs) > 32"
+        unpred_c = "(n == 15U) || (regs == 0U) || ((d + regs) > 32U)"
+    else:
+        unpred = ("n == 15; regs == 0 || regs > 16 || (d+regs) > 32; imm8<0> == '1' && (d+regs) > 16;"
+                  " VFPSmallRegisterBank() && (d+regs) > 16")
+        unpred_c = "(n == 15U) || (regs == 0U) || ((d + regs) > 16U)"
+    for instr, call, form, add, wback in (("VLDM", "vldm", "", "TRUE", "{W} != 0U"), ("VLDMDB", "vldm", "DB", "FALSE", "TRUE"),
+                                          ("VSTM", "vstm", "", "TRUE", "{W} != 0U"), ("VSTMDB", "vstm", "DB", "FALSE", "TRUE")):
+        fp_ls("%s_%s" % (instr, t), instr, call, "%s<c> <Rn>%s, <list>" % (instr, "{!}" if not form else "!"),
+              "single_regs = %s; add = %s; wback = %s; d = %s; n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); %s;"
+              % (single, "(U == '1')" if not form else "FALSE", "(W == '1')" if not form else "TRUE", reg, regs_ops),
+              single, dreg, "{Rn}", "{imm8} << 2", add, wback, regs_var=regs_var, unpred=unpred, unpred_c=unpred_c,
+              note="(Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.)"
+              if single == "FALSE" else None)

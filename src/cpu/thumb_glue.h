@@ -98,6 +98,18 @@ static inline bool thumb_sysm_valid(uint32 sysm)
 	return (sysm <= 3U) || ((sysm >= 5U) && (sysm <= 9U)) || ((sysm >= 16U) && (sysm <= 20U));
 }
 
+/* Vx:bit, a single-precision register number (Sd = Vd:D, Sn = Vn:N, Sm = Vm:M). */
+static inline uint32 thumb_sreg(uint32 v, uint32 bit)
+{
+	return (v << 1) | bit;
+}
+
+/* bit:Vx, a double-precision register number (Dd = D:Vd, Dn = N:Vn, Dm = M:Vm). */
+static inline uint32 thumb_dreg(uint32 bit, uint32 v)
+{
+	return (bit << 4) | v;
+}
+
 /* SP or PC: the registers most 32-bit encodings make UNPREDICTABLE. */
 static inline bool thumb_sp_or_pc(uint32 n)
 {

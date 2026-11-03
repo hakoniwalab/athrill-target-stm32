@@ -242,6 +242,45 @@ static inline void ArmClearExclusiveLocal(TargetCoreType *core)
 	core->exclusive_valid = FALSE;
 }
 
+/*
+ * The FPU (FPv5-D16): S0-S31, D0-D15 over them, and FPSCR. The coprocessor
+ * access control (CPACR) is not modelled: the FPU is always enabled.
+ */
+static inline uint32 ArmS(const TargetCoreType *core, uint32 n)
+{
+	return core->reg.s[n];
+}
+
+static inline void ArmSWrite(TargetCoreType *core, uint32 n, uint32 value)
+{
+	core->reg.s[n] = value;
+}
+
+static inline uint64 ArmD(const TargetCoreType *core, uint32 n)
+{
+	return ((uint64)core->reg.s[2U * n + 1U] << 32) | core->reg.s[2U * n];
+}
+
+static inline void ArmDWrite(TargetCoreType *core, uint32 n, uint64 value)
+{
+	core->reg.s[2U * n] = (uint32)value;
+	core->reg.s[2U * n + 1U] = (uint32)(value >> 32);
+}
+
+/* FPSCR of FPv5: N Z C V (31:28), AHP (26), DN (25), FZ (24), RMode (23:22)
+ * and the cumulative exception bits IDC (7), IXC, UFC, OFC, DZC, IOC (4:0). */
+#define STM32_FPSCR_MASK	0xF7C0009FU
+
+static inline uint32 ArmFPSCR(const TargetCoreType *core)
+{
+	return core->reg.fpscr;
+}
+
+static inline void ArmFPSCRWrite(TargetCoreType *core, uint32 value)
+{
+	core->reg.fpscr = value & STM32_FPSCR_MASK;
+}
+
 /* ITSTATE.IT<7:0> = itstate (IT); thumb_execute does not advance it after IT. */
 static inline void ArmITStateWrite(TargetCoreType *core, uint32 itstate)
 {

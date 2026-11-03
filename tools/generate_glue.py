@@ -48,6 +48,9 @@ KINDS = {
     "dsp": ("arm_dsp_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm", "Ra"), None),
     "sat": ("arm_sat_input_type", "arm_dp_output_type", ("Rd", "Rn"), None),
     "dsp_long": ("arm_dsp_long_input_type", "arm_mul_long_output_type", ("RdLo", "RdHi", "Rn", "Rm"), None),
+    "fp": ("arm_fp_input_type", "arm_fp_output_type", (), None),
+    "fp_core": ("arm_fp_core_input_type", "arm_fp_output_type", ("Rt", "Rt2"), None),
+    "fp_ls": ("arm_fp_ls_input_type", "arm_fp_output_type", ("Rn",), None),
 }
 # Kinds whose instructions are not conditional (no ConditionPassed()).
 NO_COND = {"cb", "it"}
@@ -55,7 +58,7 @@ HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm
            "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h", "arm_common/arm_pseudo_extend.h",
            "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h",
            "arm_common/arm_pseudo_system.h", "arm_common/arm_pseudo_parallel.h", "arm_common/arm_pseudo_saturate.h",
-           "arm_common/arm_pseudo_dsp_multiply.h"]
+           "arm_common/arm_pseudo_dsp_multiply.h", "arm_common/arm_pseudo_fp_ls.h"]
 
 
 def decoder_ids(width):
@@ -89,6 +92,8 @@ def comment(e):
     lines = ["%s: %s" % (e.id, e.syntax)]
     lines += e.see
     lines.append(e.ops)
+    if e.undef:
+        lines.append("if %s then UNDEFINED;" % e.undef)
     if e.unpred:
         # "a; b": two conditions, one line each as in the manual
         lines += ["if %s then UNPREDICTABLE;" % u for u in e.unpred.split("; ")]
@@ -112,6 +117,8 @@ def executor(e, width):
         body.append("\t(void)insn;\n")
     if body:
         body.append("\n")
+    if e.undef_c:
+        body.append("\tif (%s) {\n\t\treturn STD_E_DECODE;\n\t}\n" % fields(strip_outer(e.undef_c), e.id, width))
     if e.unpred_c:
         body.append("\tif (%s) {\n\t\treturn STD_E_INVALID;\n\t}\n" % fields(strip_outer(e.unpred_c), e.id, width))
     if e.later_c:

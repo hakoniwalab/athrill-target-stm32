@@ -18,6 +18,7 @@
 #include "arm_common/arm_pseudo_parallel.h"
 #include "arm_common/arm_pseudo_saturate.h"
 #include "arm_common/arm_pseudo_dsp_multiply.h"
+#include "arm_common/arm_pseudo_fp_ls.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
@@ -5512,6 +5513,1030 @@ static Std_ReturnType exec_pkhtb_t1(TargetCoreType *core, uint32 insn)
 	return arm_pseudo_pkhtb(core, &in, &out);
 }
 
+/* VMOV_r_T2_S: VMOV<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vmov_r_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMOV_r_T2_S_Vd(insn), t32w_VMOV_r_T2_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VMOV_r_T2_S_Vm(insn), t32w_VMOV_r_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmov_reg(core, &in, &out);
+}
+
+/* VABS_T2_S: VABS<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vabs_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VABS_T2_S_Vd(insn), t32w_VABS_T2_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VABS_T2_S_Vm(insn), t32w_VABS_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VABS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vabs(core, &in, &out);
+}
+
+/* VNEG_T2_S: VNEG<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vneg_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VNEG_T2_S_Vd(insn), t32w_VNEG_T2_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VNEG_T2_S_Vm(insn), t32w_VNEG_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VNEG";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vneg(core, &in, &out);
+}
+
+/* VMOV_i_T2_S: VMOV<c>.F32 <Sd>, #<imm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); imm32 = VFPExpandImm(imm4H:imm4L, 32); */
+static Std_ReturnType exec_vmov_i_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMOV_i_T2_S_Vd(insn), t32w_VMOV_i_T2_S_D(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = VFPExpandImm((t32w_VMOV_i_T2_S_imm4H(insn) << 4) | t32w_VMOV_i_T2_S_imm4L(insn), 32U);
+	in.sel_cond = 0U;
+	return arm_pseudo_vmov_imm(core, &in, &out);
+}
+
+/* VSELEQ_T1_S: VSELEQ.F32 <Sd>, <Sn>, <Sm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vseleq_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSELEQ_T1_S_Vd(insn), t32w_VSELEQ_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VSELEQ_T1_S_Vn(insn), t32w_VSELEQ_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VSELEQ_T1_S_Vm(insn), t32w_VSELEQ_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0x0U;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELVS_T1_S: VSELVS.F32 <Sd>, <Sn>, <Sm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselvs_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSELVS_T1_S_Vd(insn), t32w_VSELVS_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VSELVS_T1_S_Vn(insn), t32w_VSELVS_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VSELVS_T1_S_Vm(insn), t32w_VSELVS_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0x6U;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELGE_T1_S: VSELGE.F32 <Sd>, <Sn>, <Sm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselge_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSELGE_T1_S_Vd(insn), t32w_VSELGE_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VSELGE_T1_S_Vn(insn), t32w_VSELGE_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VSELGE_T1_S_Vm(insn), t32w_VSELGE_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0xAU;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELGT_T1_S: VSELGT.F32 <Sd>, <Sn>, <Sm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselgt_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSELGT_T1_S_Vd(insn), t32w_VSELGT_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VSELGT_T1_S_Vn(insn), t32w_VSELGT_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VSELGT_T1_S_Vm(insn), t32w_VSELGT_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0xCU;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VMOV_r_T2_D: VMOV<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vmov_r_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMOV_r_T2_D_D(insn), t32w_VMOV_r_T2_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VMOV_r_T2_D_M(insn), t32w_VMOV_r_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMOV_r_T2_D_D(insn) != 0U) || (t32w_VMOV_r_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmov_reg(core, &in, &out);
+}
+
+/* VABS_T2_D: VABS<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vabs_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VABS_T2_D_D(insn), t32w_VABS_T2_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VABS_T2_D_M(insn), t32w_VABS_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VABS_T2_D_D(insn) != 0U) || (t32w_VABS_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VABS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vabs(core, &in, &out);
+}
+
+/* VNEG_T2_D: VNEG<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vneg_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VNEG_T2_D_D(insn), t32w_VNEG_T2_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VNEG_T2_D_M(insn), t32w_VNEG_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VNEG_T2_D_D(insn) != 0U) || (t32w_VNEG_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VNEG";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vneg(core, &in, &out);
+}
+
+/* VMOV_i_T2_D: VMOV<c>.F64 <Dd>, #<imm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); imm64 = VFPExpandImm(imm4H:imm4L, 64);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vmov_i_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMOV_i_T2_D_D(insn), t32w_VMOV_i_T2_D_Vd(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VMOV_i_T2_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = VFPExpandImm((t32w_VMOV_i_T2_D_imm4H(insn) << 4) | t32w_VMOV_i_T2_D_imm4L(insn), 64U);
+	in.sel_cond = 0U;
+	return arm_pseudo_vmov_imm(core, &in, &out);
+}
+
+/* VSELEQ_T1_D: VSELEQ.F64 <Dd>, <Dn>, <Dm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vseleq_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSELEQ_T1_D_D(insn), t32w_VSELEQ_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VSELEQ_T1_D_N(insn), t32w_VSELEQ_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VSELEQ_T1_D_M(insn), t32w_VSELEQ_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSELEQ_T1_D_D(insn) != 0U) || (t32w_VSELEQ_T1_D_N(insn) != 0U) || (t32w_VSELEQ_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0x0U;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELVS_T1_D: VSELVS.F64 <Dd>, <Dn>, <Dm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselvs_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSELVS_T1_D_D(insn), t32w_VSELVS_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VSELVS_T1_D_N(insn), t32w_VSELVS_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VSELVS_T1_D_M(insn), t32w_VSELVS_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSELVS_T1_D_D(insn) != 0U) || (t32w_VSELVS_T1_D_N(insn) != 0U) || (t32w_VSELVS_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0x6U;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELGE_T1_D: VSELGE.F64 <Dd>, <Dn>, <Dm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselge_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSELGE_T1_D_D(insn), t32w_VSELGE_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VSELGE_T1_D_N(insn), t32w_VSELGE_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VSELGE_T1_D_M(insn), t32w_VSELGE_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSELGE_T1_D_D(insn) != 0U) || (t32w_VSELGE_T1_D_N(insn) != 0U) || (t32w_VSELGE_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0xAU;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VSELGT_T1_D: VSELGT.F64 <Dd>, <Dn>, <Dm>
+ *     EncodingSpecificOperations(): cond = cc:(cc<1> EOR cc<0>):'0'; dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (VSEL is not conditional: its condition (in.cond) is AL, the selection's is sel_cond.) */
+static Std_ReturnType exec_vselgt_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSELGT_T1_D_D(insn), t32w_VSELGT_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VSELGT_T1_D_N(insn), t32w_VSELGT_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VSELGT_T1_D_M(insn), t32w_VSELGT_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSELGT_T1_D_D(insn) != 0U) || (t32w_VSELGT_T1_D_N(insn) != 0U) || (t32w_VSELGT_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSEL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0xCU;
+	return arm_pseudo_vsel(core, &in, &out);
+}
+
+/* VMOV_s_T1: VMOV<c> <Rt>, <Sn>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); n = UInt(Vn:N);
+ *     if t IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_s_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_s_T1_Rt(insn);
+	uint32 n = thumb_sreg(t32w_VMOV_s_T1_Vn(insn), t32w_VMOV_s_T1_N(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (thumb_sp_or_pc(t)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = TRUE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = n;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_s(core, &in, &out);
+}
+
+/* VMOV_tos_T1: VMOV<c> <Sn>, <Rt>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); n = UInt(Vn:N);
+ *     if t IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_tos_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_tos_T1_Rt(insn);
+	uint32 n = thumb_sreg(t32w_VMOV_tos_T1_Vn(insn), t32w_VMOV_tos_T1_N(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (thumb_sp_or_pc(t)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = FALSE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = n;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_s(core, &in, &out);
+}
+
+/* VMOV_ss_T1: VMOV<c> <Rt>, <Rt2>, <Sm>, <Sm1>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(Vm:M);
+ *     if t IN {13,15} || t2 IN {13,15} || m == 31 then UNPREDICTABLE;
+ *     if to_arm_registers && t == t2 then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_ss_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_ss_T1_Rt(insn);
+	uint32 t2 = t32w_VMOV_ss_T1_Rt2(insn);
+	uint32 m = thumb_sreg(t32w_VMOV_ss_T1_Vm(insn), t32w_VMOV_ss_T1_M(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (thumb_sp_or_pc(t) || thumb_sp_or_pc(t2) || (m == 31U) || (t == t2)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = TRUE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_SET_REG(core, &in, Rt2, t2);
+	in.fp = m;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_ss(core, &in, &out);
+}
+
+/* VMOV_toss_T1: VMOV<c> <Sm>, <Sm1>, <Rt>, <Rt2>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(Vm:M);
+ *     if t IN {13,15} || t2 IN {13,15} || m == 31 then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_toss_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_toss_T1_Rt(insn);
+	uint32 t2 = t32w_VMOV_toss_T1_Rt2(insn);
+	uint32 m = thumb_sreg(t32w_VMOV_toss_T1_Vm(insn), t32w_VMOV_toss_T1_M(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (thumb_sp_or_pc(t) || thumb_sp_or_pc(t2) || (m == 31U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = FALSE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_SET_REG(core, &in, Rt2, t2);
+	in.fp = m;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_ss(core, &in, &out);
+}
+
+/* VMOV_d_T1: VMOV<c> <Rt>, <Rt2>, <Dm>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if t IN {13,15} || t2 IN {13,15} then UNPREDICTABLE;
+ *     if to_arm_registers && t == t2 then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_d_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_d_T1_Rt(insn);
+	uint32 t2 = t32w_VMOV_d_T1_Rt2(insn);
+	uint32 m = thumb_dreg(t32w_VMOV_d_T1_M(insn), t32w_VMOV_d_T1_Vm(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VMOV_d_T1_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (thumb_sp_or_pc(t) || thumb_sp_or_pc(t2) || (t == t2)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = TRUE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_SET_REG(core, &in, Rt2, t2);
+	in.fp = m;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_d(core, &in, &out);
+}
+
+/* VMOV_tod_T1: VMOV<c> <Dm>, <Rt>, <Rt2>
+ *     to_arm_registers = (op == '1'); t = UInt(Rt); t2 = UInt(Rt2); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if t IN {13,15} || t2 IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_tod_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_tod_T1_Rt(insn);
+	uint32 t2 = t32w_VMOV_tod_T1_Rt2(insn);
+	uint32 m = thumb_dreg(t32w_VMOV_tod_T1_M(insn), t32w_VMOV_tod_T1_Vm(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VMOV_tod_T1_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (thumb_sp_or_pc(t) || thumb_sp_or_pc(t2)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = FALSE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_SET_REG(core, &in, Rt2, t2);
+	in.fp = m;
+	in.index = 0U;
+	return arm_pseudo_vmov_core_d(core, &in, &out);
+}
+
+/* VMOV_rs_T1: VMOV<c>.32 <Dd[x]>, <Rt>
+ *     if opc1<1> == '0' && opc2 == '00' then index = UInt(opc1<0>) (32-bit scalar); d = UInt(D:Vd); t = UInt(Rt);
+ *     if opc1<1> == '1' || opc2 != '00' (8- and 16-bit scalars: Advanced SIMD); VFPSmallRegisterBank() && (D == '1') then UNDEFINED;
+ *     if t IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_rs_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_rs_T1_Rt(insn);
+	uint32 d = thumb_dreg(t32w_VMOV_rs_T1_D(insn), t32w_VMOV_rs_T1_Vd(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (((t32w_VMOV_rs_T1_opc1(insn) & 2U) != 0U) || (t32w_VMOV_rs_T1_opc2(insn) != 0U) || (t32w_VMOV_rs_T1_D(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (thumb_sp_or_pc(t)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = FALSE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = d;
+	in.index = t32w_VMOV_rs_T1_opc1(insn) & 1U;
+	return arm_pseudo_vmov_core_scalar(core, &in, &out);
+}
+
+/* VMOV_sr_T1: VMOV<c>.32 <Rt>, <Dn[x]>
+ *     if U == '0' && opc1<1> == '0' && opc2 == '00' then index = UInt(opc1<0>) (32-bit scalar); t = UInt(Rt); n = UInt(N:Vn);
+ *     if U == '1' || opc1<1> == '1' || opc2 != '00' (8- and 16-bit scalars: Advanced SIMD); VFPSmallRegisterBank() && (N == '1') then UNDEFINED;
+ *     if t IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_vmov_sr_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMOV_sr_T1_Rt(insn);
+	uint32 n = thumb_dreg(t32w_VMOV_sr_T1_N(insn), t32w_VMOV_sr_T1_Vn(insn));
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMOV_sr_T1_U(insn) != 0U) || ((t32w_VMOV_sr_T1_opc1(insn) & 2U) != 0U) || (t32w_VMOV_sr_T1_opc2(insn) != 0U) || (t32w_VMOV_sr_T1_N(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (thumb_sp_or_pc(t)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMOV";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = TRUE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = n;
+	in.index = t32w_VMOV_sr_T1_opc1(insn) & 1U;
+	return arm_pseudo_vmov_core_scalar(core, &in, &out);
+}
+
+/* VMRS_T1_AS: VMRS<c> <Rt>, FPSCR / VMRS<c> APSR_nzcv, FPSCR
+ *     t = UInt(Rt);
+ *     if t == 13 then UNPREDICTABLE;
+ *     if reg != '0001' (FPSCR is the only floating-point system register of Armv7-M) then UNPREDICTABLE; */
+static Std_ReturnType exec_vmrs_t1_as(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMRS_T1_AS_Rt(insn);
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if ((t == 13U) || (t32w_VMRS_T1_AS_reg(insn) != 1U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMRS";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = TRUE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = 0U;
+	in.index = 0U;
+	return arm_pseudo_vmrs_vmsr(core, &in, &out);
+}
+
+/* VMSR_T1_AS: VMSR<c> FPSCR, <Rt>
+ *     t = UInt(Rt);
+ *     if t IN {13,15} then UNPREDICTABLE;
+ *     if reg != '0001' (FPSCR is the only floating-point system register of Armv7-M) then UNPREDICTABLE; */
+static Std_ReturnType exec_vmsr_t1_as(TargetCoreType *core, uint32 insn)
+{
+	uint32 t = t32w_VMSR_T1_AS_Rt(insn);
+	arm_fp_core_input_type in;
+	arm_fp_output_type out;
+
+	if (thumb_sp_or_pc(t) || (t32w_VMSR_T1_AS_reg(insn) != 1U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMSR";
+	in.cond = Stm32CurrentCond(core);
+	in.to_arm_registers = FALSE;
+	ARM_SET_REG(core, &in, Rt, t);
+	ARM_NO_REG(&in, Rt2);
+	in.fp = 0U;
+	in.index = 0U;
+	return arm_pseudo_vmrs_vmsr(core, &in, &out);
+}
+
+/* VLDR_T1_S: VLDR<c> <Sd>, [<Rn>{, #+/-<imm>}]
+ *     single_reg = TRUE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(Vd:D); n = UInt(Rn); */
+static Std_ReturnType exec_vldr_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VLDR_T1_S_Vd(insn), t32w_VLDR_T1_S_D(insn));
+	uint32 n = t32w_VLDR_T1_S_Rn(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VLDR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDR_T1_S_imm8(insn) << 2;
+	in.add = t32w_VLDR_T1_S_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vldr(core, &in, &out);
+}
+
+/* VLDR_l_T1_S: VLDR<c> <Sd>, <label>
+ *     single_reg = TRUE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(Vd:D); n = 15; */
+static Std_ReturnType exec_vldr_l_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VLDR_l_T1_S_Vd(insn), t32w_VLDR_l_T1_S_D(insn));
+	uint32 n = 15U;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VLDR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDR_l_T1_S_imm8(insn) << 2;
+	in.add = t32w_VLDR_l_T1_S_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vldr(core, &in, &out);
+}
+
+/* VSTR_T1_S: VSTR<c> <Sd>, [<Rn>{, #+/-<imm>}]
+ *     single_reg = TRUE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(Vd:D); n = UInt(Rn);
+ *     if n == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_vstr_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSTR_T1_S_Vd(insn), t32w_VSTR_T1_S_D(insn));
+	uint32 n = t32w_VSTR_T1_S_Rn(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if (n == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTR_T1_S_imm8(insn) << 2;
+	in.add = t32w_VSTR_T1_S_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vstr(core, &in, &out);
+}
+
+/* VLDR_T1_D: VLDR<c> <Dd>, [<Rn>{, #+/-<imm>}]
+ *     single_reg = FALSE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(D:Vd); n = UInt(Rn);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vldr_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VLDR_T1_D_D(insn), t32w_VLDR_T1_D_Vd(insn));
+	uint32 n = t32w_VLDR_T1_D_Rn(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VLDR_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VLDR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDR_T1_D_imm8(insn) << 2;
+	in.add = t32w_VLDR_T1_D_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vldr(core, &in, &out);
+}
+
+/* VLDR_l_T1_D: VLDR<c> <Dd>, <label>
+ *     single_reg = FALSE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(D:Vd); n = 15;
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vldr_l_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VLDR_l_T1_D_D(insn), t32w_VLDR_l_T1_D_Vd(insn));
+	uint32 n = 15U;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VLDR_l_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VLDR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDR_l_T1_D_imm8(insn) << 2;
+	in.add = t32w_VLDR_l_T1_D_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vldr(core, &in, &out);
+}
+
+/* VSTR_T1_D: VSTR<c> <Dd>, [<Rn>{, #+/-<imm>}]
+ *     single_reg = FALSE; add = (U == '1'); imm32 = ZeroExtend(imm8:'00', 32); d = UInt(D:Vd); n = UInt(Rn);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED;
+ *     if n == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_vstr_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSTR_T1_D_D(insn), t32w_VSTR_T1_D_Vd(insn));
+	uint32 n = t32w_VSTR_T1_D_Rn(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VSTR_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (n == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTR";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTR_T1_D_imm8(insn) << 2;
+	in.add = t32w_VSTR_T1_D_U(insn) != 0U;
+	in.wback = FALSE;
+	in.regs = 0U;
+	return arm_pseudo_vstr(core, &in, &out);
+}
+
+/* VLDM_T1: VLDM<c> <Rn>{!}, <list>
+ *     single_regs = FALSE; add = (U == '1'); wback = (W == '1'); d = UInt(D:Vd); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8) DIV 2;
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || regs > 16 || (d+regs) > 32 then UNPREDICTABLE;
+ *     if imm8<0> == '1' && (d+regs) > 16 then UNPREDICTABLE;
+ *     if VFPSmallRegisterBank() && (d+regs) > 16 then UNPREDICTABLE;
+ *     (Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.) */
+static Std_ReturnType exec_vldm_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VLDM_T1_D(insn), t32w_VLDM_T1_Vd(insn));
+	uint32 n = t32w_VLDM_T1_Rn(insn);
+	uint32 regs = t32w_VLDM_T1_imm8(insn) >> 1;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VLDM";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDM_T1_imm8(insn) << 2;
+	in.add = TRUE;
+	in.wback = t32w_VLDM_T1_W(insn) != 0U;
+	in.regs = regs;
+	return arm_pseudo_vldm(core, &in, &out);
+}
+
+/* VLDMDB_T1: VLDMDB<c> <Rn>!, <list>
+ *     single_regs = FALSE; add = FALSE; wback = TRUE; d = UInt(D:Vd); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8) DIV 2;
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || regs > 16 || (d+regs) > 32 then UNPREDICTABLE;
+ *     if imm8<0> == '1' && (d+regs) > 16 then UNPREDICTABLE;
+ *     if VFPSmallRegisterBank() && (d+regs) > 16 then UNPREDICTABLE;
+ *     (Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.) */
+static Std_ReturnType exec_vldmdb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VLDMDB_T1_D(insn), t32w_VLDMDB_T1_Vd(insn));
+	uint32 n = t32w_VLDMDB_T1_Rn(insn);
+	uint32 regs = t32w_VLDMDB_T1_imm8(insn) >> 1;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VLDMDB";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDMDB_T1_imm8(insn) << 2;
+	in.add = FALSE;
+	in.wback = TRUE;
+	in.regs = regs;
+	return arm_pseudo_vldm(core, &in, &out);
+}
+
+/* VSTM_T1: VSTM<c> <Rn>{!}, <list>
+ *     single_regs = FALSE; add = (U == '1'); wback = (W == '1'); d = UInt(D:Vd); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8) DIV 2;
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || regs > 16 || (d+regs) > 32 then UNPREDICTABLE;
+ *     if imm8<0> == '1' && (d+regs) > 16 then UNPREDICTABLE;
+ *     if VFPSmallRegisterBank() && (d+regs) > 16 then UNPREDICTABLE;
+ *     (Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.) */
+static Std_ReturnType exec_vstm_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSTM_T1_D(insn), t32w_VSTM_T1_Vd(insn));
+	uint32 n = t32w_VSTM_T1_Rn(insn);
+	uint32 regs = t32w_VSTM_T1_imm8(insn) >> 1;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTM";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTM_T1_imm8(insn) << 2;
+	in.add = TRUE;
+	in.wback = t32w_VSTM_T1_W(insn) != 0U;
+	in.regs = regs;
+	return arm_pseudo_vstm(core, &in, &out);
+}
+
+/* VSTMDB_T1: VSTMDB<c> <Rn>!, <list>
+ *     single_regs = FALSE; add = FALSE; wback = TRUE; d = UInt(D:Vd); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8) DIV 2;
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || regs > 16 || (d+regs) > 32 then UNPREDICTABLE;
+ *     if imm8<0> == '1' && (d+regs) > 16 then UNPREDICTABLE;
+ *     if VFPSmallRegisterBank() && (d+regs) > 16 then UNPREDICTABLE;
+ *     (Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.) */
+static Std_ReturnType exec_vstmdb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSTMDB_T1_D(insn), t32w_VSTMDB_T1_Vd(insn));
+	uint32 n = t32w_VSTMDB_T1_Rn(insn);
+	uint32 regs = t32w_VSTMDB_T1_imm8(insn) >> 1;
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTMDB";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = FALSE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTMDB_T1_imm8(insn) << 2;
+	in.add = FALSE;
+	in.wback = TRUE;
+	in.regs = regs;
+	return arm_pseudo_vstm(core, &in, &out);
+}
+
+/* VLDM_T2: VLDM<c> <Rn>{!}, <list>
+ *     single_regs = TRUE; add = (U == '1'); wback = (W == '1'); d = UInt(Vd:D); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8);
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || (d+regs) > 32 then UNPREDICTABLE; */
+static Std_ReturnType exec_vldm_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VLDM_T2_Vd(insn), t32w_VLDM_T2_D(insn));
+	uint32 n = t32w_VLDM_T2_Rn(insn);
+	uint32 regs = t32w_VLDM_T2_imm8(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 32U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VLDM";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDM_T2_imm8(insn) << 2;
+	in.add = TRUE;
+	in.wback = t32w_VLDM_T2_W(insn) != 0U;
+	in.regs = regs;
+	return arm_pseudo_vldm(core, &in, &out);
+}
+
+/* VLDMDB_T2: VLDMDB<c> <Rn>!, <list>
+ *     single_regs = TRUE; add = FALSE; wback = TRUE; d = UInt(Vd:D); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8);
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || (d+regs) > 32 then UNPREDICTABLE; */
+static Std_ReturnType exec_vldmdb_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VLDMDB_T2_Vd(insn), t32w_VLDMDB_T2_D(insn));
+	uint32 n = t32w_VLDMDB_T2_Rn(insn);
+	uint32 regs = t32w_VLDMDB_T2_imm8(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 32U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VLDMDB";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VLDMDB_T2_imm8(insn) << 2;
+	in.add = FALSE;
+	in.wback = TRUE;
+	in.regs = regs;
+	return arm_pseudo_vldm(core, &in, &out);
+}
+
+/* VSTM_T2: VSTM<c> <Rn>{!}, <list>
+ *     single_regs = TRUE; add = (U == '1'); wback = (W == '1'); d = UInt(Vd:D); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8);
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || (d+regs) > 32 then UNPREDICTABLE; */
+static Std_ReturnType exec_vstm_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSTM_T2_Vd(insn), t32w_VSTM_T2_D(insn));
+	uint32 n = t32w_VSTM_T2_Rn(insn);
+	uint32 regs = t32w_VSTM_T2_imm8(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 32U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTM";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTM_T2_imm8(insn) << 2;
+	in.add = TRUE;
+	in.wback = t32w_VSTM_T2_W(insn) != 0U;
+	in.regs = regs;
+	return arm_pseudo_vstm(core, &in, &out);
+}
+
+/* VSTMDB_T2: VSTMDB<c> <Rn>!, <list>
+ *     single_regs = TRUE; add = FALSE; wback = TRUE; d = UInt(Vd:D); n = UInt(Rn); imm32 = ZeroExtend(imm8:'00', 32); regs = UInt(imm8);
+ *     if n == 15 then UNPREDICTABLE;
+ *     if regs == 0 || (d+regs) > 32 then UNPREDICTABLE; */
+static Std_ReturnType exec_vstmdb_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSTMDB_T2_Vd(insn), t32w_VSTMDB_T2_D(insn));
+	uint32 n = t32w_VSTMDB_T2_Rn(insn);
+	uint32 regs = t32w_VSTMDB_T2_imm8(insn);
+	arm_fp_ls_input_type in;
+	arm_fp_output_type out;
+
+	if ((n == 15U) || (regs == 0U) || ((d + regs) > 32U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VSTMDB";
+	in.cond = Stm32CurrentCond(core);
+	in.single_regs = TRUE;
+	in.d = d;
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = t32w_VSTMDB_T2_imm8(insn) << 2;
+	in.add = FALSE;
+	in.wback = TRUE;
+	in.regs = regs;
+	return arm_pseudo_vstm(core, &in, &out);
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -5736,4 +6761,44 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_USAT16_T1] = exec_usat16_t1,
 	[T32_32_PKHBT_T1] = exec_pkhbt_t1,
 	[T32_32_PKHTB_T1] = exec_pkhtb_t1,
+	[T32_32_VMOV_r_T2_S] = exec_vmov_r_t2_s,
+	[T32_32_VABS_T2_S] = exec_vabs_t2_s,
+	[T32_32_VNEG_T2_S] = exec_vneg_t2_s,
+	[T32_32_VMOV_i_T2_S] = exec_vmov_i_t2_s,
+	[T32_32_VSELEQ_T1_S] = exec_vseleq_t1_s,
+	[T32_32_VSELVS_T1_S] = exec_vselvs_t1_s,
+	[T32_32_VSELGE_T1_S] = exec_vselge_t1_s,
+	[T32_32_VSELGT_T1_S] = exec_vselgt_t1_s,
+	[T32_32_VMOV_r_T2_D] = exec_vmov_r_t2_d,
+	[T32_32_VABS_T2_D] = exec_vabs_t2_d,
+	[T32_32_VNEG_T2_D] = exec_vneg_t2_d,
+	[T32_32_VMOV_i_T2_D] = exec_vmov_i_t2_d,
+	[T32_32_VSELEQ_T1_D] = exec_vseleq_t1_d,
+	[T32_32_VSELVS_T1_D] = exec_vselvs_t1_d,
+	[T32_32_VSELGE_T1_D] = exec_vselge_t1_d,
+	[T32_32_VSELGT_T1_D] = exec_vselgt_t1_d,
+	[T32_32_VMOV_s_T1] = exec_vmov_s_t1,
+	[T32_32_VMOV_tos_T1] = exec_vmov_tos_t1,
+	[T32_32_VMOV_ss_T1] = exec_vmov_ss_t1,
+	[T32_32_VMOV_toss_T1] = exec_vmov_toss_t1,
+	[T32_32_VMOV_d_T1] = exec_vmov_d_t1,
+	[T32_32_VMOV_tod_T1] = exec_vmov_tod_t1,
+	[T32_32_VMOV_rs_T1] = exec_vmov_rs_t1,
+	[T32_32_VMOV_sr_T1] = exec_vmov_sr_t1,
+	[T32_32_VMRS_T1_AS] = exec_vmrs_t1_as,
+	[T32_32_VMSR_T1_AS] = exec_vmsr_t1_as,
+	[T32_32_VLDR_T1_S] = exec_vldr_t1_s,
+	[T32_32_VLDR_l_T1_S] = exec_vldr_l_t1_s,
+	[T32_32_VSTR_T1_S] = exec_vstr_t1_s,
+	[T32_32_VLDR_T1_D] = exec_vldr_t1_d,
+	[T32_32_VLDR_l_T1_D] = exec_vldr_l_t1_d,
+	[T32_32_VSTR_T1_D] = exec_vstr_t1_d,
+	[T32_32_VLDM_T1] = exec_vldm_t1,
+	[T32_32_VLDMDB_T1] = exec_vldmdb_t1,
+	[T32_32_VSTM_T1] = exec_vstm_t1,
+	[T32_32_VSTMDB_T1] = exec_vstmdb_t1,
+	[T32_32_VLDM_T2] = exec_vldm_t2,
+	[T32_32_VLDMDB_T2] = exec_vldmdb_t2,
+	[T32_32_VSTM_T2] = exec_vstm_t2,
+	[T32_32_VSTMDB_T2] = exec_vstmdb_t2,
 };

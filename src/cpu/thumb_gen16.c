@@ -18,6 +18,7 @@
 #include "arm_common/arm_pseudo_parallel.h"
 #include "arm_common/arm_pseudo_saturate.h"
 #include "arm_common/arm_pseudo_dsp_multiply.h"
+#include "arm_common/arm_pseudo_fp_ls.h"
 
 /* LDR_i_T1: LDR <Rt>, [<Rn>{, #<imm5:'00'>}]
  *     imm32 = ZeroExtend(imm5:'00', 32); t = UInt(Rt); n = UInt(Rn); index = TRUE; add = TRUE; wback = FALSE; */

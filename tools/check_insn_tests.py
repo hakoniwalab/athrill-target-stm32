@@ -13,6 +13,7 @@ Usage:
 import os
 import re
 import subprocess
+import tempfile
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,9 +32,14 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     elfs = sorted(f for f in os.listdir(INSN) if f.endswith(".elf"))
-    listing = subprocess.run(["docker", "run", "--rm", "-v", INSN + ":/w", "-w", "/w", "athrill-stm32-toolchain",
-                              "sh", "-c", " ".join("arm-none-eabi-objdump -d %s;" % e for e in elfs)],
-                             capture_output=True, text=True, check=True).stdout
+    # The listings go to files: streamed back from docker, tens of megabytes
+    # of them came back cut short.
+    with tempfile.TemporaryDirectory() as out_dir:
+        subprocess.run(["docker", "run", "--rm", "-v", INSN + ":/w", "-v", out_dir + ":/out", "-w", "/w",
+                        "athrill-stm32-toolchain", "sh", "-c",
+                        " ".join("arm-none-eabi-objdump -d %s > /out/%s.lst;" % (e, e) for e in elfs)],
+                       capture_output=True, text=True, check=True)
+        listing = "".join(open(os.path.join(out_dir, e + ".lst")).read() for e in elfs)
     encodings = []
     for line in listing.splitlines():
         m = re.match(r"^\s*[0-9a-f]+:\s+([0-9a-f]{4})(?: ([0-9a-f]{4}))?\s+(\S+)", line)

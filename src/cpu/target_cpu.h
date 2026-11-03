@@ -22,6 +22,8 @@ typedef struct {
     uint32 next_pc;	/* address of the next instruction (written by a branch) */
     uint32 apsr;
     uint32 itstate;	/* EPSR.IT<7:0> (ITSTATE) */
+    uint32 s[32];	/* S0-S31; D[n] = S[2n+1]:S[2n] (FPv5-D16: D0-D15) */
+    uint32 fpscr;
 } CpuRegisterType;
 
 typedef struct TargetCoreTypeTag {
