@@ -1,2 +1,11 @@
 # athrill-target-stm32
-athrill-target-stm32
+
+The STM32 target for Athrill. Its goal is a lightweight Processor-in-the-Loop
+(PIL): PX4 built for a Pixhawk board (first Pixhawk 4, `px4_fmu-v5`,
+STM32F765) runs on Athrill and flies a vehicle simulated by Hakoniwa in
+lockstep.
+
+See [docs/design.md](docs/design.md) for the design decisions and stages.
+
+The RISC-V target ([athrill-target-riscv](https://github.com/hakoniwalab/athrill-target-riscv))
+already runs PX4 on the AIFoundry Erbium board this way.
