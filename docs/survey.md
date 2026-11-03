@@ -78,11 +78,28 @@ From PX4's board definition (`boards/px4/fmu-v5`, `init/rc.board_sensors`,
   set, but the M-profile differs (exception model, system instructions, no ARM
   state); differences would be added by hand.
 
-## 6. Consequences for the design
+## 6. Sources for the instruction decoder
+
+As in the RISC-V target (tables generated from `riscv-opcodes`, cross-checked
+against GNU objdump), the decoder tables should come from a machine-readable
+source, with an independent decoder as the oracle.
+
+| Source | What it gives | Licence | Use |
+|---|---|---|---|
+| Arm AARCHMRS open-source package (`Instructions.json`) | A64, A32 and T32 encodings from Arm's own data (T32 from the 2025-06 releases on) ([mirror](https://kernel.googlesource.com/pub/scm/linux/kernel/git/maz/AARCHMRS/+/HEAD), [aarchmrs-instructions crate](https://docs.rs/crate/aarchmrs-instructions/latest/source/README.md)) | BSD-3-Clause (Arm Limited), as stated by the crate generated from it; the package's own notice is to be read | Candidate main source for T32 encodings. It is the A-profile T32: Armv7-M is a subset with differences (no ARM state, M-profile system instructions `MRS`/`MSR`/`CPS` encodings, exception return), checked by hand |
+| Arm Armv8-M machine-readable specification (XML/ASL) | Encodings and executable ASL of the M-profile | Released in 2017 per its authors ([FMCAD 2016](https://alastairreid.github.io/papers/FMCAD_16), [v8-M validation](https://alastairreid.github.io/validating-specs)); no current package or terms were found | Check Arm's site; if available on usable terms, the best match for M-profile |
+| ASLi, the ASL interpreter ([asl-interpreter](https://github.com/alastairreid/asl-interpreter), [opam asli](https://ocaml.org/p/asli)) | Runs Arm's ASL | BSD-3-Clause (the tool; Arm's ASL keeps Arm's terms) | Possible behaviour oracle, if an M-profile ASL is available |
+| Sail ([Sail licence](https://ocaml.org/p/sail/0.16/LICENSE.html)) | Sail tool and models; the Arm models are A-profile, with the ASL-derived parts copyright Arm | BSD-2-Clause except the ASL-derived parts | No M-profile model found; not a source here |
+| LLVM `ARMInstrThumb2.td` ([source](https://grok.dragonflybsd.org/xref/freebsd/contrib/llvm-project/llvm/lib/Target/ARM/ARMInstrThumb2.td?r=9768746b)) | Thumb-2 encodings as TableGen records, with M-profile predicates | Apache-2.0 with LLVM exception | Usable as an oracle (llvm-objdump / llvm-mc); not copied |
+| GNU objdump, Capstone | Disassemblers | GPL (binutils), BSD-3-Clause (Capstone) | Oracles for cross-checking every 16-bit encoding and sampled 32-bit encodings, as GNU objdump is for the RISC-V target; no code copied |
+
+## 7. Consequences for the design
 
 - ArduPilot on STM32 already has an emulator path (Renode). Starting with PX4,
   as decided, is where this target adds something.
 - Model three sensors at first (one IMU, MS5611, IST8310) and a GPS.
 - The motor-output path (AUX outputs or a px4io model) is to be decided.
-- The instruction decoder's source is to be decided after checking the terms
-  of Arm's data and other generators.
+- The instruction decoder: generate the tables from Arm's AARCHMRS T32 data
+  (after reading the package's licence notice) restricted to Armv7-M, unless
+  a current Armv8-M package is available on usable terms; cross-check with GNU
+  objdump and llvm-objdump.
