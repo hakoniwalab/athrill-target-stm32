@@ -19,6 +19,10 @@ typedef Std_ReturnType (*ThumbExec32)(TargetCoreType *core, uint32 insn);
 extern const ThumbExec16 thumb_gen_executors16[];
 extern const ThumbExec32 thumb_gen_executors32[];
 
+/* The executor of an instruction, or NULL (UNDEFINED, or not executed yet). */
+ThumbExec16 thumb_executor16(uint16 insn);
+ThumbExec32 thumb_executor32(uint32 insn);
+
 Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn);
 /* insn: the first halfword in bits 31:16, the second in bits 15:0. */
 Std_ReturnType thumb_execute32(TargetCoreType *core, uint32 insn);

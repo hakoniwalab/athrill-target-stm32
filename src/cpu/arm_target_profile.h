@@ -10,6 +10,8 @@
 #ifndef ATHRILL_STM32_ARM_TARGET_PROFILE_H
 #define ATHRILL_STM32_ARM_TARGET_PROFILE_H
 
+#include <string.h>
+#include "memory_window.h"
 #include "target_cpu.h"
 #include "bus.h"
 #include "std_errno.h"
@@ -108,7 +110,11 @@ static inline Std_ReturnType ArmALUWritePC(TargetCoreType *core, uint32 address)
 	return ArmBranchWritePC(core, address);
 }
 
-/* MemU[]: Armv7-M allows unaligned word and halfword accesses to normal memory. */
+/*
+ * MemU[]: Armv7-M allows unaligned word and halfword accesses to normal
+ * memory. Plain memory is read and written in the host memory directly
+ * (memory_window.h; the host is little-endian, as Athrill's memory is).
+ */
 static inline Std_ReturnType ArmMemU_R(TargetCoreType *core, uint32 address, uint32 size, uint32 *value)
 {
 	uint8 v8;
@@ -116,7 +122,21 @@ static inline Std_ReturnType ArmMemU_R(TargetCoreType *core, uint32 address, uin
 	uint32 v;
 	uint32 i;
 	Std_ReturnType err;
+	const uint8 *p = memory_window_pointer(address, size);
 
+	if (p != NULL) {
+		if (size == 4U) {
+			memcpy(value, p, 4U);
+		}
+		else if (size == 2U) {
+			memcpy(&v16, p, 2U);
+			*value = v16;
+		}
+		else {
+			*value = *p;
+		}
+		return STD_E_OK;
+	}
 	if ((address & (size - 1U)) == 0U) {
 		if (size == 1U) {
 			err = bus_get_data8(core->core_id, address, &v8);
@@ -146,7 +166,22 @@ static inline Std_ReturnType ArmMemU_W(TargetCoreType *core, uint32 address, uin
 {
 	uint32 i;
 	Std_ReturnType err;
+	uint8 *p = memory_window_pointer(address, size);
+	uint16 v16;
 
+	if (p != NULL) {
+		if (size == 4U) {
+			memcpy(p, &value, 4U);
+		}
+		else if (size == 2U) {
+			v16 = (uint16)value;
+			memcpy(p, &v16, 2U);
+		}
+		else {
+			*p = (uint8)value;
+		}
+		return STD_E_OK;
+	}
 	if ((address & (size - 1U)) == 0U) {
 		if (size == 1U) {
 			return bus_put_data8(core->core_id, address, (uint8)value);

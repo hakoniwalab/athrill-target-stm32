@@ -18,7 +18,18 @@
 
 CpuType virtual_cpu;
 
-static void reset_core(TargetCoreType *core)
+/*
+ * Rare paths called from cpu_supply_clock(), the hot path: kept out of line,
+ * or their stack frames (symbol lookup buffers) would be set up at every
+ * instruction.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define COLD_PATH	__attribute__((noinline, cold))
+#else
+#define COLD_PATH
+#endif
+
+COLD_PATH static void reset_core(TargetCoreType *core)
 {
 	CoreIdType id = core->core_id;
 
@@ -55,7 +66,7 @@ static uint32 idle_function(void)
 	return (uint32)addr & ~1U;
 }
 
-static Std_ReturnType take_reset(TargetCoreType *core)
+COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 {
 	uint32 sp;
 	uint32 entry;
@@ -75,7 +86,8 @@ static Std_ReturnType take_reset(TargetCoreType *core)
 	core->idle_pc = idle_function();
 	if (core->idle_pc != 0U) {
 		fprintf(stderr, "INFO: idle function at 0x%08x\n", core->idle_pc);
-	}	core->reg.r[CPU_REG_SP] = sp & ~3U;
+	}
+	core->reg.r[CPU_REG_SP] = sp & ~3U;
 	core->reg.pc = entry & ~1U;
 	core->reg.r[CPU_REG_LR] = 0xFFFFFFFFU;
 	core->reset_pending = FALSE;
@@ -91,8 +103,21 @@ static uint32 pc_sample_count[PC_SAMPLE_MAX];
 static uint32 pc_sample_used;
 static uint64 sampled_clocks;
 static uint64 halted_samples;
+static uint32 sample_countdown = PC_SAMPLE_INTERVAL;
 
-static void sample_pc(const TargetCoreType *core)
+static void record_sample(const TargetCoreType *core);
+
+static inline void sample_pc(const TargetCoreType *core)
+{
+	sampled_clocks++;
+	if (--sample_countdown != 0U) {
+		return;
+	}
+	sample_countdown = PC_SAMPLE_INTERVAL;
+	record_sample(core);
+}
+
+COLD_PATH static void record_sample(const TargetCoreType *core)
 {
 	uint32 block = core->reg.pc >> 6;
 	uint32 i;
@@ -102,9 +127,6 @@ static void sample_pc(const TargetCoreType *core)
 	if (start_clocks == 0xFFFFFFFFU) {
 		start_clocks = 0U;
 		(void)cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &start_clocks);
-	}
-	if ((++sampled_clocks % PC_SAMPLE_INTERVAL) != 0U) {
-		return;
 	}
 	if (sampled_clocks < start_clocks) {
 		return;
@@ -177,6 +199,23 @@ void cpu_mpu_construct_containers(CoreIdType id)
 	(void)id;
 }
 
+/* The instruction the run stops at. */
+COLD_PATH static void report_stop(const TargetCoreType *core, Std_ReturnType err)
+{
+	uint32 insn;
+	uint32 length;
+	const char *name = thumb_instruction_at(core, core->reg.pc, &insn, &length);
+	const char *what = "unsupported instruction";
+
+	if (err == STD_E_INVALID) {
+		what = "UNPREDICTABLE instruction";
+	}
+	else if (err == STD_E_EXEC) {
+		what = "lockup (a fault that cannot be taken) at instruction";
+	}
+	printf("ERROR: %s 0x%0*x (%s) at 0x%08x\n", what, (int)(length * 2U), insn, name, core->reg.pc);
+}
+
 Std_ReturnType cpu_supply_clock(CoreIdType id)
 {
 	TargetCoreType *core = &virtual_cpu.cores[id].core;
@@ -219,18 +258,7 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 	}
 	err = thumb_execute(core);
 	if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
-		uint32 insn;
-		uint32 length;
-		const char *name = thumb_instruction_at(core, core->reg.pc, &insn, &length);
-		const char *what = "unsupported instruction";
-
-		if (err == STD_E_INVALID) {
-			what = "UNPREDICTABLE instruction";
-		}
-		else if (err == STD_E_EXEC) {
-			what = "lockup (a fault that cannot be taken) at instruction";
-		}
-		printf("ERROR: %s 0x%0*x (%s) at 0x%08x\n", what, (int)(length * 2U), insn, name, core->reg.pc);
+		report_stop(core, err);
 	}
 	return err;
 }
@@ -251,7 +279,19 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed) {
 		(*clock)++;
 		n++;
-		err = cpu_supply_clock(core_id);
+		if (core->reset_pending || core->scs.reset_requested || (core->reg.pc == core->idle_pc)) {
+			err = cpu_supply_clock(core_id);
+		}
+		else {
+			/* cpu_supply_clock() for a running core with nothing else to do */
+			core->internal_cycle++;
+			sample_pc(core);
+			virtual_cpu.cores[core_id].elaps++;
+			err = thumb_execute(core);
+			if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
+				report_stop(core, err);
+			}
+		}
 		if (err != STD_E_OK) {
 			break;
 		}

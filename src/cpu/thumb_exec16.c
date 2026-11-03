@@ -393,15 +393,22 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_UDF_T1] = exec_udf,
 };
 
-Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn)
+ThumbExec16 thumb_executor16(uint16 insn)
 {
 	T32Decode16Id id = t32_decode16(insn);
 
 	if (executors[id] != NULL) {
-		return executors[id](core, insn);
+		return executors[id];
 	}
-	if (thumb_gen_executors16[id] != NULL) {
-		return thumb_gen_executors16[id](core, insn);
+	return thumb_gen_executors16[id];
+}
+
+Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn)
+{
+	ThumbExec16 executor = thumb_executor16(insn);
+
+	if (executor == NULL) {
+		return STD_E_DECODE;
 	}
-	return STD_E_DECODE;
+	return executor(core, insn);
 }

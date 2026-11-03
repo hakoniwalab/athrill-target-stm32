@@ -55,6 +55,7 @@ option(ATHRILL_STM32_COVERAGE "Build the CPU with code coverage" OFF)
 add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
   src/cpu/thumb_exec.c
+  src/cpu/memory_window.c
   src/cpu/thumb_exec16.c
   src/cpu/thumb_exec32.c
   src/cpu/thumb_gen16.c

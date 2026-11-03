@@ -144,7 +144,9 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	(void)c;
-	stm32_device_accessed = TRUE;
+	if (stm32_uart_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	}
 	report((uint32)a, "read");
 	*d = (uint8)(read_word(r, (uint32)a) >> (8U * (a & 3U)));
 	return STD_E_OK;
@@ -153,7 +155,9 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
 {
 	(void)c;
-	stm32_device_accessed = TRUE;
+	if (stm32_uart_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	}
 	report((uint32)a, "read");
 	*d = (uint16)(read_word(r, (uint32)a) >> (8U * (a & 2U)));
 	return STD_E_OK;
@@ -162,7 +166,9 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
-	stm32_device_accessed = TRUE;
+	if (stm32_uart_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	}
 	report((uint32)a, "read");
 	*d = read_word(r, (uint32)a);
 	return STD_E_OK;
