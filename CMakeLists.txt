@@ -82,6 +82,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32_dma.c
   src/device/peripheral/stm32_i2c.c
   src/device/sensor/ist8310.c
+  src/device/sensor/ublox.c
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -159,6 +160,11 @@ if(BUILD_TESTING)
   target_include_directories(test_i2c_ist8310 PRIVATE src/device)
   target_link_libraries(test_i2c_ist8310 PRIVATE athrill_stm32_config)
   add_test(NAME device-i2c-ist8310 COMMAND test_i2c_ist8310)
+  add_executable(test_ublox test/device/test_ublox.c src/device/sensor/ublox.c)
+  stm32_target(test_ublox)
+  target_include_directories(test_ublox PRIVATE src/device)
+  target_link_libraries(test_ublox PRIVATE athrill_stm32_config)
+  add_test(NAME device-ublox COMMAND test_ublox)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"

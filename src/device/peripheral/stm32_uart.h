@@ -11,6 +11,9 @@
  *     one character per frame time while RDR is free and a reader listens
  *     (RXNEIE or DMAR set), so the same file arrives at the same virtual
  *     times on every run;
+ *   - a UART with a chip on it (stm32_uart_attach: a GPS receiver ...)
+ *     hands the chip what it sends and receives what the chip sends back
+ *     (stm32_uart_chip_send), timed as the console's input;
  *   - the other UARTs are unconnected lines: what they send is dropped and
  *     nothing arrives.
  * Lightweight on purpose: no overrun (input waits for RDR), no parity or
@@ -34,5 +37,16 @@ void stm32_uart_reset(uint32 console, const char *rx_file);
 void stm32_uart_tick(DeviceClockType *clock);
 /* A character for the console UART (the debugger's serial input); STD_E_LIMIT when the queue is full. */
 Std_ReturnType stm32_uart_console_input(uint8 data);
+
+/* A chip on a UART line. */
+typedef struct {
+	/* a character the UART sent leaves its shift register */
+	void (*transmit)(void *chip, uint8 data);
+} Stm32UartChipOps;
+
+/* Puts chip on UARTnumber (1 to 8; after the UARTs' reset). */
+void stm32_uart_attach(uint32 number, const Stm32UartChipOps *ops, void *chip);
+/* A character from the chip on UARTnumber; STD_E_LIMIT when the UART's queue is full. */
+Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data);
 
 #endif

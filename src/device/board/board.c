@@ -9,6 +9,7 @@
 #include "sensor/ms5611.h"
 #include "sensor/icm20689.h"
 #include "sensor/ist8310.h"
+#include "sensor/ublox.h"
 #include "peripheral/stm32_i2c.h"
 #include <stdio.h>
 #include <string.h>
@@ -16,6 +17,7 @@
 static Ms5611Type baro;
 static Icm20689Type imu;
 static Ist8310Type mag;
+static UbloxType gps;
 static std_bool has_imu;
 
 /* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
@@ -27,6 +29,8 @@ static void attach_fmu_v5(void)
 	icm20689_reset(&imu, (uint64)mhz * 1000000U, ICM20689_ROTATION_YAW_90, STM32_GPIO_PORT('B'), 4U);
 	stm32_spi_attach(1U, STM32_GPIO_PORT('F'), 2U, &icm20689_ops, &imu);
 	has_imu = TRUE;
+	ublox_reset(&gps, 1U, (uint64)mhz * 1000000U);
+	stm32_uart_attach(1U, &ublox_ops, &gps);
 	ist8310_reset(&mag, IST8310_ROTATION_ROLL_180_YAW_90);
 	stm32_i2c_attach(3U, 0x0EU, &ist8310_ops, &mag);
 	ms5611_reset(&baro);
@@ -53,5 +57,6 @@ void board_tick(DeviceClockType *clock)
 {
 	if (has_imu) {
 		icm20689_tick(&imu, clock);
+		ublox_tick(&gps, clock);
 	}
 }

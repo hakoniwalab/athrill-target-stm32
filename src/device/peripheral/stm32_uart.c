@@ -50,8 +50,8 @@
 #define RQR_RXFRQ	(1U << 3)
 #define ICR_TCCF	(1U << 6)
 
-/* Input queue of the console (the debugger's serial input). */
-#define INPUT_QUEUE_SIZE	256U
+/* Input queue of each UART (the console's debugger input, a chip's answers). */
+#define INPUT_QUEUE_SIZE	1024U
 /* At the end of the input file, appended data is looked for this often (CPU clocks). */
 #define RX_FILE_POLL_CLOCKS	1000000U
 
@@ -73,6 +73,13 @@ typedef struct {
 	uint64 rx_next;		/* the earliest clock of the next character */
 	uint64 now;
 	uint32 asserted;	/* the interrupt line as last seen */
+	/* input waiting to arrive */
+	uint8 input[INPUT_QUEUE_SIZE];
+	uint32 input_head;
+	uint32 input_count;
+	/* a chip on the line (stm32_uart_attach) */
+	const Stm32UartChipOps *chip_ops;
+	void *chip;
 } UartType;
 
 /*
@@ -96,9 +103,6 @@ static UartType uarts[] = {
 static UartType *console;
 static FILE *rx_file;
 static std_bool rx_file_at_end;
-static uint8 input_queue[INPUT_QUEUE_SIZE];
-static uint32 input_head;
-static uint32 input_count;
 
 static UartType *uart_of(uint32 addr)
 {
@@ -166,6 +170,9 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 	if (u == console) {
 		(void)dbg_serial_putchar(0, data);
 	}
+	else if (u->chip_ops != NULL) {
+		u->chip_ops->transmit(u->chip, data);
+	}
 }
 
 /*
@@ -181,21 +188,21 @@ static std_bool listening(const UartType *u)
 
 static std_bool input_available(const UartType *u)
 {
-	return (u == console) && ((input_count != 0U) || ((rx_file != NULL) && !rx_file_at_end));
+	return (u->input_count != 0U) || ((u == console) && (rx_file != NULL) && !rx_file_at_end);
 }
 
-/* The next input character of the console, if any. */
-static std_bool next_input(uint8 *data)
+/* The next input character of the UART (its queue, then the console's file), if any. */
+static std_bool next_input(UartType *u, uint8 *data)
 {
 	int c;
 
-	if (input_count != 0U) {
-		*data = input_queue[input_head];
-		input_head = (input_head + 1U) % INPUT_QUEUE_SIZE;
-		input_count--;
+	if (u->input_count != 0U) {
+		*data = u->input[u->input_head];
+		u->input_head = (u->input_head + 1U) % INPUT_QUEUE_SIZE;
+		u->input_count--;
 		return TRUE;
 	}
-	if ((rx_file == NULL) || rx_file_at_end) {
+	if ((u != console) || (rx_file == NULL) || rx_file_at_end) {
 		return FALSE;
 	}
 	c = fgetc(rx_file);
@@ -231,7 +238,7 @@ static void advance_to(UartType *u, uint64 now)
 		rx_file_at_end = FALSE;
 	}
 	if (listening(u) && !u->rxne && (now >= u->rx_next) && input_available(u)) {
-		if (next_input(&data)) {
+		if (next_input(u, &data)) {
 			u->rdr = data;
 			u->rxne = TRUE;
 			u->rx_next += frame_clocks(u);
@@ -405,12 +412,14 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
 		u->rx_next = 0U;
 		u->now = 0U;
 		u->asserted = 0U;
+		u->input_head = 0U;
+		u->input_count = 0U;
+		u->chip_ops = NULL;	/* the board attaches its chips again */
+		u->chip = NULL;
 		if (u->number == console_number) {
 			console = u;
 		}
 	}
-	input_head = 0U;
-	input_count = 0U;
 	if (rx_file != NULL) {
 		fclose(rx_file);
 		rx_file = NULL;
@@ -424,14 +433,47 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
 	}
 }
 
-Std_ReturnType stm32_uart_console_input(uint8 data)
+/* A character waiting to arrive at u; STD_E_LIMIT when its queue is full. */
+static Std_ReturnType push_input(UartType *u, uint8 data)
 {
-	if (input_count == INPUT_QUEUE_SIZE) {
+	if (u->input_count == INPUT_QUEUE_SIZE) {
 		return STD_E_LIMIT;
 	}
-	input_queue[(input_head + input_count) % INPUT_QUEUE_SIZE] = data;
-	input_count++;
+	u->input[(u->input_head + u->input_count) % INPUT_QUEUE_SIZE] = data;
+	u->input_count++;
 	return STD_E_OK;
+}
+
+Std_ReturnType stm32_uart_console_input(uint8 data)
+{
+	if (console == NULL) {
+		return STD_E_LIMIT;
+	}
+	return push_input(console, data);
+}
+
+Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data)
+{
+	uint32 i;
+
+	for (i = 0U; i < UART_NUM; i++) {
+		if (uarts[i].number == number) {
+			return push_input(&uarts[i], data);
+		}
+	}
+	return STD_E_LIMIT;
+}
+
+void stm32_uart_attach(uint32 number, const Stm32UartChipOps *ops, void *chip)
+{
+	uint32 i;
+
+	for (i = 0U; i < UART_NUM; i++) {
+		if (uarts[i].number == number) {
+			uarts[i].chip_ops = ops;
+			uarts[i].chip = chip;
+		}
+	}
 }
 
 static void report_interval(DeviceClockType *clock, const UartType *u, uint64 at)
