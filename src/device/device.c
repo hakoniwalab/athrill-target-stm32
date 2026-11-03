@@ -2,7 +2,7 @@
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/stm32_periph_probe.h"
-#include "peripheral/stm32_tim_probe.h"
+#include "peripheral/stm32_tim.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -23,7 +23,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	clock->is_halt = FALSE;
 	arm_m_scs_reset();
 	stm32_probe_init();
-	stm32_tim_probe_reset();
+	stm32_tim_reset();
 }
 
 void device_supply_clock(DeviceClockType *clock)
@@ -31,7 +31,7 @@ void device_supply_clock(DeviceClockType *clock)
 	clock->can_skip_clock = TRUE;
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
 	arm_m_scs_tick(clock);
-	stm32_tim_probe_tick(clock);
+	stm32_tim_tick(clock);
 	stm32_probe_tick();
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
@@ -69,4 +69,14 @@ int intc_raise_intr(uint32 intno)
 	core->m.pending[ARM_M_EXC_IRQ0 + intno] = 1U;
 	core->m.pending_any = TRUE;
 	return 0;
+}
+
+std_bool intc_irq_active(uint32 intno)
+{
+	TargetCoreType *core = &virtual_cpu.cores[0].core;
+
+	if (intno >= core->m.num_irq) {
+		return FALSE;
+	}
+	return core->m.active[ARM_M_EXC_IRQ0 + intno] != 0U;
 }

@@ -5,14 +5,14 @@
  * the regulator, the RTC's synchronisation and initialisation, the USB OTG
  * core's resets, an SD card slot without a card, SPI buses with nothing on
  * them, an ADC whose conversions are always done); the timers PX4 needs are
- * modelled apart (stm32_tim_probe.c) and every USART/UART transmitting at once (TDR to the
+ * modelled apart (stm32_tim.c) and every USART/UART transmitting at once (TDR to the
  * console, ISR with TXE and TC). The first access to each 1 KiB block of
  * registers is reported on stderr.
  */
 #include "stm32_periph_probe.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "stm32_tim_probe.h"
+#include "stm32_tim.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -90,8 +90,8 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	uint32 v = *word_at(r, a);
 	uint32 i;
 
-	if (stm32_tim_probe_owns(a)) {
-		return stm32_tim_probe_read(a);
+	if (stm32_tim_owns(a)) {
+		return stm32_tim_read(a);
 	}
 	for (i = 0U; i < sizeof(uart_bases) / sizeof(uart_bases[0]); i++) {
 		if (a == uart_bases[i] + 0x1CU) {
@@ -136,8 +136,8 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	uint32 a = addr & ~3U;
 	uint32 i;
 
-	if (stm32_tim_probe_owns(a)) {
-		stm32_tim_probe_write(addr, size, value);
+	if (stm32_tim_owns(a)) {
+		stm32_tim_write(addr, size, value);
 		return;
 	}
 	for (i = 0U; i < sizeof(uart_bases) / sizeof(uart_bases[0]); i++) {
