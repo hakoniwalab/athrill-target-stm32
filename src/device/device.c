@@ -8,6 +8,8 @@
 #include "peripheral/stm32_spi.h"
 #include "sensor/sensor_source.h"
 #include "board/board.h"
+#include "peripheral/stm32_exti.h"
+#include "peripheral/stm32_dma.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -44,6 +46,8 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_tim_reset();
 	uart_reset();
 	stm32_gpio_reset();
+	stm32_exti_reset();
+	stm32_dma_reset();
 	stm32_spi_reset();
 	sensor_source_reset();
 	board_attach();
@@ -56,6 +60,7 @@ void device_supply_clock(DeviceClockType *clock)
 	arm_m_scs_tick(clock);
 	stm32_tim_tick(clock);
 	stm32_uart_tick(clock);
+	board_tick(clock);
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {

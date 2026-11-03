@@ -19,6 +19,12 @@ void sensor_source_sample(SensorSampleType *sample)
 	sample->temperature = source_temperature;
 }
 
+int intc_raise_intr(uint32 intno)
+{
+	(void)intno;
+	return 0;
+}
+
 static int failures;
 static int checks;
 

@@ -22,7 +22,7 @@ void stm32_gpio_reset(void);
 
 /* The level of an output pin (its ODR bit). */
 std_bool stm32_gpio_output(uint32 port, uint32 pin);
-/* A device drives an input pin to level. */
+/* A device drives an input pin to level; a change is an edge for EXTI. */
 void stm32_gpio_drive(uint32 port, uint32 pin, std_bool level);
 
 #endif

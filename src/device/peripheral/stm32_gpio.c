@@ -4,6 +4,7 @@
  */
 #include "stm32_gpio.h"
 #include "stm32_spi.h"
+#include "stm32_exti.h"
 
 #define GPIO_BASE	0x40020000U
 #define GPIO_STRIDE	0x400U
@@ -137,10 +138,15 @@ std_bool stm32_gpio_output(uint32 port, uint32 pin)
 
 void stm32_gpio_drive(uint32 port, uint32 pin, std_bool level)
 {
+	uint32 old = ports[port].inputs;
+
 	if (level) {
 		ports[port].inputs |= 1U << pin;
 	}
 	else {
 		ports[port].inputs &= ~(1U << pin);
+	}
+	if (old != ports[port].inputs) {
+		stm32_exti_pin_edge(port, pin, level);
 	}
 }
