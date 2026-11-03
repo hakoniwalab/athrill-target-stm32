@@ -812,3 +812,109 @@ for t, single, dreg in (("T1", "FALSE", D_D), ("T2", "TRUE", S_D)):
               single, dreg, "{Rn}", "{imm8} << 2", add, wback, regs_var=regs_var, unpred=unpred, unpred_c=unpred_c,
               note="(Odd imm8 with D registers is FLDMX/FSTMX: its (d+regs) > 16 case is within the D16 one.)"
               if single == "FALSE" else None)
+
+
+# ---------------------------------------------------------------------------
+# Floating point: arithmetic and compare
+# ---------------------------------------------------------------------------
+
+FP3 = [("VADD_f_T2", "VADD", "vadd"), ("VSUB_f_T2", "VSUB", "vsub"), ("VMUL_f_T2", "VMUL", "vmul"),
+       ("VNMUL_T1", "VNMUL", "vnmul"), ("VMLA_f_T2", "VMLA", "vmla"), ("VMLS_f_T2", "VMLS", "vmls"),
+       ("VNMLA_T1", "VNMLA", "vnmla"), ("VNMLS_T1", "VNMLS", "vnmls"), ("VDIV_T1", "VDIV", "vdiv"),
+       ("VFMA_T2", "VFMA", "vfma"), ("VFMS_T2", "VFMS", "vfms"), ("VFNMA_T1", "VFNMA", "vfnma"),
+       ("VFNMS_T1", "VFNMS", "vfnms")]
+for dp, sz in ((False, "S"), (True, "D")):
+    f = "F64" if dp else "F32"
+    regs = "d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);" if dp else "d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M);"
+    for id, instr, call in FP3:
+        fp("%s_%s" % (id, sz), instr, call, "%s<c>.%s <%sd>, <%sn>, <%sm>" % (instr, f, sz, sz, sz),
+           "dp_operation = (sz == '1'); " + regs, dp, d=True, n=True, m=True)
+    one = "d = UInt(D:Vd); m = UInt(M:Vm);" if dp else "d = UInt(Vd:D); m = UInt(Vm:M);"
+    fp("VSQRT_T1_" + sz, "VSQRT", "vsqrt", "VSQRT<c>.%s <%sd>, <%sm>" % (f, sz, sz), "dp_operation = (sz == '1'); " + one,
+       dp, d=True, m=True)
+    for instr, call in (("VCMP", "vcmp"), ("VCMPE", "vcmpe")):
+        fp("%s_T1_%s" % (instr, sz), instr, call, "%s<c>.%s <%sd>, <%sm>" % (instr, f, sz, sz),
+           "dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = FALSE; " + one, dp, d=True, m=True)
+        fp("%s_T2_%s" % (instr, sz), instr, call + "_zero", "%s<c>.%s <%sd>, #0.0" % (instr, f, sz),
+           "dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = TRUE; d = %s;"
+           % ("UInt(D:Vd)" if dp else "UInt(Vd:D)"), dp, d=True)
+
+
+# ---------------------------------------------------------------------------
+# Floating point: conversions, round to integral, VMAXNM, VMINNM
+# ---------------------------------------------------------------------------
+
+def fp_cvt(id, instr, call, syntax, ops, d_double, m_double, dp, unconditional=False, members=None, **kw):
+    """d_double, m_double: whether Rd, Rm are D registers (D16: D or M set is UNDEFINED)."""
+    regs = [("d", D_D if d_double else S_D), ("m", D_M if m_double else S_M)]
+    undef = [b for b, dbl in (("D", d_double), ("M", m_double)) if dbl]
+    if undef:
+        kw.setdefault("undef", D16_UNDEF % " || ".join("%s == '1'" % b for b in undef))
+        kw.setdefault("undef_c", " || ".join("({%s} != 0U)" % b for b in undef))
+    if unconditional:
+        kw.setdefault("unpred", "InITBlock()")
+        kw.setdefault("unpred_c", "Stm32InITBlock(core)")
+        kw.setdefault("note", "(Not conditional: in.cond is AL.)")
+    m = {"dp_operation": "TRUE" if dp else "FALSE", "d": "d", "m": "m", "unsigned_int": "FALSE", "size": "32U",
+         "fraction_bits": "0U", "fpscr_rounding": "FALSE", "rounding": "FPRounding_ZERO", "exact": "FALSE", "top": "FALSE"}
+    m.update(members or {})
+    entry(id, instr, syntax, ops, "fp_cvt", call, regs, m, **kw)
+
+
+fp_cvt("VCVT_ds_T1", "VCVT", "vcvt_fp", "VCVT<c>.F64.F32 <Dd>, <Sm>",
+       "double_to_single = (sz == '1'); d = UInt(D:Vd); m = UInt(Vm:M);", True, False, False)
+fp_cvt("VCVT_sd_T1", "VCVT", "vcvt_fp", "VCVT<c>.F32.F64 <Sd>, <Dm>",
+       "double_to_single = (sz == '1'); d = UInt(Vd:D); m = UInt(M:Vm);", False, True, True)
+for bt in ("B", "T"):
+    top = "TRUE" if bt == "T" else "FALSE"
+    for id, syntax, call, d_dbl, m_dbl in (("SH", "F32.F16 <Sd>, <Sm>", "vcvt_from_half", False, False),
+                                          ("DH", "F64.F16 <Dd>, <Sm>", "vcvt_from_half", True, False),
+                                          ("HS", "F16.F32 <Sd>, <Sm>", "vcvt_to_half", False, False),
+                                          ("HD", "F16.F64 <Sd>, <Dm>", "vcvt_to_half", False, True)):
+        fp_cvt("VCVT%s_T1_%s" % (bt, id), "VCVT" + bt, call, "VCVT%s<c>.%s" % (bt, syntax),
+               "half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1');",
+               d_dbl, m_dbl, d_dbl or m_dbl, members={"top": top})
+for sz, dp in (("S", False), ("D", True)):
+    f = "F64" if dp else "F32"
+    r = "D" if dp else "S"
+    # integer <-> floating point
+    fp_cvt("VCVT_vi_T1_" + sz, "VCVT", "vcvt_from_int", "VCVT<c>.%s.<S32/U32> <%sd>, <Sm>" % (f, r),
+           "to_integer = FALSE; unsigned = (op == '0'); dp_operation = (sz == '1'); m = UInt(Vm:M);",
+           dp, False, dp, members={"unsigned_int": "{op} == 0U"})
+    for u in ("u", "s"):
+        unsigned = "TRUE" if u == "u" else "FALSE"
+        fp_cvt("VCVT_%siv_T1_%s" % (u, sz), "VCVT", "vcvt_to_int", "VCVT<c>.%s32.%s <Sd>, <%sm>" % (u.upper(), f, r),
+               "to_integer = TRUE; unsigned = %s; round_zero = TRUE; d = UInt(Vd:D);" % unsigned, False, dp, dp,
+               members={"unsigned_int": unsigned})
+        fp_cvt("VCVTR_%siv_T1_%s" % (u, sz), "VCVTR", "vcvt_to_int", "VCVTR<c>.%s32.%s <Sd>, <%sm>" % (u.upper(), f, r),
+               "to_integer = TRUE; unsigned = %s; round_zero = FALSE (FPSCR's rounding); d = UInt(Vd:D);" % unsigned,
+               False, dp, dp, members={"unsigned_int": unsigned, "fpscr_rounding": "TRUE"})
+    # fixed point <-> floating point, in place (xv: to fixed point, toxv: from fixed point)
+    fixed = {"unsigned_int": "{U} != 0U", "size": "({sx} != 0U) ? 32U : 16U",
+             "fraction_bits": "(({sx} != 0U) ? 32U : 16U) - ((({imm4} << 1) | {i}))"}
+    for id, call, direction in (("xv", "vcvt_to_fixed", "to_fixed = TRUE"), ("toxv", "vcvt_from_fixed", "to_fixed = FALSE")):
+        entry("VCVT_%s_T1_%s" % (id, sz), "VCVT", "VCVT<c>.<dt>.%s <%sd>, <%sd>, #<fbits>" % (f, r, r),
+              "%s; dp_operation = (sf == '1'); unsigned = (U == '1'); size = if sx == '0' then 16 else 32;"
+              " frac_bits = size - UInt(imm4:i); d = %s;" % (direction, "UInt(D:Vd)" if dp else "UInt(Vd:D)"),
+              "fp_cvt", call, [("d", D_D if dp else S_D)],
+              dict({"dp_operation": "TRUE" if dp else "FALSE", "d": "d", "m": "0U", "fpscr_rounding": "FALSE",
+                    "rounding": "FPRounding_ZERO", "exact": "FALSE", "top": "FALSE"}, **fixed),
+              undef=D16_UNDEF % "D == '1'" if dp else None, undef_c="{D} != 0U" if dp else None,
+              unpred="frac_bits < 0", unpred_c="((({imm4} << 1) | {i})) > (({sx} != 0U) ? 32U : 16U)")
+    # VCVTA, VCVTN, VCVTP, VCVTM; VRINTA, VRINTN, VRINTP, VRINTM (not conditional)
+    for x, rounding in (("A", "FPRounding_TIEAWAY"), ("N", "FPRounding_TIEEVEN"), ("P", "FPRounding_POSINF"),
+                        ("M", "FPRounding_NEGINF")):
+        fp_cvt("VCVT%s_vfp_T1_%s" % (x, sz), "VCVT" + x, "vcvt_to_int", "VCVT%s.<S32/U32>.%s <Sd>, <%sm>" % (x, f, r),
+               "rounding = %s; unsigned = (op == '0'); d = UInt(Vd:D);" % rounding, False, dp, dp, unconditional=True,
+               members={"unsigned_int": "{op} == 0U", "rounding": rounding})
+        fp_cvt("VRINT%s_vfp_T1_%s" % (x, sz), "VRINT" + x, "vrint", "VRINT%s.%s <%sd>, <%sm>" % (x, f, r, r),
+               "rounding = %s; exact = FALSE;" % rounding, dp, dp, dp, unconditional=True, members={"rounding": rounding})
+    for x, members, ops in (("Z", {}, "rounding = FPRounding_ZERO; exact = FALSE;"),
+                            ("R", {"fpscr_rounding": "TRUE"}, "rounding = FPSCR's; exact = FALSE;"),
+                            ("X", {"fpscr_rounding": "TRUE", "exact": "TRUE"}, "rounding = FPSCR's; exact = TRUE;")):
+        fp_cvt("VRINT%s_vfp_T1_%s" % (x, sz), "VRINT" + x, "vrint", "VRINT%s<c>.%s <%sd>, <%sm>" % (x, f, r, r),
+               ops, dp, dp, dp, members=members)
+    for instr, call in (("VMAXNM", "vmaxnm"), ("VMINNM", "vminnm")):
+        fp(instr + "_T2_" + sz, instr, call, "%s.%s <%sd>, <%sn>, <%sm>" % (instr, f, r, r, r),
+           "dp_operation = (sz == '1'); d, n, m by the size;", dp, d=True, n=True, m=True,
+           unpred="InITBlock()", unpred_c="Stm32InITBlock(core)", note="(Not conditional: in.cond is AL.)")

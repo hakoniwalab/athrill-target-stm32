@@ -19,6 +19,7 @@
 #include "arm_common/arm_pseudo_saturate.h"
 #include "arm_common/arm_pseudo_dsp_multiply.h"
 #include "arm_common/arm_pseudo_fp_ls.h"
+#include "arm_common/arm_pseudo_fp_convert.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
@@ -6537,6 +6538,2224 @@ static Std_ReturnType exec_vstmdb_t2(TargetCoreType *core, uint32 insn)
 	return arm_pseudo_vstm(core, &in, &out);
 }
 
+/* VADD_f_T2_S: VADD<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vadd_f_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VADD_f_T2_S_Vd(insn), t32w_VADD_f_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VADD_f_T2_S_Vn(insn), t32w_VADD_f_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VADD_f_T2_S_Vm(insn), t32w_VADD_f_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VADD";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vadd(core, &in, &out);
+}
+
+/* VSUB_f_T2_S: VSUB<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vsub_f_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSUB_f_T2_S_Vd(insn), t32w_VSUB_f_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VSUB_f_T2_S_Vn(insn), t32w_VSUB_f_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VSUB_f_T2_S_Vm(insn), t32w_VSUB_f_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VSUB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vsub(core, &in, &out);
+}
+
+/* VMUL_f_T2_S: VMUL<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vmul_f_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMUL_f_T2_S_Vd(insn), t32w_VMUL_f_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VMUL_f_T2_S_Vn(insn), t32w_VMUL_f_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VMUL_f_T2_S_Vm(insn), t32w_VMUL_f_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VMUL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmul(core, &in, &out);
+}
+
+/* VNMUL_T1_S: VNMUL<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vnmul_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VNMUL_T1_S_Vd(insn), t32w_VNMUL_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VNMUL_T1_S_Vn(insn), t32w_VNMUL_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VNMUL_T1_S_Vm(insn), t32w_VNMUL_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VNMUL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmul(core, &in, &out);
+}
+
+/* VMLA_f_T2_S: VMLA<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vmla_f_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMLA_f_T2_S_Vd(insn), t32w_VMLA_f_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VMLA_f_T2_S_Vn(insn), t32w_VMLA_f_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VMLA_f_T2_S_Vm(insn), t32w_VMLA_f_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VMLA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmla(core, &in, &out);
+}
+
+/* VMLS_f_T2_S: VMLS<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vmls_f_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMLS_f_T2_S_Vd(insn), t32w_VMLS_f_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VMLS_f_T2_S_Vn(insn), t32w_VMLS_f_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VMLS_f_T2_S_Vm(insn), t32w_VMLS_f_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VMLS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmls(core, &in, &out);
+}
+
+/* VNMLA_T1_S: VNMLA<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vnmla_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VNMLA_T1_S_Vd(insn), t32w_VNMLA_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VNMLA_T1_S_Vn(insn), t32w_VNMLA_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VNMLA_T1_S_Vm(insn), t32w_VNMLA_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VNMLA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmla(core, &in, &out);
+}
+
+/* VNMLS_T1_S: VNMLS<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vnmls_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VNMLS_T1_S_Vd(insn), t32w_VNMLS_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VNMLS_T1_S_Vn(insn), t32w_VNMLS_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VNMLS_T1_S_Vm(insn), t32w_VNMLS_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VNMLS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmls(core, &in, &out);
+}
+
+/* VDIV_T1_S: VDIV<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vdiv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VDIV_T1_S_Vd(insn), t32w_VDIV_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VDIV_T1_S_Vn(insn), t32w_VDIV_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VDIV_T1_S_Vm(insn), t32w_VDIV_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VDIV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vdiv(core, &in, &out);
+}
+
+/* VFMA_T2_S: VFMA<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vfma_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VFMA_T2_S_Vd(insn), t32w_VFMA_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VFMA_T2_S_Vn(insn), t32w_VFMA_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VFMA_T2_S_Vm(insn), t32w_VFMA_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VFMA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfma(core, &in, &out);
+}
+
+/* VFMS_T2_S: VFMS<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vfms_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VFMS_T2_S_Vd(insn), t32w_VFMS_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VFMS_T2_S_Vn(insn), t32w_VFMS_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VFMS_T2_S_Vm(insn), t32w_VFMS_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VFMS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfms(core, &in, &out);
+}
+
+/* VFNMA_T1_S: VFNMA<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vfnma_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VFNMA_T1_S_Vd(insn), t32w_VFNMA_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VFNMA_T1_S_Vn(insn), t32w_VFNMA_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VFNMA_T1_S_Vm(insn), t32w_VFNMA_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VFNMA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfnma(core, &in, &out);
+}
+
+/* VFNMS_T1_S: VFNMS<c>.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); n = UInt(Vn:N); m = UInt(Vm:M); */
+static Std_ReturnType exec_vfnms_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VFNMS_T1_S_Vd(insn), t32w_VFNMS_T1_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VFNMS_T1_S_Vn(insn), t32w_VFNMS_T1_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VFNMS_T1_S_Vm(insn), t32w_VFNMS_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VFNMS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfnms(core, &in, &out);
+}
+
+/* VSQRT_T1_S: VSQRT<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vsqrt_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VSQRT_T1_S_Vd(insn), t32w_VSQRT_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VSQRT_T1_S_Vm(insn), t32w_VSQRT_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VSQRT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vsqrt(core, &in, &out);
+}
+
+/* VCMP_T1_S: VCMP<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = FALSE; d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vcmp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCMP_T1_S_Vd(insn), t32w_VCMP_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCMP_T1_S_Vm(insn), t32w_VCMP_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCMP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmp(core, &in, &out);
+}
+
+/* VCMP_T2_S: VCMP<c>.F32 <Sd>, #0.0
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = TRUE; d = UInt(Vd:D); */
+static Std_ReturnType exec_vcmp_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCMP_T2_S_Vd(insn), t32w_VCMP_T2_S_D(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCMP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmp_zero(core, &in, &out);
+}
+
+/* VCMPE_T1_S: VCMPE<c>.F32 <Sd>, <Sm>
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = FALSE; d = UInt(Vd:D); m = UInt(Vm:M); */
+static Std_ReturnType exec_vcmpe_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCMPE_T1_S_Vd(insn), t32w_VCMPE_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCMPE_T1_S_Vm(insn), t32w_VCMPE_T1_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCMPE";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmpe(core, &in, &out);
+}
+
+/* VCMPE_T2_S: VCMPE<c>.F32 <Sd>, #0.0
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = TRUE; d = UInt(Vd:D); */
+static Std_ReturnType exec_vcmpe_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCMPE_T2_S_Vd(insn), t32w_VCMPE_T2_S_D(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCMPE";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmpe_zero(core, &in, &out);
+}
+
+/* VADD_f_T2_D: VADD<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vadd_f_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VADD_f_T2_D_D(insn), t32w_VADD_f_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VADD_f_T2_D_N(insn), t32w_VADD_f_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VADD_f_T2_D_M(insn), t32w_VADD_f_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VADD_f_T2_D_D(insn) != 0U) || (t32w_VADD_f_T2_D_N(insn) != 0U) || (t32w_VADD_f_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VADD";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vadd(core, &in, &out);
+}
+
+/* VSUB_f_T2_D: VSUB<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vsub_f_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSUB_f_T2_D_D(insn), t32w_VSUB_f_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VSUB_f_T2_D_N(insn), t32w_VSUB_f_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VSUB_f_T2_D_M(insn), t32w_VSUB_f_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSUB_f_T2_D_D(insn) != 0U) || (t32w_VSUB_f_T2_D_N(insn) != 0U) || (t32w_VSUB_f_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VSUB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vsub(core, &in, &out);
+}
+
+/* VMUL_f_T2_D: VMUL<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vmul_f_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMUL_f_T2_D_D(insn), t32w_VMUL_f_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VMUL_f_T2_D_N(insn), t32w_VMUL_f_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VMUL_f_T2_D_M(insn), t32w_VMUL_f_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMUL_f_T2_D_D(insn) != 0U) || (t32w_VMUL_f_T2_D_N(insn) != 0U) || (t32w_VMUL_f_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VMUL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmul(core, &in, &out);
+}
+
+/* VNMUL_T1_D: VNMUL<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vnmul_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VNMUL_T1_D_D(insn), t32w_VNMUL_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VNMUL_T1_D_N(insn), t32w_VNMUL_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VNMUL_T1_D_M(insn), t32w_VNMUL_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VNMUL_T1_D_D(insn) != 0U) || (t32w_VNMUL_T1_D_N(insn) != 0U) || (t32w_VNMUL_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VNMUL";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmul(core, &in, &out);
+}
+
+/* VMLA_f_T2_D: VMLA<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vmla_f_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMLA_f_T2_D_D(insn), t32w_VMLA_f_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VMLA_f_T2_D_N(insn), t32w_VMLA_f_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VMLA_f_T2_D_M(insn), t32w_VMLA_f_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMLA_f_T2_D_D(insn) != 0U) || (t32w_VMLA_f_T2_D_N(insn) != 0U) || (t32w_VMLA_f_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VMLA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmla(core, &in, &out);
+}
+
+/* VMLS_f_T2_D: VMLS<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vmls_f_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMLS_f_T2_D_D(insn), t32w_VMLS_f_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VMLS_f_T2_D_N(insn), t32w_VMLS_f_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VMLS_f_T2_D_M(insn), t32w_VMLS_f_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMLS_f_T2_D_D(insn) != 0U) || (t32w_VMLS_f_T2_D_N(insn) != 0U) || (t32w_VMLS_f_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VMLS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmls(core, &in, &out);
+}
+
+/* VNMLA_T1_D: VNMLA<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vnmla_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VNMLA_T1_D_D(insn), t32w_VNMLA_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VNMLA_T1_D_N(insn), t32w_VNMLA_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VNMLA_T1_D_M(insn), t32w_VNMLA_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VNMLA_T1_D_D(insn) != 0U) || (t32w_VNMLA_T1_D_N(insn) != 0U) || (t32w_VNMLA_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VNMLA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmla(core, &in, &out);
+}
+
+/* VNMLS_T1_D: VNMLS<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vnmls_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VNMLS_T1_D_D(insn), t32w_VNMLS_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VNMLS_T1_D_N(insn), t32w_VNMLS_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VNMLS_T1_D_M(insn), t32w_VNMLS_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VNMLS_T1_D_D(insn) != 0U) || (t32w_VNMLS_T1_D_N(insn) != 0U) || (t32w_VNMLS_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VNMLS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vnmls(core, &in, &out);
+}
+
+/* VDIV_T1_D: VDIV<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vdiv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VDIV_T1_D_D(insn), t32w_VDIV_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VDIV_T1_D_N(insn), t32w_VDIV_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VDIV_T1_D_M(insn), t32w_VDIV_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VDIV_T1_D_D(insn) != 0U) || (t32w_VDIV_T1_D_N(insn) != 0U) || (t32w_VDIV_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VDIV";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vdiv(core, &in, &out);
+}
+
+/* VFMA_T2_D: VFMA<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vfma_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VFMA_T2_D_D(insn), t32w_VFMA_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VFMA_T2_D_N(insn), t32w_VFMA_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VFMA_T2_D_M(insn), t32w_VFMA_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VFMA_T2_D_D(insn) != 0U) || (t32w_VFMA_T2_D_N(insn) != 0U) || (t32w_VFMA_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VFMA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfma(core, &in, &out);
+}
+
+/* VFMS_T2_D: VFMS<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vfms_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VFMS_T2_D_D(insn), t32w_VFMS_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VFMS_T2_D_N(insn), t32w_VFMS_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VFMS_T2_D_M(insn), t32w_VFMS_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VFMS_T2_D_D(insn) != 0U) || (t32w_VFMS_T2_D_N(insn) != 0U) || (t32w_VFMS_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VFMS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfms(core, &in, &out);
+}
+
+/* VFNMA_T1_D: VFNMA<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vfnma_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VFNMA_T1_D_D(insn), t32w_VFNMA_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VFNMA_T1_D_N(insn), t32w_VFNMA_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VFNMA_T1_D_M(insn), t32w_VFNMA_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VFNMA_T1_D_D(insn) != 0U) || (t32w_VFNMA_T1_D_N(insn) != 0U) || (t32w_VFNMA_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VFNMA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfnma(core, &in, &out);
+}
+
+/* VFNMS_T1_D: VFNMS<c>.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); n = UInt(N:Vn); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vfnms_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VFNMS_T1_D_D(insn), t32w_VFNMS_T1_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VFNMS_T1_D_N(insn), t32w_VFNMS_T1_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VFNMS_T1_D_M(insn), t32w_VFNMS_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VFNMS_T1_D_D(insn) != 0U) || (t32w_VFNMS_T1_D_N(insn) != 0U) || (t32w_VFNMS_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VFNMS";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vfnms(core, &in, &out);
+}
+
+/* VSQRT_T1_D: VSQRT<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vsqrt_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VSQRT_T1_D_D(insn), t32w_VSQRT_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VSQRT_T1_D_M(insn), t32w_VSQRT_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VSQRT_T1_D_D(insn) != 0U) || (t32w_VSQRT_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VSQRT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vsqrt(core, &in, &out);
+}
+
+/* VCMP_T1_D: VCMP<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = FALSE; d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcmp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCMP_T1_D_D(insn), t32w_VCMP_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VCMP_T1_D_M(insn), t32w_VCMP_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VCMP_T1_D_D(insn) != 0U) || (t32w_VCMP_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCMP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmp(core, &in, &out);
+}
+
+/* VCMP_T2_D: VCMP<c>.F64 <Dd>, #0.0
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = TRUE; d = UInt(D:Vd);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcmp_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCMP_T2_D_D(insn), t32w_VCMP_T2_D_Vd(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCMP_T2_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCMP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmp_zero(core, &in, &out);
+}
+
+/* VCMPE_T1_D: VCMPE<c>.F64 <Dd>, <Dm>
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = FALSE; d = UInt(D:Vd); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcmpe_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCMPE_T1_D_D(insn), t32w_VCMPE_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VCMPE_T1_D_M(insn), t32w_VCMPE_T1_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VCMPE_T1_D_D(insn) != 0U) || (t32w_VCMPE_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCMPE";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmpe(core, &in, &out);
+}
+
+/* VCMPE_T2_D: VCMPE<c>.F64 <Dd>, #0.0
+ *     dp_operation = (sz == '1'); quiet_nan_exc = (E == '1'); with_zero = TRUE; d = UInt(D:Vd);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcmpe_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCMPE_T2_D_D(insn), t32w_VCMPE_T2_D_Vd(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCMPE_T2_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCMPE";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = 0U;
+	in.m = 0U;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vcmpe_zero(core, &in, &out);
+}
+
+/* VCVT_ds_T1: VCVT<c>.F64.F32 <Dd>, <Sm>
+ *     double_to_single = (sz == '1'); d = UInt(D:Vd); m = UInt(Vm:M);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvt_ds_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVT_ds_T1_D(insn), t32w_VCVT_ds_T1_Vd(insn));
+	uint32 m = thumb_sreg(t32w_VCVT_ds_T1_Vm(insn), t32w_VCVT_ds_T1_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_ds_T1_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_fp(core, &in, &out);
+}
+
+/* VCVT_sd_T1: VCVT<c>.F32.F64 <Sd>, <Dm>
+ *     double_to_single = (sz == '1'); d = UInt(Vd:D); m = UInt(M:Vm);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvt_sd_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_sd_T1_Vd(insn), t32w_VCVT_sd_T1_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVT_sd_T1_M(insn), t32w_VCVT_sd_T1_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_sd_T1_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_fp(core, &in, &out);
+}
+
+/* VCVTB_T1_SH: VCVTB<c>.F32.F16 <Sd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1'); */
+static Std_ReturnType exec_vcvtb_t1_sh(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTB_T1_SH_Vd(insn), t32w_VCVTB_T1_SH_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTB_T1_SH_Vm(insn), t32w_VCVTB_T1_SH_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_from_half(core, &in, &out);
+}
+
+/* VCVTB_T1_DH: VCVTB<c>.F64.F16 <Dd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1');
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtb_t1_dh(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVTB_T1_DH_D(insn), t32w_VCVTB_T1_DH_Vd(insn));
+	uint32 m = thumb_sreg(t32w_VCVTB_T1_DH_Vm(insn), t32w_VCVTB_T1_DH_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTB_T1_DH_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_from_half(core, &in, &out);
+}
+
+/* VCVTB_T1_HS: VCVTB<c>.F16.F32 <Sd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1'); */
+static Std_ReturnType exec_vcvtb_t1_hs(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTB_T1_HS_Vd(insn), t32w_VCVTB_T1_HS_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTB_T1_HS_Vm(insn), t32w_VCVTB_T1_HS_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_half(core, &in, &out);
+}
+
+/* VCVTB_T1_HD: VCVTB<c>.F16.F64 <Sd>, <Dm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1');
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtb_t1_hd(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTB_T1_HD_Vd(insn), t32w_VCVTB_T1_HD_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTB_T1_HD_M(insn), t32w_VCVTB_T1_HD_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTB_T1_HD_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTB";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_half(core, &in, &out);
+}
+
+/* VCVTT_T1_SH: VCVTT<c>.F32.F16 <Sd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1'); */
+static Std_ReturnType exec_vcvtt_t1_sh(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTT_T1_SH_Vd(insn), t32w_VCVTT_T1_SH_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTT_T1_SH_Vm(insn), t32w_VCVTT_T1_SH_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = TRUE;
+	return arm_pseudo_vcvt_from_half(core, &in, &out);
+}
+
+/* VCVTT_T1_DH: VCVTT<c>.F64.F16 <Dd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1');
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtt_t1_dh(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVTT_T1_DH_D(insn), t32w_VCVTT_T1_DH_Vd(insn));
+	uint32 m = thumb_sreg(t32w_VCVTT_T1_DH_Vm(insn), t32w_VCVTT_T1_DH_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTT_T1_DH_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = TRUE;
+	return arm_pseudo_vcvt_from_half(core, &in, &out);
+}
+
+/* VCVTT_T1_HS: VCVTT<c>.F16.F32 <Sd>, <Sm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1'); */
+static Std_ReturnType exec_vcvtt_t1_hs(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTT_T1_HS_Vd(insn), t32w_VCVTT_T1_HS_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTT_T1_HS_Vm(insn), t32w_VCVTT_T1_HS_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = TRUE;
+	return arm_pseudo_vcvt_to_half(core, &in, &out);
+}
+
+/* VCVTT_T1_HD: VCVTT<c>.F16.F64 <Sd>, <Dm>
+ *     half_to_single = (op == '0'); lowbit = if T == '1' then 16 else 0; dp_operation = (sz == '1');
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtt_t1_hd(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTT_T1_HD_Vd(insn), t32w_VCVTT_T1_HD_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTT_T1_HD_M(insn), t32w_VCVTT_T1_HD_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTT_T1_HD_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = TRUE;
+	return arm_pseudo_vcvt_to_half(core, &in, &out);
+}
+
+/* VCVT_vi_T1_S: VCVT<c>.F32.<S32/U32> <Sd>, <Sm>
+ *     to_integer = FALSE; unsigned = (op == '0'); dp_operation = (sz == '1'); m = UInt(Vm:M); */
+static Std_ReturnType exec_vcvt_vi_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_vi_T1_S_Vd(insn), t32w_VCVT_vi_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVT_vi_T1_S_Vm(insn), t32w_VCVT_vi_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVT_vi_T1_S_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_from_int(core, &in, &out);
+}
+
+/* VCVT_uiv_T1_S: VCVT<c>.U32.F32 <Sd>, <Sm>
+ *     to_integer = TRUE; unsigned = TRUE; round_zero = TRUE; d = UInt(Vd:D); */
+static Std_ReturnType exec_vcvt_uiv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_uiv_T1_S_Vd(insn), t32w_VCVT_uiv_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVT_uiv_T1_S_Vm(insn), t32w_VCVT_uiv_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = TRUE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVTR_uiv_T1_S: VCVTR<c>.U32.F32 <Sd>, <Sm>
+ *     to_integer = TRUE; unsigned = TRUE; round_zero = FALSE (FPSCR's rounding); d = UInt(Vd:D); */
+static Std_ReturnType exec_vcvtr_uiv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTR_uiv_T1_S_Vd(insn), t32w_VCVTR_uiv_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTR_uiv_T1_S_Vm(insn), t32w_VCVTR_uiv_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = TRUE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVT_siv_T1_S: VCVT<c>.S32.F32 <Sd>, <Sm>
+ *     to_integer = TRUE; unsigned = FALSE; round_zero = TRUE; d = UInt(Vd:D); */
+static Std_ReturnType exec_vcvt_siv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_siv_T1_S_Vd(insn), t32w_VCVT_siv_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVT_siv_T1_S_Vm(insn), t32w_VCVT_siv_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVTR_siv_T1_S: VCVTR<c>.S32.F32 <Sd>, <Sm>
+ *     to_integer = TRUE; unsigned = FALSE; round_zero = FALSE (FPSCR's rounding); d = UInt(Vd:D); */
+static Std_ReturnType exec_vcvtr_siv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTR_siv_T1_S_Vd(insn), t32w_VCVTR_siv_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTR_siv_T1_S_Vm(insn), t32w_VCVTR_siv_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VCVTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVT_xv_T1_S: VCVT<c>.<dt>.F32 <Sd>, <Sd>, #<fbits>
+ *     to_fixed = TRUE; dp_operation = (sf == '1'); unsigned = (U == '1'); size = if sx == '0' then 16 else 32; frac_bits = size - UInt(imm4:i); d = UInt(Vd:D);
+ *     if frac_bits < 0 then UNPREDICTABLE; */
+static Std_ReturnType exec_vcvt_xv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_xv_T1_S_Vd(insn), t32w_VCVT_xv_T1_S_D(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((((t32w_VCVT_xv_T1_S_imm4(insn) << 1) | t32w_VCVT_xv_T1_S_i(insn))) > ((t32w_VCVT_xv_T1_S_sx(insn) != 0U) ? 32U : 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	in.unsigned_int = t32w_VCVT_xv_T1_S_U(insn) != 0U;
+	in.size = (t32w_VCVT_xv_T1_S_sx(insn) != 0U) ? 32U : 16U;
+	in.fraction_bits = ((t32w_VCVT_xv_T1_S_sx(insn) != 0U) ? 32U : 16U) - (((t32w_VCVT_xv_T1_S_imm4(insn) << 1) | t32w_VCVT_xv_T1_S_i(insn)));
+	return arm_pseudo_vcvt_to_fixed(core, &in, &out);
+}
+
+/* VCVT_toxv_T1_S: VCVT<c>.<dt>.F32 <Sd>, <Sd>, #<fbits>
+ *     to_fixed = FALSE; dp_operation = (sf == '1'); unsigned = (U == '1'); size = if sx == '0' then 16 else 32; frac_bits = size - UInt(imm4:i); d = UInt(Vd:D);
+ *     if frac_bits < 0 then UNPREDICTABLE; */
+static Std_ReturnType exec_vcvt_toxv_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_toxv_T1_S_Vd(insn), t32w_VCVT_toxv_T1_S_D(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((((t32w_VCVT_toxv_T1_S_imm4(insn) << 1) | t32w_VCVT_toxv_T1_S_i(insn))) > ((t32w_VCVT_toxv_T1_S_sx(insn) != 0U) ? 32U : 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	in.unsigned_int = t32w_VCVT_toxv_T1_S_U(insn) != 0U;
+	in.size = (t32w_VCVT_toxv_T1_S_sx(insn) != 0U) ? 32U : 16U;
+	in.fraction_bits = ((t32w_VCVT_toxv_T1_S_sx(insn) != 0U) ? 32U : 16U) - (((t32w_VCVT_toxv_T1_S_imm4(insn) << 1) | t32w_VCVT_toxv_T1_S_i(insn)));
+	return arm_pseudo_vcvt_from_fixed(core, &in, &out);
+}
+
+/* VCVTA_vfp_T1_S: VCVTA.<S32/U32>.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_TIEAWAY; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvta_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTA_vfp_T1_S_Vd(insn), t32w_VCVTA_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTA_vfp_T1_S_Vm(insn), t32w_VCVTA_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTA_vfp_T1_S_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEAWAY;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTA_vfp_T1_S: VRINTA.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_TIEAWAY; exact = FALSE;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrinta_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTA_vfp_T1_S_Vd(insn), t32w_VRINTA_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTA_vfp_T1_S_Vm(insn), t32w_VRINTA_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEAWAY;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTN_vfp_T1_S: VCVTN.<S32/U32>.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_TIEEVEN; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtn_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTN_vfp_T1_S_Vd(insn), t32w_VCVTN_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTN_vfp_T1_S_Vm(insn), t32w_VCVTN_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTN";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTN_vfp_T1_S_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEEVEN;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTN_vfp_T1_S: VRINTN.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_TIEEVEN; exact = FALSE;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintn_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTN_vfp_T1_S_Vd(insn), t32w_VRINTN_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTN_vfp_T1_S_Vm(insn), t32w_VRINTN_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTN";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEEVEN;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTP_vfp_T1_S: VCVTP.<S32/U32>.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_POSINF; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtp_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTP_vfp_T1_S_Vd(insn), t32w_VCVTP_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTP_vfp_T1_S_Vm(insn), t32w_VCVTP_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTP_vfp_T1_S_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_POSINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTP_vfp_T1_S: VRINTP.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_POSINF; exact = FALSE;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintp_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTP_vfp_T1_S_Vd(insn), t32w_VRINTP_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTP_vfp_T1_S_Vm(insn), t32w_VRINTP_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_POSINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTM_vfp_T1_S: VCVTM.<S32/U32>.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_NEGINF; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtm_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTM_vfp_T1_S_Vd(insn), t32w_VCVTM_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VCVTM_vfp_T1_S_Vm(insn), t32w_VCVTM_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTM_vfp_T1_S_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_NEGINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTM_vfp_T1_S: VRINTM.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_NEGINF; exact = FALSE;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintm_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTM_vfp_T1_S_Vd(insn), t32w_VRINTM_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTM_vfp_T1_S_Vm(insn), t32w_VRINTM_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_NEGINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTZ_vfp_T1_S: VRINTZ<c>.F32 <Sd>, <Sm>
+ *     rounding = FPRounding_ZERO; exact = FALSE; */
+static Std_ReturnType exec_vrintz_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTZ_vfp_T1_S_Vd(insn), t32w_VRINTZ_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTZ_vfp_T1_S_Vm(insn), t32w_VRINTZ_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VRINTZ";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTR_vfp_T1_S: VRINTR<c>.F32 <Sd>, <Sm>
+ *     rounding = FPSCR's; exact = FALSE; */
+static Std_ReturnType exec_vrintr_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTR_vfp_T1_S_Vd(insn), t32w_VRINTR_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTR_vfp_T1_S_Vm(insn), t32w_VRINTR_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VRINTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTX_vfp_T1_S: VRINTX<c>.F32 <Sd>, <Sm>
+ *     rounding = FPSCR's; exact = TRUE; */
+static Std_ReturnType exec_vrintx_vfp_t1_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VRINTX_vfp_T1_S_Vd(insn), t32w_VRINTX_vfp_T1_S_D(insn));
+	uint32 m = thumb_sreg(t32w_VRINTX_vfp_T1_S_Vm(insn), t32w_VRINTX_vfp_T1_S_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	in.instrName = "VRINTX";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = TRUE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VMAXNM_T2_S: VMAXNM.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vmaxnm_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMAXNM_T2_S_Vd(insn), t32w_VMAXNM_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VMAXNM_T2_S_Vn(insn), t32w_VMAXNM_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VMAXNM_T2_S_Vm(insn), t32w_VMAXNM_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMAXNM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmaxnm(core, &in, &out);
+}
+
+/* VMINNM_T2_S: VMINNM.F32 <Sd>, <Sn>, <Sm>
+ *     dp_operation = (sz == '1'); d, n, m by the size;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vminnm_t2_s(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VMINNM_T2_S_Vd(insn), t32w_VMINNM_T2_S_D(insn));
+	uint32 n = thumb_sreg(t32w_VMINNM_T2_S_Vn(insn), t32w_VMINNM_T2_S_N(insn));
+	uint32 m = thumb_sreg(t32w_VMINNM_T2_S_Vm(insn), t32w_VMINNM_T2_S_M(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMINNM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = FALSE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vminnm(core, &in, &out);
+}
+
+/* VCVT_vi_T1_D: VCVT<c>.F64.<S32/U32> <Dd>, <Sm>
+ *     to_integer = FALSE; unsigned = (op == '0'); dp_operation = (sz == '1'); m = UInt(Vm:M);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvt_vi_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVT_vi_T1_D_D(insn), t32w_VCVT_vi_T1_D_Vd(insn));
+	uint32 m = thumb_sreg(t32w_VCVT_vi_T1_D_Vm(insn), t32w_VCVT_vi_T1_D_M(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_vi_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVT_vi_T1_D_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_from_int(core, &in, &out);
+}
+
+/* VCVT_uiv_T1_D: VCVT<c>.U32.F64 <Sd>, <Dm>
+ *     to_integer = TRUE; unsigned = TRUE; round_zero = TRUE; d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvt_uiv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_uiv_T1_D_Vd(insn), t32w_VCVT_uiv_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVT_uiv_T1_D_M(insn), t32w_VCVT_uiv_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_uiv_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = TRUE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVTR_uiv_T1_D: VCVTR<c>.U32.F64 <Sd>, <Dm>
+ *     to_integer = TRUE; unsigned = TRUE; round_zero = FALSE (FPSCR's rounding); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtr_uiv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTR_uiv_T1_D_Vd(insn), t32w_VCVTR_uiv_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTR_uiv_T1_D_M(insn), t32w_VCVTR_uiv_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTR_uiv_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = TRUE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVT_siv_T1_D: VCVT<c>.S32.F64 <Sd>, <Dm>
+ *     to_integer = TRUE; unsigned = FALSE; round_zero = TRUE; d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvt_siv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVT_siv_T1_D_Vd(insn), t32w_VCVT_siv_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVT_siv_T1_D_M(insn), t32w_VCVT_siv_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_siv_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVTR_siv_T1_D: VCVTR<c>.S32.F64 <Sd>, <Dm>
+ *     to_integer = TRUE; unsigned = FALSE; round_zero = FALSE (FPSCR's rounding); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vcvtr_siv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTR_siv_T1_D_Vd(insn), t32w_VCVTR_siv_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTR_siv_T1_D_M(insn), t32w_VCVTR_siv_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTR_siv_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VCVTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VCVT_xv_T1_D: VCVT<c>.<dt>.F64 <Dd>, <Dd>, #<fbits>
+ *     to_fixed = TRUE; dp_operation = (sf == '1'); unsigned = (U == '1'); size = if sx == '0' then 16 else 32; frac_bits = size - UInt(imm4:i); d = UInt(D:Vd);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED;
+ *     if frac_bits < 0 then UNPREDICTABLE; */
+static Std_ReturnType exec_vcvt_xv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVT_xv_T1_D_D(insn), t32w_VCVT_xv_T1_D_Vd(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_xv_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if ((((t32w_VCVT_xv_T1_D_imm4(insn) << 1) | t32w_VCVT_xv_T1_D_i(insn))) > ((t32w_VCVT_xv_T1_D_sx(insn) != 0U) ? 32U : 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	in.unsigned_int = t32w_VCVT_xv_T1_D_U(insn) != 0U;
+	in.size = (t32w_VCVT_xv_T1_D_sx(insn) != 0U) ? 32U : 16U;
+	in.fraction_bits = ((t32w_VCVT_xv_T1_D_sx(insn) != 0U) ? 32U : 16U) - (((t32w_VCVT_xv_T1_D_imm4(insn) << 1) | t32w_VCVT_xv_T1_D_i(insn)));
+	return arm_pseudo_vcvt_to_fixed(core, &in, &out);
+}
+
+/* VCVT_toxv_T1_D: VCVT<c>.<dt>.F64 <Dd>, <Dd>, #<fbits>
+ *     to_fixed = FALSE; dp_operation = (sf == '1'); unsigned = (U == '1'); size = if sx == '0' then 16 else 32; frac_bits = size - UInt(imm4:i); d = UInt(D:Vd);
+ *     if VFPSmallRegisterBank() && (D == '1') then UNDEFINED;
+ *     if frac_bits < 0 then UNPREDICTABLE; */
+static Std_ReturnType exec_vcvt_toxv_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VCVT_toxv_T1_D_D(insn), t32w_VCVT_toxv_T1_D_Vd(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVT_toxv_T1_D_D(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if ((((t32w_VCVT_toxv_T1_D_imm4(insn) << 1) | t32w_VCVT_toxv_T1_D_i(insn))) > ((t32w_VCVT_toxv_T1_D_sx(insn) != 0U) ? 32U : 16U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVT";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	in.unsigned_int = t32w_VCVT_toxv_T1_D_U(insn) != 0U;
+	in.size = (t32w_VCVT_toxv_T1_D_sx(insn) != 0U) ? 32U : 16U;
+	in.fraction_bits = ((t32w_VCVT_toxv_T1_D_sx(insn) != 0U) ? 32U : 16U) - (((t32w_VCVT_toxv_T1_D_imm4(insn) << 1) | t32w_VCVT_toxv_T1_D_i(insn)));
+	return arm_pseudo_vcvt_from_fixed(core, &in, &out);
+}
+
+/* VCVTA_vfp_T1_D: VCVTA.<S32/U32>.F64 <Sd>, <Dm>
+ *     rounding = FPRounding_TIEAWAY; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvta_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTA_vfp_T1_D_Vd(insn), t32w_VCVTA_vfp_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTA_vfp_T1_D_M(insn), t32w_VCVTA_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTA_vfp_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTA_vfp_T1_D_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEAWAY;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTA_vfp_T1_D: VRINTA.F64 <Dd>, <Dm>
+ *     rounding = FPRounding_TIEAWAY; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrinta_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTA_vfp_T1_D_D(insn), t32w_VRINTA_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTA_vfp_T1_D_M(insn), t32w_VRINTA_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTA_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTA_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTA";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEAWAY;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTN_vfp_T1_D: VCVTN.<S32/U32>.F64 <Sd>, <Dm>
+ *     rounding = FPRounding_TIEEVEN; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtn_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTN_vfp_T1_D_Vd(insn), t32w_VCVTN_vfp_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTN_vfp_T1_D_M(insn), t32w_VCVTN_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTN_vfp_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTN";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTN_vfp_T1_D_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEEVEN;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTN_vfp_T1_D: VRINTN.F64 <Dd>, <Dm>
+ *     rounding = FPRounding_TIEEVEN; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintn_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTN_vfp_T1_D_D(insn), t32w_VRINTN_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTN_vfp_T1_D_M(insn), t32w_VRINTN_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTN_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTN_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTN";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_TIEEVEN;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTP_vfp_T1_D: VCVTP.<S32/U32>.F64 <Sd>, <Dm>
+ *     rounding = FPRounding_POSINF; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtp_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTP_vfp_T1_D_Vd(insn), t32w_VCVTP_vfp_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTP_vfp_T1_D_M(insn), t32w_VCVTP_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTP_vfp_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTP_vfp_T1_D_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_POSINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTP_vfp_T1_D: VRINTP.F64 <Dd>, <Dm>
+ *     rounding = FPRounding_POSINF; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintp_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTP_vfp_T1_D_D(insn), t32w_VRINTP_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTP_vfp_T1_D_M(insn), t32w_VRINTP_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTP_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTP_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTP";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_POSINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VCVTM_vfp_T1_D: VCVTM.<S32/U32>.F64 <Sd>, <Dm>
+ *     rounding = FPRounding_NEGINF; unsigned = (op == '0'); d = UInt(Vd:D);
+ *     if VFPSmallRegisterBank() && (M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vcvtm_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_sreg(t32w_VCVTM_vfp_T1_D_Vd(insn), t32w_VCVTM_vfp_T1_D_D(insn));
+	uint32 m = thumb_dreg(t32w_VCVTM_vfp_T1_D_M(insn), t32w_VCVTM_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if (t32w_VCVTM_vfp_T1_D_M(insn) != 0U) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VCVTM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = t32w_VCVTM_vfp_T1_D_op(insn) == 0U;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_NEGINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vcvt_to_int(core, &in, &out);
+}
+
+/* VRINTM_vfp_T1_D: VRINTM.F64 <Dd>, <Dm>
+ *     rounding = FPRounding_NEGINF; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vrintm_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTM_vfp_T1_D_D(insn), t32w_VRINTM_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTM_vfp_T1_D_M(insn), t32w_VRINTM_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTM_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTM_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VRINTM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_NEGINF;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTZ_vfp_T1_D: VRINTZ<c>.F64 <Dd>, <Dm>
+ *     rounding = FPRounding_ZERO; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vrintz_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTZ_vfp_T1_D_D(insn), t32w_VRINTZ_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTZ_vfp_T1_D_M(insn), t32w_VRINTZ_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTZ_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTZ_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VRINTZ";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = FALSE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTR_vfp_T1_D: VRINTR<c>.F64 <Dd>, <Dm>
+ *     rounding = FPSCR's; exact = FALSE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vrintr_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTR_vfp_T1_D_D(insn), t32w_VRINTR_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTR_vfp_T1_D_M(insn), t32w_VRINTR_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTR_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTR_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VRINTR";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = FALSE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VRINTX_vfp_T1_D: VRINTX<c>.F64 <Dd>, <Dm>
+ *     rounding = FPSCR's; exact = TRUE;
+ *     if VFPSmallRegisterBank() && (D == '1' || M == '1') then UNDEFINED; */
+static Std_ReturnType exec_vrintx_vfp_t1_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VRINTX_vfp_T1_D_D(insn), t32w_VRINTX_vfp_T1_D_Vd(insn));
+	uint32 m = thumb_dreg(t32w_VRINTX_vfp_T1_D_M(insn), t32w_VRINTX_vfp_T1_D_Vm(insn));
+	arm_fp_cvt_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VRINTX_vfp_T1_D_D(insn) != 0U) || (t32w_VRINTX_vfp_T1_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "VRINTX";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.m = m;
+	in.unsigned_int = FALSE;
+	in.size = 32U;
+	in.fraction_bits = 0U;
+	in.fpscr_rounding = TRUE;
+	in.rounding = FPRounding_ZERO;
+	in.exact = TRUE;
+	in.top = FALSE;
+	return arm_pseudo_vrint(core, &in, &out);
+}
+
+/* VMAXNM_T2_D: VMAXNM.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vmaxnm_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMAXNM_T2_D_D(insn), t32w_VMAXNM_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VMAXNM_T2_D_N(insn), t32w_VMAXNM_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VMAXNM_T2_D_M(insn), t32w_VMAXNM_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMAXNM_T2_D_D(insn) != 0U) || (t32w_VMAXNM_T2_D_N(insn) != 0U) || (t32w_VMAXNM_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMAXNM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vmaxnm(core, &in, &out);
+}
+
+/* VMINNM_T2_D: VMINNM.F64 <Dd>, <Dn>, <Dm>
+ *     dp_operation = (sz == '1'); d, n, m by the size;
+ *     if VFPSmallRegisterBank() && (D == '1' || N == '1' || M == '1') then UNDEFINED;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (Not conditional: in.cond is AL.) */
+static Std_ReturnType exec_vminnm_t2_d(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = thumb_dreg(t32w_VMINNM_T2_D_D(insn), t32w_VMINNM_T2_D_Vd(insn));
+	uint32 n = thumb_dreg(t32w_VMINNM_T2_D_N(insn), t32w_VMINNM_T2_D_Vn(insn));
+	uint32 m = thumb_dreg(t32w_VMINNM_T2_D_M(insn), t32w_VMINNM_T2_D_Vm(insn));
+	arm_fp_input_type in;
+	arm_fp_output_type out;
+
+	if ((t32w_VMINNM_T2_D_D(insn) != 0U) || (t32w_VMINNM_T2_D_N(insn) != 0U) || (t32w_VMINNM_T2_D_M(insn) != 0U)) {
+		return STD_E_DECODE;
+	}
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "VMINNM";
+	in.cond = Stm32CurrentCond(core);
+	in.dp_operation = TRUE;
+	in.d = d;
+	in.n = n;
+	in.m = m;
+	in.imm64 = 0U;
+	in.sel_cond = 0U;
+	return arm_pseudo_vminnm(core, &in, &out);
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -6801,4 +9020,90 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_VLDMDB_T2] = exec_vldmdb_t2,
 	[T32_32_VSTM_T2] = exec_vstm_t2,
 	[T32_32_VSTMDB_T2] = exec_vstmdb_t2,
+	[T32_32_VADD_f_T2_S] = exec_vadd_f_t2_s,
+	[T32_32_VSUB_f_T2_S] = exec_vsub_f_t2_s,
+	[T32_32_VMUL_f_T2_S] = exec_vmul_f_t2_s,
+	[T32_32_VNMUL_T1_S] = exec_vnmul_t1_s,
+	[T32_32_VMLA_f_T2_S] = exec_vmla_f_t2_s,
+	[T32_32_VMLS_f_T2_S] = exec_vmls_f_t2_s,
+	[T32_32_VNMLA_T1_S] = exec_vnmla_t1_s,
+	[T32_32_VNMLS_T1_S] = exec_vnmls_t1_s,
+	[T32_32_VDIV_T1_S] = exec_vdiv_t1_s,
+	[T32_32_VFMA_T2_S] = exec_vfma_t2_s,
+	[T32_32_VFMS_T2_S] = exec_vfms_t2_s,
+	[T32_32_VFNMA_T1_S] = exec_vfnma_t1_s,
+	[T32_32_VFNMS_T1_S] = exec_vfnms_t1_s,
+	[T32_32_VSQRT_T1_S] = exec_vsqrt_t1_s,
+	[T32_32_VCMP_T1_S] = exec_vcmp_t1_s,
+	[T32_32_VCMP_T2_S] = exec_vcmp_t2_s,
+	[T32_32_VCMPE_T1_S] = exec_vcmpe_t1_s,
+	[T32_32_VCMPE_T2_S] = exec_vcmpe_t2_s,
+	[T32_32_VADD_f_T2_D] = exec_vadd_f_t2_d,
+	[T32_32_VSUB_f_T2_D] = exec_vsub_f_t2_d,
+	[T32_32_VMUL_f_T2_D] = exec_vmul_f_t2_d,
+	[T32_32_VNMUL_T1_D] = exec_vnmul_t1_d,
+	[T32_32_VMLA_f_T2_D] = exec_vmla_f_t2_d,
+	[T32_32_VMLS_f_T2_D] = exec_vmls_f_t2_d,
+	[T32_32_VNMLA_T1_D] = exec_vnmla_t1_d,
+	[T32_32_VNMLS_T1_D] = exec_vnmls_t1_d,
+	[T32_32_VDIV_T1_D] = exec_vdiv_t1_d,
+	[T32_32_VFMA_T2_D] = exec_vfma_t2_d,
+	[T32_32_VFMS_T2_D] = exec_vfms_t2_d,
+	[T32_32_VFNMA_T1_D] = exec_vfnma_t1_d,
+	[T32_32_VFNMS_T1_D] = exec_vfnms_t1_d,
+	[T32_32_VSQRT_T1_D] = exec_vsqrt_t1_d,
+	[T32_32_VCMP_T1_D] = exec_vcmp_t1_d,
+	[T32_32_VCMP_T2_D] = exec_vcmp_t2_d,
+	[T32_32_VCMPE_T1_D] = exec_vcmpe_t1_d,
+	[T32_32_VCMPE_T2_D] = exec_vcmpe_t2_d,
+	[T32_32_VCVT_ds_T1] = exec_vcvt_ds_t1,
+	[T32_32_VCVT_sd_T1] = exec_vcvt_sd_t1,
+	[T32_32_VCVTB_T1_SH] = exec_vcvtb_t1_sh,
+	[T32_32_VCVTB_T1_DH] = exec_vcvtb_t1_dh,
+	[T32_32_VCVTB_T1_HS] = exec_vcvtb_t1_hs,
+	[T32_32_VCVTB_T1_HD] = exec_vcvtb_t1_hd,
+	[T32_32_VCVTT_T1_SH] = exec_vcvtt_t1_sh,
+	[T32_32_VCVTT_T1_DH] = exec_vcvtt_t1_dh,
+	[T32_32_VCVTT_T1_HS] = exec_vcvtt_t1_hs,
+	[T32_32_VCVTT_T1_HD] = exec_vcvtt_t1_hd,
+	[T32_32_VCVT_vi_T1_S] = exec_vcvt_vi_t1_s,
+	[T32_32_VCVT_uiv_T1_S] = exec_vcvt_uiv_t1_s,
+	[T32_32_VCVTR_uiv_T1_S] = exec_vcvtr_uiv_t1_s,
+	[T32_32_VCVT_siv_T1_S] = exec_vcvt_siv_t1_s,
+	[T32_32_VCVTR_siv_T1_S] = exec_vcvtr_siv_t1_s,
+	[T32_32_VCVT_xv_T1_S] = exec_vcvt_xv_t1_s,
+	[T32_32_VCVT_toxv_T1_S] = exec_vcvt_toxv_t1_s,
+	[T32_32_VCVTA_vfp_T1_S] = exec_vcvta_vfp_t1_s,
+	[T32_32_VRINTA_vfp_T1_S] = exec_vrinta_vfp_t1_s,
+	[T32_32_VCVTN_vfp_T1_S] = exec_vcvtn_vfp_t1_s,
+	[T32_32_VRINTN_vfp_T1_S] = exec_vrintn_vfp_t1_s,
+	[T32_32_VCVTP_vfp_T1_S] = exec_vcvtp_vfp_t1_s,
+	[T32_32_VRINTP_vfp_T1_S] = exec_vrintp_vfp_t1_s,
+	[T32_32_VCVTM_vfp_T1_S] = exec_vcvtm_vfp_t1_s,
+	[T32_32_VRINTM_vfp_T1_S] = exec_vrintm_vfp_t1_s,
+	[T32_32_VRINTZ_vfp_T1_S] = exec_vrintz_vfp_t1_s,
+	[T32_32_VRINTR_vfp_T1_S] = exec_vrintr_vfp_t1_s,
+	[T32_32_VRINTX_vfp_T1_S] = exec_vrintx_vfp_t1_s,
+	[T32_32_VMAXNM_T2_S] = exec_vmaxnm_t2_s,
+	[T32_32_VMINNM_T2_S] = exec_vminnm_t2_s,
+	[T32_32_VCVT_vi_T1_D] = exec_vcvt_vi_t1_d,
+	[T32_32_VCVT_uiv_T1_D] = exec_vcvt_uiv_t1_d,
+	[T32_32_VCVTR_uiv_T1_D] = exec_vcvtr_uiv_t1_d,
+	[T32_32_VCVT_siv_T1_D] = exec_vcvt_siv_t1_d,
+	[T32_32_VCVTR_siv_T1_D] = exec_vcvtr_siv_t1_d,
+	[T32_32_VCVT_xv_T1_D] = exec_vcvt_xv_t1_d,
+	[T32_32_VCVT_toxv_T1_D] = exec_vcvt_toxv_t1_d,
+	[T32_32_VCVTA_vfp_T1_D] = exec_vcvta_vfp_t1_d,
+	[T32_32_VRINTA_vfp_T1_D] = exec_vrinta_vfp_t1_d,
+	[T32_32_VCVTN_vfp_T1_D] = exec_vcvtn_vfp_t1_d,
+	[T32_32_VRINTN_vfp_T1_D] = exec_vrintn_vfp_t1_d,
+	[T32_32_VCVTP_vfp_T1_D] = exec_vcvtp_vfp_t1_d,
+	[T32_32_VRINTP_vfp_T1_D] = exec_vrintp_vfp_t1_d,
+	[T32_32_VCVTM_vfp_T1_D] = exec_vcvtm_vfp_t1_d,
+	[T32_32_VRINTM_vfp_T1_D] = exec_vrintm_vfp_t1_d,
+	[T32_32_VRINTZ_vfp_T1_D] = exec_vrintz_vfp_t1_d,
+	[T32_32_VRINTR_vfp_T1_D] = exec_vrintr_vfp_t1_d,
+	[T32_32_VRINTX_vfp_T1_D] = exec_vrintx_vfp_t1_d,
+	[T32_32_VMAXNM_T2_D] = exec_vmaxnm_t2_d,
+	[T32_32_VMINNM_T2_D] = exec_vminnm_t2_d,
 };

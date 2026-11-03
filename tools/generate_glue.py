@@ -51,6 +51,7 @@ KINDS = {
     "fp": ("arm_fp_input_type", "arm_fp_output_type", (), None),
     "fp_core": ("arm_fp_core_input_type", "arm_fp_output_type", ("Rt", "Rt2"), None),
     "fp_ls": ("arm_fp_ls_input_type", "arm_fp_output_type", ("Rn",), None),
+    "fp_cvt": ("arm_fp_cvt_input_type", "arm_fp_output_type", (), None),
 }
 # Kinds whose instructions are not conditional (no ConditionPassed()).
 NO_COND = {"cb", "it"}
@@ -58,7 +59,8 @@ HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm
            "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h", "arm_common/arm_pseudo_extend.h",
            "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h",
            "arm_common/arm_pseudo_system.h", "arm_common/arm_pseudo_parallel.h", "arm_common/arm_pseudo_saturate.h",
-           "arm_common/arm_pseudo_dsp_multiply.h", "arm_common/arm_pseudo_fp_ls.h"]
+           "arm_common/arm_pseudo_dsp_multiply.h", "arm_common/arm_pseudo_fp_ls.h",
+           "arm_common/arm_pseudo_fp_convert.h"]
 
 
 def decoder_ids(width):

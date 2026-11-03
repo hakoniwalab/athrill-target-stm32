@@ -866,7 +866,162 @@ def fpm_cases(rng):
     return cases
 
 
-FP_GROUPS = {"fpm": ("moves, VABS, VNEG, VSEL, VMRS/VMSR, loads and stores", fpm_cases)}
+def fp_near(rng, x, bits):
+    """x, or a value next to it or to -x."""
+    if rng.random() < 0.5:
+        x ^= 1 << (bits - 1)
+    return (x + rng.randrange(-2, 3)) & ((1 << bits) - 1)
+
+
+def fp_fpscr(rng):
+    """A rounding mode, FZ and DN at random; no exception bits yet."""
+    return (rng.randrange(4) << 22) | ((1 << 24) if rng.random() < 0.3 else 0) | ((1 << 25) if rng.random() < 0.3 else 0)
+
+
+def fpa_cases(rng):
+    """Floating-point arithmetic and compare: VADD ... VFNMS, VSQRT, VCMP, VCMPE."""
+    cases = []
+    three = ("vadd", "vsub", "vmul", "vnmul", "vmla", "vmls", "vnmla", "vnmls", "vdiv", "vfma", "vfms", "vfnma", "vfnms")
+    for mnem in three + ("vsqrt", "vcmp", "vcmpe", "vcmp0", "vcmpe0"):
+        for dp in (False, True):
+            bits = 64 if dp else 32
+            value = fp_value64 if dp else fp_value32
+            for i in range(12):
+                if dp:
+                    d, n, m = rng.randrange(16), rng.randrange(16), rng.randrange(16)
+                    rd, rn, rm = "d%d" % d, "d%d" % n, "d%d" % m
+                else:
+                    d, n, m = rng.randrange(32), rng.randrange(32), rng.randrange(32)
+                    rd, rn, rm = "s%d" % d, "s%d" % n, "s%d" % m
+                if mnem in three:
+                    insn = "%s.f%d %s, %s, %s" % (mnem, bits, rd, rn, rm)
+                elif mnem == "vsqrt" or mnem in ("vcmp", "vcmpe"):
+                    insn = "%s.f%d %s, %s" % (mnem, bits, rd, rm)
+                else:
+                    insn = "%s.f%d %s, #0.0" % (mnem[:-1], bits, rd)
+                setup = []
+                pre = []
+                if i % 2 == 0:
+                    # explicit operands: Rd's old value, Rn, Rm (near each other at times)
+                    a = value(rng)
+                    b = fp_near(rng, a, bits) if rng.random() < 0.4 else value(rng)
+                    c = fp_near(rng, a, bits) if rng.random() < 0.3 else value(rng)
+                    for reg, v, core in ((rd, c, ("r0", "r1")), (rn, a, ("r2", "r3")), (rm, b, ("r4", "r5"))):
+                        if dp:
+                            setup += [(core[0], "0x%08X" % (v & 0xFFFFFFFF)), (core[1], "0x%08X" % (v >> 32))]
+                            pre.append("vmov %s, %s, %s" % (reg, core[0], core[1]))
+                        else:
+                            setup.append((core[0], "0x%08X" % v))
+                            pre.append("vmov %s, %s" % (reg, core[0]))
+                cases.append(Case("%s_f%d_%d" % (mnem, bits, i), insn, setup, pre=pre, fpscr=fp_fpscr(rng),
+                                  apsr=rng.getrandbits(5) << 27))
+    # Directed: exact ties (round to nearest even), a quiet NaN addend with
+    # infinity times zero (the default NaN and Invalid Operation), and square
+    # roots whose remainder decides the rounding.
+    directed = [("vadd.f32 s0, s1, s2", [("s1", 0x3F800000), ("s2", 0x33800000)]),
+                ("vadd.f32 s0, s1, s2", [("s1", 0x3F800001), ("s2", 0x33800000)]),
+                ("vadd.f64 d0, d1, d2", [("d1", 0x3FF0000000000000), ("d2", 0x3CA0000000000000)]),
+                ("vadd.f64 d0, d1, d2", [("d1", 0x3FF0000000000001), ("d2", 0x3CA0000000000000)]),
+                ("vfma.f32 s0, s1, s2", [("s0", 0x7FC00000), ("s1", 0x7F800000), ("s2", 0x00000000)]),
+                ("vfma.f64 d0, d1, d2", [("d0", 0x7FF8000000000000), ("d1", 0x0000000000000000), ("d2", 0xFFF0000000000000)]),
+                ("vsqrt.f64 d0, d1", [("d1", 0x438BD6B8E8F6E0BD)]),
+                ("vsqrt.f64 d0, d1", [("d1", 0x428B05F935FFED04)]),
+                ("vsqrt.f64 d0, d1", [("d1", 0x4296E401B9E25E6C)])]
+    for k, (insn, values) in enumerate(directed):
+        setup, pre = [], []
+        cores = iter(["r0", "r1", "r2", "r3", "r4", "r5"])
+        for reg, v in values:
+            if reg.startswith("d"):
+                lo, hi = next(cores), next(cores)
+                setup += [(lo, "0x%08X" % (v & 0xFFFFFFFF)), (hi, "0x%08X" % (v >> 32))]
+                pre.append("vmov %s, %s, %s" % (reg, lo, hi))
+            else:
+                core = next(cores)
+                setup.append((core, "0x%08X" % v))
+                pre.append("vmov %s, %s" % (reg, core))
+        cases.append(Case("directed_%d" % k, insn, setup, pre=pre, fpscr=0))
+    return cases
+
+
+def fp_near_integer(rng, bits):
+    """A value near an integer or a half (for the conversions' rounding)."""
+    E, F = (8, 23) if bits == 32 else (11, 52)
+    e = rng.randrange(-2, 34)
+    frac = rng.getrandbits(F) & ~((1 << max(F - e - 2, 0)) - 1)
+    return (rng.getrandbits(1) << (bits - 1)) | (((1 << (E - 1)) - 1 + e) << F) | frac
+
+
+def fpc_cases(rng):
+    """Conversions, round to integral, VMAXNM, VMINNM."""
+    cases = []
+
+    def case(name, insn, sources, fpscr=None):
+        """sources: (register, value) set with VMOV before the instruction."""
+        setup, pre = [], []
+        cores = iter(["r0", "r1", "r2", "r3", "r4", "r5"])
+        for reg, v in sources:
+            if reg.startswith("d"):
+                lo, hi = next(cores), next(cores)
+                setup += [(lo, "0x%08X" % (v & 0xFFFFFFFF)), (hi, "0x%08X" % (v >> 32))]
+                pre.append("vmov %s, %s, %s" % (reg, lo, hi))
+            else:
+                core = next(cores)
+                setup.append((core, "0x%08X" % v))
+                pre.append("vmov %s, %s" % (reg, core))
+        if fpscr is None:
+            fpscr = fp_fpscr(rng) | ((1 << 26) if rng.random() < 0.3 else 0)
+        cases.append(Case(name, insn, setup, pre=pre, fpscr=fpscr, apsr=rng.getrandbits(5) << 27))
+
+    def value(bits):
+        k = rng.random()
+        if k < 0.5:
+            return fp_near_integer(rng, bits)
+        return fp_value64(rng) if bits == 64 else fp_value32(rng)
+
+    for i in range(8):
+        case("vcvt_f64_f32_%d" % i, "vcvt.f64.f32 d%d, s3" % rng.randrange(16), [("s3", fp_value32(rng))])
+        case("vcvt_f32_f64_%d" % i, "vcvt.f32.f64 s%d, d2" % rng.randrange(32), [("d2", fp_value64(rng))])
+        for bt in ("b", "t"):
+            h = rng.choice([0x0000, 0x8000, 0x7C00, 0xFC00, 0x7E00, 0x7C01, 0x0001, 0x03FF, 0x3C00, 0x7BFF, rng.getrandbits(16)])
+            other = rng.getrandbits(16)
+            word = (h << 16 | other) if bt == "t" else (other << 16 | h)
+            case("vcvt%s_f32_f16_%d" % (bt, i), "vcvt%s.f32.f16 s%d, s5" % (bt, rng.randrange(32)), [("s5", word)])
+            case("vcvt%s_f64_f16_%d" % (bt, i), "vcvt%s.f64.f16 d%d, s5" % (bt, rng.randrange(16)), [("s5", word)])
+            case("vcvt%s_f16_f32_%d" % (bt, i), "vcvt%s.f16.f32 s6, s7" % bt, [("s7", fp_value32(rng)), ("s6", rnd(rng))])
+            case("vcvt%s_f16_f64_%d" % (bt, i), "vcvt%s.f16.f64 s6, d4" % bt, [("d4", fp_value64(rng)), ("s6", rnd(rng))])
+        for f, reg in (("f32", "s9"), ("f64", "d4")):
+            bits = 32 if f == "f32" else 64
+            for dt in ("s32", "u32"):
+                x = rng.choice([0, 1, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, rnd(rng), rnd(rng), rnd(rng)])
+                case("vcvt_%s_%s_%d" % (f, dt, i), "vcvt.%s.%s %s, s3" % (f, dt, "s%d" % rng.randrange(32) if bits == 32 else "d%d" % rng.randrange(16)),
+                     [("s3", x)])
+                case("vcvt_%s_%s_%d" % (dt, f, i), "vcvt.%s.%s s%d, %s" % (dt, f, rng.randrange(32), reg), [(reg, value(bits))])
+                case("vcvtr_%s_%s_%d" % (dt, f, i), "vcvtr.%s.%s s%d, %s" % (dt, f, rng.randrange(32), reg), [(reg, value(bits))])
+                for x in "anpm":
+                    case("vcvt%s_%s_%s_%d" % (x, dt, f, i), "vcvt%s.%s.%s s%d, %s" % (x, dt, f, rng.randrange(32), reg),
+                         [(reg, value(bits))])
+            # fixed point, in place
+            for dt in ("s16", "u16", "s32", "u32"):
+                size = int(dt[1:])
+                fbits = rng.randrange(1, size + 1)
+                case("vcvt_%s_%s_fixed_%d" % (dt, f, i), "vcvt.%s.%s %s, %s, #%d" % (dt, f, reg, reg, fbits), [(reg, value(bits))])
+                x = rnd(rng) if bits == 32 else (rnd(rng) | (rnd(rng) << 32))
+                case("vcvt_%s_%s_fixed_%d" % (f, dt, i), "vcvt.%s.%s %s, %s, #%d" % (f, dt, reg, reg, fbits), [(reg, x)])
+            for x in "anpmzrx":
+                case("vrint%s_%s_%d" % (x, f, i), "vrint%s.%s %s, %s" % (x, f, "s%d" % rng.randrange(32) if bits == 32 else "d%d" % rng.randrange(16), reg),
+                     [(reg, value(bits))])
+            other = "s10" if bits == 32 else "d5"
+            for mnem in ("vmaxnm", "vminnm"):
+                a = value(bits)
+                b = fp_near(rng, a, bits) if rng.random() < 0.4 else value(bits)
+                case("%s_%s_%d" % (mnem, f, i), "%s.%s %s, %s, %s" % (mnem, f, "s%d" % rng.randrange(32) if bits == 32 else "d%d" % rng.randrange(16), reg, other),
+                     [(reg, a), (other, b)])
+    return cases
+
+
+FP_GROUPS = {"fpm": ("moves, VABS, VNEG, VSEL, VMRS/VMSR, loads and stores", fpm_cases),
+             "fpa": ("arithmetic and compare", fpa_cases),
+             "fpc": ("conversions, round to integral, VMAXNM, VMINNM", fpc_cases)}
 
 
 def main():
