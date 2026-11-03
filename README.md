@@ -12,3 +12,32 @@ See [docs/design.md](docs/design.md) for the design decisions and stages, and
 
 The RISC-V target ([athrill-target-riscv](https://github.com/hakoniwalab/athrill-target-riscv))
 already runs PX4 on the AIFoundry Erbium board this way.
+
+## Status
+
+The base of the target runs a bare-metal hello world: Athrill's core with the
+STM32 target, reset from the vector table (main stack pointer and reset
+handler), a bootstrap Thumb decoder for the 16-bit instructions the program
+uses, and USART3 transmit (ISR, TDR). The bootstrap decoder is replaced by
+the generated one (docs/design.md, decision 10).
+
+## Build and run
+
+The Athrill core (`toppers/athrill`, branch `cpp`) is expected next to this
+checkout as `../athrill`.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+./build/athrill3 -c1 -m test/hello/memory.txt -d test/hello/device_config.txt -t 100000 test/hello/hello.elf
+```
+
+prints `Hello, Athrill STM32!` and stops after 100,000 clocks.
+`(cd build && ctest)` runs the same check. `test/hello/hello.elf` is built
+with the toolchain image:
+
+```bash
+docker build -t athrill-stm32-toolchain docker/
+test/hello/build.sh
+```
+
