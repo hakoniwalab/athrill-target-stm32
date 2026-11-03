@@ -15,6 +15,9 @@
 #include "arm_common/arm_pseudo_bitfield.h"
 #include "arm_common/arm_pseudo_multiply.h"
 #include "arm_common/arm_pseudo_system.h"
+#include "arm_common/arm_pseudo_parallel.h"
+#include "arm_common/arm_pseudo_saturate.h"
+#include "arm_common/arm_pseudo_dsp_multiply.h"
 
 /* LDR_i_T1: LDR <Rt>, [<Rn>{, #<imm5:'00'>}]
  *     imm32 = ZeroExtend(imm5:'00', 32); t = UInt(Rt); n = UInt(Rn); index = TRUE; add = TRUE; wback = FALSE; */
