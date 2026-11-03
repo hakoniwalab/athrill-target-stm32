@@ -183,6 +183,91 @@ static Std_ReturnType exec_ror_reg_t1(TargetCoreType *core, uint16 insn)
 }
 
 /*
+ * Data processing, register: the other instructions (no shift:
+ * (shift_t, shift_n) = (SRType_LSL, 0); no UNPREDICTABLE cases)
+ */
+
+/* SUB T1: SUBS <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_sub_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_sub_reg, "SUB", !Stm32InITBlock(core),
+		t32_SUB_r_T1_Rd(insn), t32_SUB_r_T1_Rn(insn), t32_SUB_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* EOR T1: EORS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_eor_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_eor_reg, "EOR", !Stm32InITBlock(core),
+		t32_EOR_r_T1_Rdn(insn), t32_EOR_r_T1_Rdn(insn), t32_EOR_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* ADC T1: ADCS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_adc_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_adc_reg, "ADC", !Stm32InITBlock(core),
+		t32_ADC_r_T1_Rdn(insn), t32_ADC_r_T1_Rdn(insn), t32_ADC_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* SBC T1: SBCS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_sbc_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_sbc_reg, "SBC", !Stm32InITBlock(core),
+		t32_SBC_r_T1_Rdn(insn), t32_SBC_r_T1_Rdn(insn), t32_SBC_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* TST T1: TST <Rn>, <Rm>
+ *     n = UInt(Rn); m = UInt(Rm); */
+static Std_ReturnType exec_tst_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_tst_reg, "TST", TRUE,
+		THUMB_NO_REG, t32_TST_r_T1_Rn(insn), t32_TST_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* CMN T1: CMN <Rn>, <Rm>
+ *     n = UInt(Rn); m = UInt(Rm); */
+static Std_ReturnType exec_cmn_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_cmn_reg, "CMN", TRUE,
+		THUMB_NO_REG, t32_CMN_r_T1_Rn(insn), t32_CMN_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* ORR T1: ORRS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_orr_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_orr_reg, "ORR", !Stm32InITBlock(core),
+		t32_ORR_r_T1_Rdn(insn), t32_ORR_r_T1_Rdn(insn), t32_ORR_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* BIC T1: BICS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_bic_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_bic_reg, "BIC", !Stm32InITBlock(core),
+		t32_BIC_r_T1_Rdn(insn), t32_BIC_r_T1_Rdn(insn), t32_BIC_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* MVN T1: MVNS <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); setflags = !InITBlock(); */
+static Std_ReturnType exec_mvn_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_mvn_reg, "MVN", !Stm32InITBlock(core),
+		t32_MVN_r_T1_Rd(insn), THUMB_NO_REG, t32_MVN_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* RSB T1: RSBS <Rd>, <Rn>, #0 (NEGS)
+ *     d = UInt(Rd); n = UInt(Rn); setflags = !InITBlock(); imm32 = Zeros(32); // immediate = #0 */
+static Std_ReturnType exec_rsb_imm_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_imm(core, arm_pseudo_rsb_imm, "RSB", !Stm32InITBlock(core),
+		t32_RSB_i_T1_Rd(insn), t32_RSB_i_T1_Rn(insn), 0U, FALSE);
+}
+
+/*
  * LDR (immediate)
  */
 
@@ -346,6 +431,16 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_MOV_rr_T1_LSR] = exec_lsr_reg_t1,
 	[T32_16_MOV_rr_T1_ASR] = exec_asr_reg_t1,
 	[T32_16_MOV_rr_T1_ROR] = exec_ror_reg_t1,
+	[T32_16_SUB_r_T1] = exec_sub_reg_t1,
+	[T32_16_EOR_r_T1] = exec_eor_reg_t1,
+	[T32_16_ADC_r_T1] = exec_adc_reg_t1,
+	[T32_16_SBC_r_T1] = exec_sbc_reg_t1,
+	[T32_16_TST_r_T1] = exec_tst_reg_t1,
+	[T32_16_CMN_r_T1] = exec_cmn_reg_t1,
+	[T32_16_ORR_r_T1] = exec_orr_reg_t1,
+	[T32_16_BIC_r_T1] = exec_bic_reg_t1,
+	[T32_16_MVN_r_T1] = exec_mvn_reg_t1,
+	[T32_16_RSB_i_T1] = exec_rsb_imm_t1,
 	[T32_16_LDR_i_T1] = exec_ldr_imm_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_imm_t2,
 	[T32_16_B_T1] = exec_b_t1,

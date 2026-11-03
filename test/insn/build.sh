@@ -9,7 +9,7 @@
 # instructions mean the same: a reference independent of Athrill.
 set -e
 cd "$(dirname "$0")"
-tests="insn dp"
+tests="insn dp dp2"
 docker run --rm -v "$PWD:/work" -w /work athrill-stm32-toolchain sh -c "
   set -e
   for t in $tests; do

@@ -34,7 +34,7 @@ is a licensed product), so three kinds of tests are combined:
 ### Instruction tests in use
 
 `test/insn` has one program per group of instructions (`insn.S`: ADD, LDR,
-B; `dp.S`: data processing). Each runs every encoding of its instructions
+B; `dp.S` and `dp2.S`: data processing). Each runs every encoding of its instructions
 with chosen operands and flags and prints one line per case (result and
 NZCV). `test/insn/build.sh` builds it twice: for this target (Cortex-M7,
 STM32F7 USART) and for QEMU's `netduinoplus2` (Cortex-M4, STM32F4 USART),

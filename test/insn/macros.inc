@@ -128,3 +128,27 @@ const\@:
     movs  r3, #0
     cmp   r3, #1
 .endm
+
+.macro SHOW name, reg
+    PUTS  \name
+    PRINT_HEX \reg
+    PUTC  '\n'
+    POOL
+.endm
+
+.macro SHOWC name
+    RECORD_FLAGS
+    PUTS  \name
+    PRINT_FLAGS
+    PUTC  '\n'
+    POOL
+.endm
+
+.macro SHOWF name, reg
+    RECORD_FLAGS
+    PUTS  \name
+    PRINT_HEX \reg
+    PRINT_FLAGS
+    PUTC  '\n'
+    POOL
+.endm

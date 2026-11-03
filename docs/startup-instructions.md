@@ -87,3 +87,4 @@ Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 | Date | Executors | Before the OS: with an executor / tested | With the OS start: with an executor / tested |
 |---|---|---|---|
 | 2026-11-03 | 63 encodings (ADD, SUB, CMP, AND, MOV, LDR, B, ...) | 37 of 93 encodings, 60.9% / 58.5% of uses | 50 of 184 encodings, 63.8% / 61.6% of uses |
+| 2026-11-03 | 134 encodings (all data processing) | 50 of 93 encodings, 71.1% / 71.1% of uses | 77 of 184 encodings, 68.8% / 68.8% of uses |

@@ -1,0 +1,78 @@
+sub_reg_t1 FFFFFFFE 8
+eor_reg_t1 00000000 6
+adc_reg_t1_c1 00000000 6
+adc_reg_t1_c0 80000000 9
+sbc_reg_t1_c0 00000001 2
+sbc_reg_t1_c1 FFFFFFFE 8
+tst_reg_t1 A
+rsb_imm_t1 FFFFFFFF 8
+rsb_imm_t1_0 00000000 6
+cmn_reg_t1 6
+orr_reg_t1 80000001 8
+bic_reg_t1 00000000 6
+mvn_reg_t1 FFFFFFFF 8
+tst_imm_t1 A
+teq_imm_t1 6
+cmn_imm_t1 6
+bic_imm_t1 12345600
+bics_imm_t1 00000000 6
+orr_imm_t1 12FF00FF
+orrs_imm_t1 C0000000 8
+orn_imm_t1 FFFF00FF
+orns_imm_t1 FF00FF00 A
+eor_imm_t1 00000001
+eors_imm_t1 00000000 6
+mvn_imm_t1 FF00FF00
+mvns_imm_t1 80FFFFFF 8
+adc_imm_t1 00000102
+adcs_imm_t1 00000000 6
+sbc_imm_t1 00000003
+sbcs_imm_t1 00000000 6
+rsb_imm_t2 000000FF
+rsbs_imm_t2 80000000 9
+tst_reg_t2 8
+tst_reg_t2_rrx 8
+bic_reg_t2 FFFFFFF0
+bics_reg_t2 00000000 4
+bic_reg_t2_rrx 7FFFFFFF
+bics_reg_t2_rrx FFFFFFFF A
+orr_reg_t2 56781234
+orrs_reg_t2 FFFFFFFF 8
+orr_reg_t2_rrx 80000001
+orrs_reg_t2_rrx 00000000 6
+orn_reg_t1 FFFFFF00
+orns_reg_t1 0FFFFFFF 2
+orn_reg_t1_rrx 00000000
+orns_reg_t1_rrx FFFFFFFF 8
+mvn_reg_t2 0FFFFFFF
+mvns_reg_t2 80000000 A
+mvn_reg_t2_rrx 7FFFFFFF
+mvns_reg_t2_rrx 80000000 A
+eor_reg_t2 0000FFFF
+eors_reg_t2 00000000 4
+eor_reg_t2_rrx 80000001
+eors_reg_t2_rrx 80000001 A
+teq_reg_t1 4
+teq_reg_t1_rrx 4
+cmn_reg_t2 6
+cmn_reg_t2_rrx 7
+adc_reg_t2 00000012
+adcs_reg_t2 80000000 9
+adc_reg_t2_rrx 80000002
+adcs_reg_t2_rrx 00000000 6
+sbc_reg_t2 00000050
+sbcs_reg_t2 FFFFFFFF 8
+sbc_reg_t2_rrx 00000000
+sbcs_reg_t2_rrx 00000002 2
+sub_reg_t2 00000014
+subs_reg_t2 FFFFFFFF 8
+sub_reg_t2_rrx 00000000
+subs_reg_t2_rrx 00000000 6
+rsb_reg_t1 0000000F
+rsbs_reg_t1 FFFFFFFF 8
+rsb_reg_t1_rrx 7FFFFFFF
+rsbs_reg_t1_rrx 00000000 6
+bx_t1_ok
+nop_t1_ok
+strb_imm_t1 000000AB
+end

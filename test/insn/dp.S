@@ -14,33 +14,6 @@
 
 #include "macros.inc"
 
-/* Prints "<name> <reg>". */
-.macro SHOW name, reg
-    PUTS  \name
-    PRINT_HEX \reg
-    PUTC  '\n'
-    POOL
-.endm
-
-/* Records the flags of a compare just executed and prints "<name> <NZCV>". */
-.macro SHOWC name
-    RECORD_FLAGS
-    PUTS  \name
-    PRINT_FLAGS
-    PUTC  '\n'
-    POOL
-.endm
-
-/* Records the flags of the instruction just executed and prints "<name> <reg> <NZCV>". */
-.macro SHOWF name, reg
-    RECORD_FLAGS
-    PUTS  \name
-    PRINT_HEX \reg
-    PRINT_FLAGS
-    PUTC  '\n'
-    POOL
-.endm
-
     .section .vectors, "a"
     .word _estack
     .word reset_handler
