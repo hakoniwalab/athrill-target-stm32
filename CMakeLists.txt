@@ -55,6 +55,8 @@ add_library(athrill_stm32_cpu STATIC
   src/cpu/thumb_exec.c
   src/cpu/thumb_exec16.c
   src/cpu/thumb_exec32.c
+  src/cpu/thumb_gen16.c
+  src/cpu/thumb_gen32.c
   src/cpu/decoder/t32_decode16.c
   src/cpu/decoder/t32_decode32.c
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
@@ -120,7 +122,7 @@ if(BUILD_TESTING)
   # Instruction tests (test/insn): every encoding of the instructions run
   # through athrill-arm-common, compared with the output of the same
   # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
-  foreach(t insn dp dp2)
+  foreach(t insn dp dp2 ls)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
   endforeach()
 endif()

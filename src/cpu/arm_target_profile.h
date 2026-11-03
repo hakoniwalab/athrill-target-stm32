@@ -159,6 +159,50 @@ static inline Std_ReturnType ArmMemA_W(TargetCoreType *core, uint32 address, uin
 	return ArmMemU_W(core, address, size, value);
 }
 
+/* MemU_unpriv[]: without an MPU, unprivileged accesses are ordinary ones. */
+static inline Std_ReturnType ArmMemU_unpriv_R(TargetCoreType *core, uint32 address, uint32 size, uint32 *value)
+{
+	return ArmMemU_R(core, address, size, value);
+}
+
+static inline Std_ReturnType ArmMemU_unpriv_W(TargetCoreType *core, uint32 address, uint32 size, uint32 value)
+{
+	return ArmMemU_W(core, address, size, value);
+}
+
+/*
+ * The local exclusive monitor (one core): LDREX marks an address, STREX to
+ * it passes once, CLREX clears it. Exception entry and return will clear it
+ * too when exceptions are modelled.
+ */
+static inline void ArmSetExclusiveMonitors(TargetCoreType *core, uint32 address, uint32 size)
+{
+	(void)size;
+	core->exclusive_valid = TRUE;
+	core->exclusive_address = address;
+}
+
+/*
+ * ExclusiveMonitorsPass(address, size): an unaligned address is an
+ * alignment fault (UsageFault UNALIGNED, which stops the run).
+ */
+static inline Std_ReturnType ArmExclusiveMonitorsPass(TargetCoreType *core, uint32 address, uint32 size, bool *pass)
+{
+	if ((address & (size - 1U)) != 0U) {
+		return STD_E_SEGV;
+	}
+	*pass = core->exclusive_valid && (core->exclusive_address == address);
+	if (*pass) {
+		core->exclusive_valid = FALSE;
+	}
+	return STD_E_OK;
+}
+
+static inline void ArmClearExclusiveLocal(TargetCoreType *core)
+{
+	core->exclusive_valid = FALSE;
+}
+
 /*
  * CurrentCond() of an instruction that is not a conditional branch: the IT
  * state's condition. IT is not executed yet, so it is always AL, and

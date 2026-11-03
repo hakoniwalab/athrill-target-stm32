@@ -11,6 +11,7 @@
 #include "arm_common/arm_pseudo_arith.h"
 #include "arm_common/arm_pseudo_logic.h"
 #include "arm_common/arm_pseudo_move.h"
+#include "arm_common/arm_pseudo_ls.h"
 
 typedef Std_ReturnType (*ThumbDpImm)(TargetCoreType *core, const arm_dp_imm_input_type *in, arm_dp_output_type *out);
 typedef Std_ReturnType (*ThumbDpReg)(TargetCoreType *core, const arm_dp_reg_input_type *in, arm_dp_output_type *out);

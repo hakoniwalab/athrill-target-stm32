@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Which instruction encodings with an executor the tests run.
 
-Reads the executor tables of src/cpu/thumb_exec16.c and thumb_exec32.c
+Reads the executor tables of src/cpu/thumb_exec16.c, thumb_exec32.c and the
+generated thumb_gen16.c, thumb_gen32.c
 (generated id -> executor function) and the function execution counts of a
 coverage run (llvm-cov export JSON, from tools/coverage.sh). An encoding is
 covered when its executor ran.
@@ -22,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def executors():
     """{encoding name: executor function}"""
     table = {}
-    for name, width in (("thumb_exec16.c", "16"), ("thumb_exec32.c", "32")):
+    for name, width in (("thumb_exec16.c", "16"), ("thumb_exec32.c", "32"), ("thumb_gen16.c", "16"), ("thumb_gen32.c", "32")):
         text = open(os.path.join(ROOT, "src", "cpu", name)).read()
         for encoding, function in re.findall(r"\[T32_%s_([A-Za-z0-9_]+)\] = (\w+)," % width, text):
             table[encoding] = function

@@ -25,10 +25,12 @@ generated code for the 32-bit ones (Cortex-M7, sampled). Instructions are
 executed through the Arm pseudo-code shared with Athrill's other Arm targets
 ([athrill-arm-common](https://github.com/hakoniwalab/athrill-arm-common)),
 with this target's M-profile implementation of its profile interface
-(`src/cpu/arm_target_profile.h`). So far ADD (immediate), LDR (immediate) and B
-run that way in all their 16- and 32-bit encodings (`test/insn`), next to the
-other 16-bit instructions the hello world uses. Exceptions, the IT block and
-the MPU are not modelled yet.
+(`src/cpu/arm_target_profile.h`). The data-processing instructions, the loads
+and stores and B run that way in all their 16- and 32-bit encodings; the glue
+of the loads and stores is generated from a table (`tools/glue_table.py`,
+`tools/generate_glue.py`), and every encoding is tested against QEMU
+(`test/insn`, `docs/testing.md`). Exceptions, the IT block and the MPU are
+not modelled yet.
 
 ## Build and run
 

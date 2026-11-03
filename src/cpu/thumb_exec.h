@@ -10,6 +10,15 @@
 
 #include "arm_target_profile.h"
 
+typedef Std_ReturnType (*ThumbExec16)(TargetCoreType *core, uint16 insn);
+typedef Std_ReturnType (*ThumbExec32)(TargetCoreType *core, uint32 insn);
+
+/* The executors generated from tools/glue_table.py (thumb_gen16.c, thumb_gen32.c),
+ * by generated decoder id; the hand-written ones are in thumb_exec16.c and
+ * thumb_exec32.c. An id has at most one of the two. */
+extern const ThumbExec16 thumb_gen_executors16[];
+extern const ThumbExec32 thumb_gen_executors32[];
+
 Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn);
 /* insn: the first halfword in bits 31:16, the second in bits 15:0. */
 Std_ReturnType thumb_execute32(TargetCoreType *core, uint32 insn);

@@ -22,10 +22,10 @@ cmake --build "$build" --parallel >/dev/null
 rm -f "$build"/cov-*.profraw
 (cd "$build" && LLVM_PROFILE_FILE="$PWD/cov-%p.profraw" ctest --output-on-failure >/dev/null)
 $profdata merge -o "$build/ctest.profdata" "$build"/cov-*.profraw
-files="src/cpu/thumb_exec.c src/cpu/thumb_exec16.c src/cpu/thumb_exec32.c src/cpu/thumb_glue.h src/cpu/arm_target_profile.h $common/include/arm_common/arm_helpers.h $common/include/arm_common/arm_pseudo_*.h"
+files="src/cpu/thumb_exec.c src/cpu/thumb_exec16.c src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c src/cpu/thumb_glue.h src/cpu/arm_target_profile.h $common/include/arm_common/arm_helpers.h $common/include/arm_common/arm_pseudo_*.h"
 echo "== code"
 $cov report -instr-profile="$build/ctest.profdata" "$build/athrill3" $files
 $cov export -format=text -skip-expansions -instr-profile="$build/ctest.profdata" "$build/athrill3" \
-  src/cpu/thumb_exec16.c src/cpu/thumb_exec32.c > "$build/coverage.json"
+  src/cpu/thumb_exec16.c src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c > "$build/coverage.json"
 echo "== encodings"
 python3 tools/encoding_coverage.py "$build/coverage.json"

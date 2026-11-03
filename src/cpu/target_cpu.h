@@ -29,6 +29,8 @@ typedef struct TargetCoreTypeTag {
     std_bool is_halt;
     std_bool reset_pending;	/* SP and PC still to be read from the vector table */
     std_bool access_fault;
+    std_bool exclusive_valid;	/* local exclusive monitor (LDREX/STREX) */
+    uint32 exclusive_address;
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;

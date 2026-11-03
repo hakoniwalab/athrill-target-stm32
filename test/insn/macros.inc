@@ -15,12 +15,16 @@
 #endif
 
 /* Sets r7 to USART3. QEMU's STM32F4 USART sends only when enabled
- * (CR1: UE, TE); the STM32 target sends without it. */
+ * (CR1: UE, TE); the STM32 target sends without it. Both builds have the
+ * same instructions here (a NOP for the store), so that every address of
+ * the program is the same in both and addresses can be printed. */
 .macro USART_INIT
     ldr   r7, =USART3_BASE
-#ifdef USART_STM32F4
     ldr   r1, =0x2008
+#ifdef USART_STM32F4
     str   r1, [r7, #0x0C]
+#else
+    nop
 #endif
 .endm
 

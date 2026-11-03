@@ -7,7 +7,6 @@
  */
 #include "thumb_glue.h"
 #include "t32_decode32.h"
-#include "arm_common/arm_pseudo_load.h"
 #include "arm_common/arm_pseudo_branch.h"
 
 /*
@@ -1079,77 +1078,6 @@ static Std_ReturnType exec_rsbs_reg_t1_rrx(TargetCoreType *core, uint32 insn)
 }
 
 /*
- * LDR (immediate)
- */
-
-/* Common checks of T3 and T4:
- *     if t == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
- * InITBlock() is FALSE while IT is not executed. */
-static Std_ReturnType ldr_imm(TargetCoreType *core, uint32 t, uint32 n, uint32 imm32, bool index, bool add, bool wback)
-{
-	arm_ldr_imm_input_type in;
-	arm_ldr_imm_output_type out;
-
-	in.instrName = "LDR";
-	in.cond = Stm32CurrentCond(core);
-	ARM_SET_REG(core, &in, Rt, t);
-	ARM_SET_REG(core, &in, Rn, n);
-	in.imm32 = imm32;
-	in.index = index;
-	in.add = add;
-	in.wback = wback;
-	return arm_pseudo_ldr_imm(core, &in, &out);
-}
-
-/* T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
- *     if Rn == '1111' then SEE LDR (literal);
- *     t = UInt(Rt); n = UInt(Rn); imm32 = ZeroExtend(imm12, 32);
- *     index = TRUE; add = TRUE; wback = FALSE; */
-static Std_ReturnType exec_ldr_imm_t3(TargetCoreType *core, uint32 insn)
-{
-	return ldr_imm(core, t32w_LDR_i_T3_Rt(insn), t32w_LDR_i_T3_Rn(insn), t32w_LDR_i_T3_imm12(insn),
-		TRUE, TRUE, FALSE);
-}
-
-/* T4: LDR<c> <Rt>, [<Rn>, #-<imm8>] / [<Rn>], #+/-<imm8> / [<Rn>, #+/-<imm8>]!
- *     if Rn == '1111' then SEE LDR (literal);
- *     if P == '1' && U == '1' && W == '0' then SEE LDRT;
- *     if Rn == '1101' && P == '0' && U == '1' && W == '1' && imm8 == '00000100' then SEE POP;
- *     if P == '0' && W == '0' then UNDEFINED;
- *     t = UInt(Rt); n = UInt(Rn); imm32 = ZeroExtend(imm8, 32);
- *     index = (P == '1'); add = (U == '1'); wback = (W == '1');
- *     if wback && n == t then UNPREDICTABLE;
- * The generated decoder gives one id per P:W form (offset, post-indexed,
- * pre-indexed); LDRT, POP and the undefined form are other ids. */
-static Std_ReturnType exec_ldr_imm_t4_off(TargetCoreType *core, uint32 insn)
-{
-	return ldr_imm(core, t32w_LDR_i_T4_off_Rt(insn), t32w_LDR_i_T4_off_Rn(insn), t32w_LDR_i_T4_off_imm8(insn),
-		TRUE, FALSE, FALSE);
-}
-
-static Std_ReturnType exec_ldr_imm_t4_post(TargetCoreType *core, uint32 insn)
-{
-	uint32 t = t32w_LDR_i_T4_post_Rt(insn);
-	uint32 n = t32w_LDR_i_T4_post_Rn(insn);
-
-	if (n == t) {
-		return STD_E_INVALID;
-	}
-	return ldr_imm(core, t, n, t32w_LDR_i_T4_post_imm8(insn), FALSE, t32w_LDR_i_T4_post_U(insn) != 0U, TRUE);
-}
-
-static Std_ReturnType exec_ldr_imm_t4_pre(TargetCoreType *core, uint32 insn)
-{
-	uint32 t = t32w_LDR_i_T4_pre_Rt(insn);
-	uint32 n = t32w_LDR_i_T4_pre_Rn(insn);
-
-	if (n == t) {
-		return STD_E_INVALID;
-	}
-	return ldr_imm(core, t, n, t32w_LDR_i_T4_pre_imm8(insn), TRUE, t32w_LDR_i_T4_pre_U(insn) != 0U, TRUE);
-}
-
-/*
  * B
  */
 
@@ -1198,8 +1126,6 @@ static Std_ReturnType exec_b_t4(TargetCoreType *core, uint32 insn)
 	in.imm32 = SignExtend(imm25, 25U);
 	return arm_pseudo_b(core, &in, &out);
 }
-
-typedef Std_ReturnType (*ThumbExec32)(TargetCoreType *core, uint32 insn);
 
 static const ThumbExec32 executors[T32_32_ID_NUM] = {
 	[T32_32_ADD_i_T3] = exec_add_imm_t3,
@@ -1291,10 +1217,6 @@ static const ThumbExec32 executors[T32_32_ID_NUM] = {
 	[T32_32_RSB_r_T1_RRX] = exec_rsb_reg_t1_rrx,
 	[T32_32_RSBS_r_T1] = exec_rsbs_reg_t1,
 	[T32_32_RSBS_r_T1_RRX] = exec_rsbs_reg_t1_rrx,
-	[T32_32_LDR_i_T3] = exec_ldr_imm_t3,
-	[T32_32_LDR_i_T4_off] = exec_ldr_imm_t4_off,
-	[T32_32_LDR_i_T4_post] = exec_ldr_imm_t4_post,
-	[T32_32_LDR_i_T4_pre] = exec_ldr_imm_t4_pre,
 	[T32_32_B_T3] = exec_b_t3,
 	[T32_32_B_T4] = exec_b_t4,
 };
@@ -1303,8 +1225,11 @@ Std_ReturnType thumb_execute32(TargetCoreType *core, uint32 insn)
 {
 	T32Decode32Id id = t32_decode32(insn);
 
-	if (executors[id] == NULL) {
-		return STD_E_DECODE;
+	if (executors[id] != NULL) {
+		return executors[id](core, insn);
 	}
-	return executors[id](core, insn);
+	if (thumb_gen_executors32[id] != NULL) {
+		return thumb_gen_executors32[id](core, insn);
+	}
+	return STD_E_DECODE;
 }
