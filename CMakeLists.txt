@@ -73,6 +73,11 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32_tim.c
+  src/device/peripheral/stm32_gpio.c
+  src/device/peripheral/stm32_spi.c
+  src/device/sensor/sensor_source.c
+  src/device/sensor/ms5611.c
+  src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
 if(ATHRILL_ENABLE_EXDEV)
@@ -130,6 +135,12 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32-uart COMMAND test_stm32_uart)
+  add_executable(test_spi_ms5611 test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
+    src/device/peripheral/stm32_spi.c src/device/sensor/ms5611.c)
+  stm32_target(test_spi_ms5611)
+  target_include_directories(test_spi_ms5611 PRIVATE src/device)
+  target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config)
+  add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"

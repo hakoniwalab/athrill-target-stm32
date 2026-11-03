@@ -1,0 +1,12 @@
+/*
+ * The board around the STM32: which chips sit on which buses and pins
+ * (DEVICE_CONFIG_STM32_BOARD; none by default).
+ *   fmu-v5  Pixhawk 4 (PX4 boards/px4/fmu-v5): MS5611 on SPI4 (CS PF10)
+ */
+#ifndef ATHRILL_STM32_BOARD_H
+#define ATHRILL_STM32_BOARD_H
+
+/* Puts the chips of the configured board on their buses (after the buses' reset). */
+void board_attach(void);
+
+#endif

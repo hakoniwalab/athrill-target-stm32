@@ -13,6 +13,8 @@
 #include "concrete_executor/target/dbg_target_serial.h"
 #include "stm32_tim.h"
 #include "stm32_uart.h"
+#include "stm32_gpio.h"
+#include "stm32_spi.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -90,6 +92,9 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	if (stm32_uart_owns(a)) {
 		return stm32_uart_read(a);
 	}
+	if (stm32_gpio_owns(a)) {
+		return stm32_gpio_read(a);
+	}
 	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
 		if (a == spi_bases[i] + 0x08U) {
 			return v | 0x3U;	/* SR: TXE, RXNE */
@@ -136,6 +141,14 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 		stm32_uart_write(addr, size, value);
 		return;
 	}
+	if (stm32_gpio_owns(a)) {
+		stm32_gpio_write(addr, size, value);
+		return;
+	}
+	if (stm32_spi_owns(a)) {
+		stm32_spi_write(addr, size, value);
+		return;
+	}
 	for (i = 0U; i < size; i++) {
 		r->data[addr - (uint32)r->start + i] = (uint8)(value >> (8U * i));
 	}
@@ -144,6 +157,12 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	(void)c;
+	if (stm32_spi_owns((uint32)a)) {
+		/* DR: a read takes from the RX FIFO as many frames as its size */
+		stm32_device_accessed = TRUE;
+		*d = (uint8)stm32_spi_read((uint32)a, 1U);
+		return STD_E_OK;
+	}
 	if (stm32_uart_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
 	}
@@ -155,6 +174,12 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
 {
 	(void)c;
+	if (stm32_spi_owns((uint32)a)) {
+		/* DR: a read takes from the RX FIFO as many frames as its size */
+		stm32_device_accessed = TRUE;
+		*d = (uint16)stm32_spi_read((uint32)a, 2U);
+		return STD_E_OK;
+	}
 	if (stm32_uart_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
 	}
@@ -166,6 +191,12 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	if (stm32_spi_owns((uint32)a)) {
+		/* DR: a read takes from the RX FIFO as many frames as its size */
+		stm32_device_accessed = TRUE;
+		*d = (uint32)stm32_spi_read((uint32)a, 4U);
+		return STD_E_OK;
+	}
 	if (stm32_uart_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
 	}

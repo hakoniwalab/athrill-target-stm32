@@ -4,6 +4,10 @@
 #include "peripheral/stm32_periph_probe.h"
 #include "peripheral/stm32_tim.h"
 #include "peripheral/stm32_uart.h"
+#include "peripheral/stm32_gpio.h"
+#include "peripheral/stm32_spi.h"
+#include "sensor/sensor_source.h"
+#include "board/board.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -39,6 +43,10 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_probe_init();
 	stm32_tim_reset();
 	uart_reset();
+	stm32_gpio_reset();
+	stm32_spi_reset();
+	sensor_source_reset();
+	board_attach();
 }
 
 void device_supply_clock(DeviceClockType *clock)
