@@ -3,6 +3,7 @@
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/stm32_periph_probe.h"
 #include "peripheral/stm32_tim.h"
+#include "peripheral/stm32_uart.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -12,6 +13,19 @@ static std_bool exdev_initialized = FALSE;
 #endif
 
 std_bool stm32_device_accessed = FALSE;
+
+/* The console UART (DEVICE_CONFIG_STM32_CONSOLE_UART, USART3 by default) and its input file. */
+static void uart_reset(void)
+{
+	uint32 console = 3U;
+	char *rx_file = NULL;
+
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_CONSOLE_UART", &console);
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_RX_FILE", &rx_file) != STD_E_OK) {
+		rx_file = NULL;
+	}
+	stm32_uart_reset(console, rx_file);
+}
 
 void device_init(CpuType *cpu, DeviceClockType *clock)
 {
@@ -24,6 +38,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	arm_m_scs_reset();
 	stm32_probe_init();
 	stm32_tim_reset();
+	uart_reset();
 }
 
 void device_supply_clock(DeviceClockType *clock)
@@ -32,7 +47,7 @@ void device_supply_clock(DeviceClockType *clock)
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
 	arm_m_scs_tick(clock);
 	stm32_tim_tick(clock);
-	stm32_probe_tick();
+	stm32_uart_tick(clock);
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {

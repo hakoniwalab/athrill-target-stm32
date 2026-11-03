@@ -20,6 +20,8 @@
     .global reset_handler
 reset_handler:
     ldr   r0, =USART3_BASE
+    movs  r1, #0x9                  /* CR1: UE, TE */
+    str   r1, [r0, #0]
     adr   r1, message
 next_char:
     ldrb  r2, [r1, #0]

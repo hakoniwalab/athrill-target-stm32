@@ -23,10 +23,10 @@
     .equ USART_TDR,   0x28
 #endif
 
-/* Sets r7 to USART3. QEMU's STM32F4 USART sends only when enabled
- * (CR1: UE, TE); the STM32 target sends without it. Both builds have the
- * same instructions here (a NOP for the store), so that every address of
- * the program is the same in both and addresses can be printed. */
+/* Sets r7 to USART3 and enables its transmitter (CR1: UE, TE; at 0x0C on
+ * the STM32F4, at 0x00 on the STM32F7). Both builds have the same
+ * instructions here, so that every address of the program is the same in
+ * both and addresses can be printed. */
 .macro USART_INIT
 #ifdef TARGET_AN500
     /* The CMSDK UART: BAUDDIV, then CTRL.TX_EN. The FPU: CPACR CP10 and
@@ -44,11 +44,12 @@
     isb
 #else
     ldr   r7, =USART3_BASE
-    ldr   r1, =0x2008
 #ifdef USART_STM32F4
+    ldr   r1, =0x2008
     str   r1, [r7, #0x0C]
 #else
-    nop
+    ldr   r1, =0x0009
+    str   r1, [r7, #0x00]
 #endif
 #endif
 .endm

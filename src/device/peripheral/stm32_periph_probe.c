@@ -5,14 +5,14 @@
  * the regulator, the RTC's synchronisation and initialisation, the USB OTG
  * core's resets, an SD card slot without a card, SPI buses with nothing on
  * them, an ADC whose conversions are always done); the timers PX4 needs are
- * modelled apart (stm32_tim.c) and every USART/UART transmitting at once (TDR to the
- * console, ISR with TXE and TC). The first access to each 1 KiB block of
+ * modelled apart (stm32_tim.c), and so are the USART/UARTs (stm32_uart.c). The first access to each 1 KiB block of
  * registers is reported on stderr.
  */
 #include "stm32_periph_probe.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 #include "stm32_tim.h"
+#include "stm32_uart.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -49,12 +49,6 @@ void stm32_probe_init(void)
 #define OTG_FS_GRSTCTL	0x50000010U
 #define SDMMC1_STA	0x40012C34U
 #define ADC1_SR		0x40012000U
-
-static const uint32 uart_bases[] = {
-	0x40011000U, 0x40004400U, 0x40004C00U, 0x40005000U, 0x40011400U, 0x40007800U, 0x40007C00U,
-};
-/* Their interrupts: USART1, USART2, UART4, UART5, USART6, UART7, UART8 */
-static const uint32 uart_irqs[] = { 37U, 38U, 52U, 53U, 71U, 82U, 83U };
 
 static const uint32 spi_bases[] = {
 	0x40013000U, 0x40003800U, 0x40003C00U, 0x40013400U, 0x40015000U, 0x40015400U,
@@ -93,10 +87,8 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	if (stm32_tim_owns(a)) {
 		return stm32_tim_read(a);
 	}
-	for (i = 0U; i < sizeof(uart_bases) / sizeof(uart_bases[0]); i++) {
-		if (a == uart_bases[i] + 0x1CU) {
-			return v | (1U << 7) | (1U << 6);	/* ISR: TXE, TC */
-		}
+	if (stm32_uart_owns(a)) {
+		return stm32_uart_read(a);
 	}
 	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
 		if (a == spi_bases[i] + 0x08U) {
@@ -140,11 +132,9 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 		stm32_tim_write(addr, size, value);
 		return;
 	}
-	for (i = 0U; i < sizeof(uart_bases) / sizeof(uart_bases[0]); i++) {
-		if (a == uart_bases[i] + 0x28U) {
-			(void)dbg_serial_putchar(0, (uint8)value);
-			return;
-		}
+	if (stm32_uart_owns(a)) {
+		stm32_uart_write(addr, size, value);
+		return;
 	}
 	for (i = 0U; i < size; i++) {
 		r->data[addr - (uint32)r->start + i] = (uint8)(value >> (8U * i));
@@ -214,20 +204,3 @@ static Std_ReturnType get_pointer(MpuAddressRegionType *r, CoreIdType c, Athrill
 
 MpuAddressRegionOperationType stm32_probe_ops = { get8, get16, get32, put8, put16, put32, get_pointer };
 
-/*
- * The UARTs always transmit at once: TXE and TC are always set, so an
- * enabled TXEIE or TCIE (with UE) keeps the UART's interrupt pending.
- */
-void stm32_probe_tick(void)
-{
-	uint32 i;
-
-	for (i = 0U; i < sizeof(uart_bases) / sizeof(uart_bases[0]); i++) {
-		uint32 off = uart_bases[i] - STM32_PROBE_APB_AHB1_BASE;
-		uint32 cr1 = (uint32)stm32_probe_apb_ahb1_data[off] | ((uint32)stm32_probe_apb_ahb1_data[off + 1U] << 8);
-
-		if (((cr1 & 1U) != 0U) && ((cr1 & ((1U << 7) | (1U << 6))) != 0U)) {
-			(void)intc_raise_intr(uart_irqs[i]);
-		}
-	}
-}

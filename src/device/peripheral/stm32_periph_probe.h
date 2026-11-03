@@ -27,7 +27,5 @@ extern MpuAddressRegionOperationType stm32_probe_ops;
 
 /* The identification values (UID, flash size). */
 void stm32_probe_init(void);
-/* The UARTs' transmit interrupts. */
-void stm32_probe_tick(void);
 
 #endif

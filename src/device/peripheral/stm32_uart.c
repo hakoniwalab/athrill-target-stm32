@@ -1,0 +1,473 @@
+/*
+ * The STM32F7 USART/UARTs (see stm32_uart.h). Register offsets and bits
+ * from RM0410 34.8. Like the timers, a UART is brought up to the virtual
+ * clock when its registers are accessed and at each device tick:
+ *   - transmit: TDR feeds the shift register; a frame takes frame_clocks();
+ *     TXE is "TDR empty", TC "TDR empty and the last frame sent". A
+ *     character leaves (to its sink) when it enters the shift register.
+ *   - receive: the next input character arrives one frame time after the
+ *     previous one, and not before RDR has been read.
+ */
+#include "stm32_uart.h"
+#include "cpuemu_ops.h"
+#include "device.h"
+#include "concrete_executor/target/dbg_target_serial.h"
+#include <stdio.h>
+
+#define USART_CR1	0x00U
+#define USART_CR2	0x04U
+#define USART_CR3	0x08U
+#define USART_BRR	0x0CU
+#define USART_GTPR	0x10U
+#define USART_RTOR	0x14U
+#define USART_RQR	0x18U
+#define USART_ISR	0x1CU
+#define USART_ICR	0x20U
+#define USART_RDR	0x24U
+#define USART_TDR	0x28U
+#define USART_REGS_SIZE	0x2CU
+#define USART_BLOCK_SIZE	0x400U
+
+#define CR1_UE		(1U << 0)
+#define CR1_RE		(1U << 2)
+#define CR1_TE		(1U << 3)
+#define CR1_RXNEIE	(1U << 5)
+#define CR1_TCIE	(1U << 6)
+#define CR1_TXEIE	(1U << 7)
+#define CR1_M0		(1U << 12)
+#define CR1_OVER8	(1U << 15)
+#define CR1_M1		(1U << 28)
+#define CR2_STOP_SHIFT	12U
+
+#define ISR_RXNE	(1U << 5)
+#define ISR_TC		(1U << 6)
+#define ISR_TXE		(1U << 7)
+#define ISR_TEACK	(1U << 21)
+#define ISR_REACK	(1U << 22)
+
+#define CR3_DMAR	(1U << 6)
+
+#define RQR_RXFRQ	(1U << 3)
+#define ICR_TCCF	(1U << 6)
+
+/* Input queue of the console (the debugger's serial input). */
+#define INPUT_QUEUE_SIZE	256U
+/* At the end of the input file, appended data is looked for this often (CPU clocks). */
+#define RX_FILE_POLL_CLOCKS	1000000U
+
+typedef struct {
+	uint32 number;
+	uint32 base;
+	uint32 divider;		/* CPU clocks per USART kernel clock (PCLK) */
+	uint32 irq;
+	uint32 regs[USART_REGS_SIZE / 4U];
+	/* transmitter */
+	std_bool tdr_full;
+	uint8 tdr;
+	uint64 shift_end;	/* the clock the frame in the shift register is sent */
+	std_bool sending;	/* a frame was sent since TC was last set */
+	std_bool tc;
+	/* receiver */
+	std_bool rxne;
+	uint32 rdr;
+	uint64 rx_next;		/* the earliest clock of the next character */
+	uint64 now;
+	uint32 asserted;	/* the interrupt line as last seen */
+} UartType;
+
+/*
+ * The USART kernel clock is PCLK (the reset choice of RCC_DCKCFGR2) with the
+ * clock tree PX4 and the STM32Cube defaults use: APB1 = HCLK/4 (USART2, 3,
+ * UART4, 5, 7, 8), APB2 = HCLK/2 (USART1, 6).
+ */
+static UartType uarts[] = {
+	{ .number = 1U, .base = 0x40011000U, .divider = 2U, .irq = 37U },
+	{ .number = 2U, .base = 0x40004400U, .divider = 4U, .irq = 38U },
+	{ .number = 3U, .base = 0x40004800U, .divider = 4U, .irq = 39U },
+	{ .number = 4U, .base = 0x40004C00U, .divider = 4U, .irq = 52U },
+	{ .number = 5U, .base = 0x40005000U, .divider = 4U, .irq = 53U },
+	{ .number = 6U, .base = 0x40011400U, .divider = 2U, .irq = 71U },
+	{ .number = 7U, .base = 0x40007800U, .divider = 4U, .irq = 82U },
+	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
+};
+
+#define UART_NUM	(sizeof(uarts) / sizeof(uarts[0]))
+
+static UartType *console;
+static FILE *rx_file;
+static std_bool rx_file_at_end;
+static uint8 input_queue[INPUT_QUEUE_SIZE];
+static uint32 input_head;
+static uint32 input_count;
+
+static UartType *uart_of(uint32 addr)
+{
+	uint32 i;
+
+	for (i = 0U; i < UART_NUM; i++) {
+		if ((addr >= uarts[i].base) && (addr < (uarts[i].base + USART_BLOCK_SIZE))) {
+			return &uarts[i];
+		}
+	}
+	return NULL;
+}
+
+std_bool stm32_uart_owns(uint32 addr)
+{
+	return uart_of(addr) != NULL;
+}
+
+static uint32 reg(const UartType *u, uint32 offset)
+{
+	return u->regs[offset / 4U];
+}
+
+static std_bool enabled(const UartType *u, uint32 bit)
+{
+	return (reg(u, USART_CR1) & (CR1_UE | bit)) == (CR1_UE | bit);
+}
+
+/* CPU clocks of one frame: start bit, data bits, stop bits at the baud rate of BRR. */
+static uint64 frame_clocks(const UartType *u)
+{
+	uint32 cr1 = reg(u, USART_CR1);
+	uint32 brr = reg(u, USART_BRR) & 0xFFFFU;
+	uint64 bit2;		/* kernel clocks of two bits */
+	uint64 half_bits;	/* the frame in half bits */
+	uint32 stop;
+
+	if ((cr1 & CR1_OVER8) != 0U) {
+		/* baud = 2 x fck / USARTDIV, USARTDIV = BRR[15:4] : BRR[2:0] << 1 */
+		bit2 = (uint64)((brr & 0xFFF0U) | ((brr & 7U) << 1));
+	}
+	else {
+		bit2 = 2U * (uint64)brr;
+	}
+	if (bit2 == 0U) {
+		bit2 = 2U;
+	}
+	half_bits = 2U + 16U;	/* start, 8 data bits */
+	if ((cr1 & CR1_M1) != 0U) {
+		half_bits -= 2U;	/* 7 data bits */
+	}
+	else if ((cr1 & CR1_M0) != 0U) {
+		half_bits += 2U;	/* 9 data bits */
+	}
+	stop = (reg(u, USART_CR2) >> CR2_STOP_SHIFT) & 3U;
+	half_bits += (stop == 0U) ? 2U : ((stop == 1U) ? 1U : ((stop == 2U) ? 4U : 3U));
+	return (half_bits * bit2 * u->divider) / 4U;
+}
+
+/* A character enters the shift register at clock start and leaves for the UART's sink. */
+static void shift_out(UartType *u, uint8 data, uint64 start)
+{
+	u->shift_end = start + frame_clocks(u);
+	u->sending = TRUE;
+	if (u == console) {
+		(void)dbg_serial_putchar(0, data);
+	}
+}
+
+/*
+ * Input waits for a reader: the receiver enabled with its interrupt or DMA
+ * request on. A driver resets its UART when it opens it, and a character
+ * waiting in RDR then would be lost, as when typing before the prompt.
+ */
+static std_bool listening(const UartType *u)
+{
+	return enabled(u, CR1_RE)
+		&& (((reg(u, USART_CR1) & CR1_RXNEIE) != 0U) || ((reg(u, USART_CR3) & CR3_DMAR) != 0U));
+}
+
+static std_bool input_available(const UartType *u)
+{
+	return (u == console) && ((input_count != 0U) || ((rx_file != NULL) && !rx_file_at_end));
+}
+
+/* The next input character of the console, if any. */
+static std_bool next_input(uint8 *data)
+{
+	int c;
+
+	if (input_count != 0U) {
+		*data = input_queue[input_head];
+		input_head = (input_head + 1U) % INPUT_QUEUE_SIZE;
+		input_count--;
+		return TRUE;
+	}
+	if ((rx_file == NULL) || rx_file_at_end) {
+		return FALSE;
+	}
+	c = fgetc(rx_file);
+	if (c == EOF) {
+		clearerr(rx_file);
+		rx_file_at_end = TRUE;
+		return FALSE;
+	}
+	*data = (uint8)c;
+	return TRUE;
+}
+
+/* The UART up to clock now. */
+static void advance_to(UartType *u, uint64 now)
+{
+	uint8 data;
+
+	if (now < u->now) {
+		return;
+	}
+	u->now = now;
+	/* TDR into the shift register once the frame before is sent */
+	if (u->tdr_full && (now >= u->shift_end)) {
+		u->tdr_full = FALSE;
+		shift_out(u, u->tdr, u->shift_end);
+	}
+	if (u->sending && !u->tdr_full && (now >= u->shift_end)) {
+		u->sending = FALSE;
+		u->tc = TRUE;
+	}
+	/* end of the input file: look for appended data from time to time */
+	if ((u == console) && rx_file_at_end && (now >= u->rx_next)) {
+		rx_file_at_end = FALSE;
+	}
+	if (listening(u) && !u->rxne && (now >= u->rx_next) && input_available(u)) {
+		if (next_input(&data)) {
+			u->rdr = data;
+			u->rxne = TRUE;
+			u->rx_next += frame_clocks(u);
+		}
+		else {
+			u->rx_next = now + RX_FILE_POLL_CLOCKS;
+		}
+	}
+}
+
+static uint32 isr_value(const UartType *u)
+{
+	uint32 isr = 0U;
+	uint32 cr1 = reg(u, USART_CR1);
+
+	if (u->rxne) {
+		isr |= ISR_RXNE;
+	}
+	if (u->tc) {
+		isr |= ISR_TC;
+	}
+	if (!u->tdr_full) {
+		isr |= ISR_TXE;
+	}
+	if ((cr1 & CR1_TE) != 0U) {
+		isr |= ISR_TEACK;
+	}
+	if ((cr1 & CR1_RE) != 0U) {
+		isr |= ISR_REACK;
+	}
+	return isr;
+}
+
+static uint32 interrupt_level(const UartType *u)
+{
+	uint32 cr1 = reg(u, USART_CR1);
+	uint32 isr = isr_value(u);
+
+	if ((cr1 & CR1_UE) == 0U) {
+		return 0U;
+	}
+	return isr & cr1 & (CR1_RXNEIE | CR1_TCIE | CR1_TXEIE);
+}
+
+static void raise_interrupt(UartType *u)
+{
+	uint32 level = interrupt_level(u);
+	uint32 rose = level & ~u->asserted;
+
+	u->asserted = level;
+	if ((level != 0U) && ((rose != 0U) || !intc_irq_active(u->irq))) {
+		(void)intc_raise_intr(u->irq);
+	}
+}
+
+static uint32 read_register(UartType *u, uint32 offset)
+{
+	switch (offset) {
+	case USART_ISR:
+		return isr_value(u);
+	case USART_RDR:
+		if (u->rxne) {
+			u->rxne = FALSE;
+			/* the next character is received while this one was waiting at the earliest */
+			if (u->rx_next < u->now) {
+				u->rx_next = u->now;
+			}
+		}
+		return u->rdr;
+	case USART_RQR:
+	case USART_ICR:
+		return 0U;
+	default:
+		return (offset < USART_REGS_SIZE) ? reg(u, offset) : 0U;
+	}
+}
+
+static void write_tdr(UartType *u, uint8 data)
+{
+	if (!enabled(u, CR1_TE)) {
+		return;
+	}
+	u->regs[USART_TDR / 4U] = data;
+	u->tc = FALSE;
+	if (u->tdr_full) {
+		u->tdr = data;	/* TDR overwritten: the character before is lost */
+	}
+	else if (u->now >= u->shift_end) {
+		shift_out(u, data, u->now);
+	}
+	else {
+		u->tdr = data;
+		u->tdr_full = TRUE;
+	}
+}
+
+static void write_register(UartType *u, uint32 offset, uint32 value, uint32 mask)
+{
+	switch (offset) {
+	case USART_TDR:
+		write_tdr(u, (uint8)(value & mask));
+		return;
+	case USART_RQR:
+		if ((value & mask & RQR_RXFRQ) != 0U) {
+			u->rxne = FALSE;
+		}
+		return;
+	case USART_ICR:
+		if ((value & mask & ICR_TCCF) != 0U) {
+			u->tc = FALSE;
+		}
+		return;
+	case USART_ISR:
+	case USART_RDR:
+		return;
+	default:
+		break;
+	}
+	if (offset < USART_REGS_SIZE) {
+		u->regs[offset / 4U] = (u->regs[offset / 4U] & ~mask) | (value & mask);
+	}
+	if ((offset == USART_CR1) && ((reg(u, USART_CR1) & CR1_UE) == 0U)) {
+		/* UE = 0 resets the transmitter and the receiver */
+		u->tdr_full = FALSE;
+		u->sending = FALSE;
+		u->shift_end = u->now;
+		u->tc = TRUE;
+		u->rxne = FALSE;
+	}
+}
+
+uint32 stm32_uart_read(uint32 addr)
+{
+	UartType *u = uart_of(addr);
+	uint32 offset = (addr - u->base) & ~3U;
+
+	advance_to(u, cpuemu_get_clock());
+	return read_register(u, offset) >> (8U * ((addr - u->base) & 3U));
+}
+
+void stm32_uart_write(uint32 addr, uint32 size, uint32 value)
+{
+	UartType *u = uart_of(addr);
+	uint32 offset = (addr - u->base) & ~3U;
+	uint32 shift = 8U * ((addr - u->base) & 3U);
+	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
+
+	advance_to(u, cpuemu_get_clock());
+	write_register(u, offset, value << shift, mask);
+}
+
+void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
+{
+	uint32 i;
+	uint32 k;
+
+	console = NULL;
+	for (i = 0U; i < UART_NUM; i++) {
+		UartType *u = &uarts[i];
+
+		for (k = 0U; k < (USART_REGS_SIZE / 4U); k++) {
+			u->regs[k] = 0U;
+		}
+		u->tdr_full = FALSE;
+		u->tdr = 0U;
+		u->shift_end = 0U;
+		u->sending = FALSE;
+		u->tc = TRUE;
+		u->rxne = FALSE;
+		u->rdr = 0U;
+		u->rx_next = 0U;
+		u->now = 0U;
+		u->asserted = 0U;
+		if (u->number == console_number) {
+			console = u;
+		}
+	}
+	input_head = 0U;
+	input_count = 0U;
+	if (rx_file != NULL) {
+		fclose(rx_file);
+		rx_file = NULL;
+	}
+	rx_file_at_end = FALSE;
+	if (rx_file_path != NULL) {
+		rx_file = fopen(rx_file_path, "rb");
+		if (rx_file == NULL) {
+			printf("WARNING: can not open UART input file %s\n", rx_file_path);
+		}
+	}
+}
+
+Std_ReturnType stm32_uart_console_input(uint8 data)
+{
+	if (input_count == INPUT_QUEUE_SIZE) {
+		return STD_E_LIMIT;
+	}
+	input_queue[(input_head + input_count) % INPUT_QUEUE_SIZE] = data;
+	input_count++;
+	return STD_E_OK;
+}
+
+static void report_interval(DeviceClockType *clock, const UartType *u, uint64 at)
+{
+	uint64 until = (at > u->now) ? (at - u->now) : 1U;
+
+	if (until < clock->min_intr_interval) {
+		clock->min_intr_interval = until;
+	}
+}
+
+void stm32_uart_tick(DeviceClockType *clock)
+{
+	uint32 i;
+
+	for (i = 0U; i < UART_NUM; i++) {
+		UartType *u = &uarts[i];
+		uint32 cr1 = reg(u, USART_CR1);
+
+		advance_to(u, clock->clock);
+		if ((cr1 & CR1_UE) == 0U) {
+			continue;
+		}
+		raise_interrupt(u);
+		/* the clock skips no further than the next change of an enabled flag, or the next input */
+		if (((cr1 & CR1_TXEIE) != 0U) && u->tdr_full) {
+			report_interval(clock, u, u->shift_end);
+		}
+		if (((cr1 & CR1_TCIE) != 0U) && (u->tdr_full || u->sending)) {
+			report_interval(clock, u, u->tdr_full ? (u->shift_end + frame_clocks(u)) : u->shift_end);
+		}
+		if (listening(u) && !u->rxne && input_available(u)) {
+			report_interval(clock, u, u->rx_next);
+		}
+		else if ((u == console) && rx_file_at_end && listening(u)) {
+			report_interval(clock, u, u->rx_next);
+		}
+	}
+}

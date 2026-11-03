@@ -68,7 +68,7 @@ if(ATHRILL_STM32_COVERAGE)
 endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
-  src/device/device.c src/device/peripheral/stm32_usart.c
+  src/device/device.c src/device/peripheral/stm32_uart.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32_tim.c
@@ -124,6 +124,11 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32_tim PRIVATE src/device)
   target_link_libraries(test_stm32_tim PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32-tim COMMAND test_stm32_tim)
+  add_executable(test_stm32_uart test/device/test_stm32_uart.c src/device/peripheral/stm32_uart.c)
+  stm32_target(test_stm32_uart)
+  target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
+  target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config)
+  add_test(NAME device-stm32-uart COMMAND test_stm32_uart)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"

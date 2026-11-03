@@ -1,11 +1,37 @@
 #include "concrete_executor/target/dbg_target_serial.h"
+#include "peripheral/stm32_uart.h"
 #include <stdio.h>
 
+static std_bool serial_escape;
+
+/* The debugger's serial input to the console UART; \\n and \\r stand for newline and return. */
 Std_ReturnType dbg_serial_in(uint8 c, uint8 d)
 {
-	(void)c;
-	(void)d;
-	return STD_E_INVALID;
+	Std_ReturnType err;
+
+	if (c != 0U) {
+		return STD_E_INVALID;
+	}
+	if (serial_escape) {
+		serial_escape = FALSE;
+		if (d == 'n') {
+			d = '\n';
+		}
+		else if (d == 'r') {
+			d = '\r';
+		}
+		else {
+			err = stm32_uart_console_input('\\');
+			if (err != STD_E_OK) {
+				return err;
+			}
+		}
+	}
+	else if (d == '\\') {
+		serial_escape = TRUE;
+		return STD_E_OK;
+	}
+	return stm32_uart_console_input(d);
 }
 bool dbg_serial_getchar(uint8 c, uint8 *d)
 {
