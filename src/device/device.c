@@ -1,6 +1,8 @@
 #include "device.h"
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
+#include "peripheral/stm32_periph_probe.h"
+#include "peripheral/stm32_tim_probe.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -18,6 +20,8 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	clock->can_skip_clock = TRUE;
 	clock->is_halt = FALSE;
 	arm_m_scs_reset();
+	stm32_probe_init();
+	stm32_tim_probe_reset();
 }
 
 void device_supply_clock(DeviceClockType *clock)
@@ -25,6 +29,8 @@ void device_supply_clock(DeviceClockType *clock)
 	clock->can_skip_clock = TRUE;
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
 	arm_m_scs_tick(clock);
+	stm32_tim_probe_tick(clock);
+	stm32_probe_tick();
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {

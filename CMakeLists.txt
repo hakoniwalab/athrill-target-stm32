@@ -68,6 +68,8 @@ endif()
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
   src/device/device.c src/device/peripheral/stm32_usart.c
   src/device/peripheral/arm_m_scs_device.c
+  src/device/peripheral/stm32_periph_probe.c
+  src/device/peripheral/stm32_tim_probe.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
 if(ATHRILL_ENABLE_EXDEV)

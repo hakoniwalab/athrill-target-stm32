@@ -2,8 +2,10 @@
 #include "bus.h"
 #include "std_cpu_ops.h"
 #include "mpu_types.h"
+#include "cpuemu_ops.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "arm_common/arm_m_exception.h"
 
 /* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
@@ -35,13 +37,19 @@ static Std_ReturnType take_reset(TargetCoreType *core)
 {
 	uint32 sp;
 	uint32 entry;
+	uint32 boot = STM32_RESET_VTOR;
 
-	if ((bus_get_data32(core->core_id, STM32_RESET_VTOR, &sp) != STD_E_OK)
-		|| (bus_get_data32(core->core_id, STM32_RESET_VTOR + 4U, &entry) != STD_E_OK)) {
-		printf("ERROR: no vector table at 0x%08x\n", STM32_RESET_VTOR);
+	/* DEVICE_CONFIG_STM32_BOOT_ADDR: the vector table to boot from (BOOT_ADD0),
+	 * e.g. an application after a bootloader */
+	if (cpuemu_get_devcfg_value_hex("DEVICE_CONFIG_STM32_BOOT_ADDR", &boot) != STD_E_OK) {
+		(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_BOOT_ADDR", &boot);
+	}
+	if ((bus_get_data32(core->core_id, boot, &sp) != STD_E_OK)
+		|| (bus_get_data32(core->core_id, boot + 4U, &entry) != STD_E_OK)) {
+		printf("ERROR: no vector table at 0x%08x\n", boot);
 		return STD_E_SEGV;
 	}
-	core->m.vtor = STM32_RESET_VTOR;	/* the boot address: the flash, aliased at 0 on the device */
+	core->m.vtor = boot;	/* the boot address: the flash, aliased at 0 on the device */
 	core->reg.r[CPU_REG_SP] = sp & ~3U;
 	core->reg.pc = entry & ~1U;
 	core->reg.r[CPU_REG_LR] = 0xFFFFFFFFU;
@@ -49,10 +57,20 @@ static Std_ReturnType take_reset(TargetCoreType *core)
 	return STD_E_OK;
 }
 
+/* PROVISIONAL, for investigation: the core's state when the run ends (stderr). */
+static void print_final_state(void)
+{
+	const TargetCoreType *core = &virtual_cpu.cores[0].core;
+
+	fprintf(stderr, "FINAL pc=0x%08x lr=0x%08x sp=0x%08x ipsr=%u halt=%d primask=%u basepri=0x%x\n",
+		core->reg.pc, core->reg.r[14], core->reg.r[13], core->m.ipsr, (int)core->is_halt, core->m.primask, core->m.basepri);
+}
+
 void cpu_init(void)
 {
 	CoreIdType i;
 
+	atexit(print_final_state);
 	for (i = 0; i < cpu_config_get_core_id_num(); i++) {
 		virtual_cpu.cores[i].core.core_id = i;
 		cpu_reset(i);
