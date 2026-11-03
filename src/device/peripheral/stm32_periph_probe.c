@@ -17,6 +17,7 @@
 #include "stm32_spi.h"
 #include "stm32_exti.h"
 #include "stm32_dma.h"
+#include "stm32_i2c.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -103,6 +104,9 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	if (stm32_dma_owns(a)) {
 		return stm32_dma_read(a);
 	}
+	if (stm32_i2c_owns(a)) {
+		return stm32_i2c_read(a);
+	}
 	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
 		if (a == spi_bases[i] + 0x08U) {
 			return v | 0x3U;	/* SR: TXE, RXNE */
@@ -159,6 +163,10 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	}
 	if (stm32_dma_owns(a)) {
 		stm32_dma_write(addr, size, value);
+		return;
+	}
+	if (stm32_i2c_owns(a)) {
+		stm32_i2c_write(addr, size, value);
 		return;
 	}
 	if (stm32_spi_owns(a)) {
