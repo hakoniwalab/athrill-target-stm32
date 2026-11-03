@@ -41,7 +41,9 @@ typedef struct TargetCoreTypeTag {
 static inline AthrillAddrType cpu_get_pc(const TargetCoreType *core) { return core->reg.pc; }
 static inline uint32 cpu_get_sp(const TargetCoreType *core) { return core->reg.r[CPU_REG_SP]; }
 
-/* Executes one Thumb instruction at core->reg.pc (thumb_bootstrap.c). */
+/* Executes one Thumb instruction at core->reg.pc (thumb_exec16.c). */
 Std_ReturnType thumb_execute(TargetCoreType *core);
+/* The instruction name the generated decoder gives a halfword (for messages). */
+const char *thumb_instruction_name(uint16 insn);
 
 #endif

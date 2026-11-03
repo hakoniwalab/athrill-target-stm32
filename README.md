@@ -17,9 +17,11 @@ already runs PX4 on the AIFoundry Erbium board this way.
 
 The base of the target runs a bare-metal hello world: Athrill's core with the
 STM32 target, reset from the vector table (main stack pointer and reset
-handler), a bootstrap Thumb decoder for the 16-bit instructions the program
-uses, and USART3 transmit (ISR, TDR). The bootstrap decoder is replaced by
-the generated one (docs/design.md, decision 10).
+handler), USART3 transmit (ISR, TDR), and 16-bit Thumb instructions decoded
+by a table generated from Arm's machine-readable architecture data and
+cross-checked against GNU objdump and llvm-objdump
+([docs/decoder.md](docs/decoder.md)). The executor covers the instructions
+the hello world uses so far.
 
 ## Build and run
 
@@ -40,4 +42,11 @@ with the toolchain image:
 docker build -t athrill-stm32-toolchain docker/
 test/hello/build.sh
 ```
+
+## Third-party notice
+
+`src/cpu/decoder/t32_decode16.{h,c}` are generated from Arm's Architecture
+Machine Readable Specification and are provided under Arm's BSD 3-clause
+licence, reproduced in those files (Copyright 2010-2026 Arm Limited or its
+affiliates). The rest of the repository is under the MIT licence.
 

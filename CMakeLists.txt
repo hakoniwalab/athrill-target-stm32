@@ -27,6 +27,7 @@ set(STM32_INCLUDES
     "${ATHRILL_SRC_DIR}/debugger/interaction" "${ATHRILL_SRC_DIR}/debugger/interaction/inc"
     "${ATHRILL_SRC_DIR}/debugger/executor" "${ATHRILL_SRC_DIR}/main"
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu" "${ATHRILL_TARGET_SOURCE_DIR}/cpu/config"
+    "${ATHRILL_TARGET_SOURCE_DIR}/cpu/decoder"
     "${ATHRILL_TARGET_SOURCE_DIR}/device" "${ATHRILL_TARGET_SOURCE_DIR}/device/peripheral"
     "${ATHRILL_TARGET_SOURCE_DIR}/debugger/interaction/inc")
 function(stm32_target name)
@@ -45,7 +46,8 @@ stm32_target(athrill_cui)
 
 add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
-  src/cpu/thumb_bootstrap.c
+  src/cpu/thumb_exec16.c
+  src/cpu/decoder/t32_decode16.c
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
 stm32_target(athrill_stm32_cpu)
 

@@ -94,7 +94,8 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		uint16 insn = 0U;
 
 		(void)bus_get_data16(core->core_id, core->reg.pc, &insn);
-		printf("ERROR: unsupported instruction 0x%04x at 0x%08x\n", insn, core->reg.pc);
+		printf("ERROR: unsupported instruction 0x%04x (%s) at 0x%08x\n", insn,
+			thumb_instruction_name(insn), core->reg.pc);
 	}
 	return err;
 }
