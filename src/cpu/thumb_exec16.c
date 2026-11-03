@@ -89,6 +89,9 @@ static Std_ReturnType exec_add_reg_t2(TargetCoreType *core, uint16 insn)
 	if ((d == 15U) && (m == 15U)) {
 		return STD_E_INVALID;
 	}
+	if ((d == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	return thumb_dp_reg(core, arm_pseudo_add_reg, "ADD", FALSE, d, d, m, SRType_LSL, 0U);
 }
 
@@ -131,6 +134,9 @@ static Std_ReturnType exec_mov_reg_t1(TargetCoreType *core, uint16 insn)
 {
 	uint32 d = (t32_MOV_r_T1_D(insn) << 3) | t32_MOV_r_T1_Rd(insn);
 
+	if ((d == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	return thumb_dp_reg(core, arm_pseudo_mov_reg, "MOV", FALSE,
 		d, THUMB_NO_REG, t32_MOV_r_T1_Rm(insn), SRType_LSL, 0U);
 }
@@ -297,6 +303,9 @@ static Std_ReturnType exec_b_t2(TargetCoreType *core, uint16 insn)
 	arm_b_input_type in;
 	arm_b_output_type out;
 
+	if (thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "B";
 	in.cond = Stm32CurrentCond(core);
 	in.imm32 = SignExtend(t32_B_T2_imm11(insn) << 1, 12U);
@@ -306,12 +315,6 @@ static Std_ReturnType exec_b_t2(TargetCoreType *core, uint16 insn)
 /*
  * Instructions not yet in athrill-arm-common.
  */
-
-/* BX Rm: BXWritePC(R[m]). */
-static Std_ReturnType exec_bx(TargetCoreType *core, uint16 insn)
-{
-	return ArmBXWritePC(core, core->reg.r[t32_BX_T1_Rm(insn)]);
-}
 
 static Std_ReturnType exec_nop(TargetCoreType *core, uint16 insn)
 {
@@ -358,7 +361,6 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_RSB_i_T1] = exec_rsb_imm_t1,
 	[T32_16_B_T1] = exec_b_t1,
 	[T32_16_B_T2] = exec_b_t2,
-	[T32_16_BX_T1] = exec_bx,
 	[T32_16_NOP_T1] = exec_nop,
 	[T32_16_WFI_T1] = exec_wfi,
 };

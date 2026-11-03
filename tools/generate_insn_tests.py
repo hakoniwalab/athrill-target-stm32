@@ -372,8 +372,90 @@ def mx_cases(rng):
     return cases
 
 
+# ---------------------------------------------------------------------------
+# IT blocks, MRS and MSR (program status registers), barriers and hints.
+# An IT block's flags are set with MSR first; its instructions are chosen at
+# random among ones whose condition comes from the IT state.
+# ---------------------------------------------------------------------------
+
+CONDS = ["eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le"]
+INVERSE = {c: CONDS[i ^ 1] for i, c in enumerate(CONDS)}
+
+
+def sy_cases(rng):
+    cases = []
+    slot = [0]
+
+    def it_case(name, n, last=None, fault_skip=False):
+        # fault_skip: every condition fails (EQ, T only, Z clear), so the loads
+        # from an address with no memory are not made
+        cond = "eq" if fault_skip else rng.choice(CONDS)
+        pattern = "".join("t" if fault_skip else rng.choice("te") for _ in range(n - 1))
+        conds = [cond] + [cond if p == "t" else INVERSE[cond] for p in pattern]
+        address = 0x20000400 + 16 * (64 + slot[0])
+        slot[0] += 1
+        body = []
+        for k, c in enumerate(conds):
+            if k == n - 1 and last == "b":
+                body.append("b%s 1f" % c)
+            elif k == n - 1 and last == "bx":
+                body.append("bx%s lr" % c)
+            elif fault_skip:
+                body.append("ldr%s r0, [r3]" % c)
+            else:
+                body.append(rng.choice([
+                    "add%s r0, r0, r1" % c, "mov%s r2, #%d" % (c, rng.randrange(256)), "ldr%s r3, [r4, #%d]" % (c, 4 * rng.randrange(8)),
+                    "str%s r5, [r6, #%d]" % (c, 4 * rng.randrange(4)), "cmp%s r1, r2" % c, "lsl%s r0, r1, #%d" % (c, rng.randrange(1, 32)),
+                    "sub%s.w r8, r9, r10" % c, "mul%s r0, r1, r0" % c, "rev%s r1, r2" % c, "adds%s.w r9, r9, r10" % c]))
+        nzcv = (rng.getrandbits(4) << 28) & (~0x40000000 if fault_skip else 0xFFFFFFFF)
+        pre = []
+        if last == "bx":
+            pre += ["adr.w r7, 1f", "adds r7, #1", "mov lr, r7"]
+        pre += ["ldr.w r7, =0x%08X" % nzcv, "msr APSR_nzcvq, r7", "it%s %s" % (pattern, cond)] + body[:-1]
+        post = ["movs r0, #1", "movs r1, #2", ".align 2", "1:"] if last else []
+        setup = [("r4", "pattern_aligned + %d" % (4 * rng.randrange(16))), ("r6", "0x%08X" % address)]
+        if fault_skip:
+            setup.append(("r3", "0xA0000000"))
+        cases.append(Case(name, body[-1], setup, slot=address, pre=pre, post=post, flags=True))
+
+    for i in range(24):
+        it_case("it_%d" % i, rng.randrange(1, 5))
+    for i in range(6):
+        it_case("it_b_%d" % i, rng.randrange(1, 5), last="b")
+        it_case("it_bx_%d" % i, rng.randrange(1, 5), last="bx")
+    # ITTTT AL, written as a halfword (the assembler takes no AL block): the 16-bit
+    # forms that set the flags outside an IT block do not inside one.
+    for i in range(2):
+        cases.append(Case("it_al_%d" % i, "muls r0, r1, r0",
+                          [("r0", "0x%08X" % value(rng)), ("r1", "0x%08X" % value(rng))],
+                          pre=["ldr.w r7, =0x%08X" % (rng.getrandbits(4) << 28), "msr APSR_nzcvq, r7",
+                               ".hword 0xBFE1", "adds r2, r2, r3", "movs r3, #0", "lsls r4, r5, #%d" % rng.randrange(1, 32)],
+                          flags=True))
+    for i in range(3):
+        it_case("it_skip_fault_%d" % i, 2, fault_skip=True)
+    # BX outside an IT block
+    cases.append(Case("bx_lr", "bx lr", pre=["adr.w r7, 1f", "adds r7, #1", "mov lr, r7"],
+                      post=["movs r0, #1", ".align 2", "1:"]))
+    # MRS: every program status register, after MSR set N Z C V Q and GE
+    for reg in ("apsr", "iapsr", "eapsr", "xpsr", "ipsr", "epsr", "iepsr"):
+        for i in range(2):
+            cases.append(Case("mrs_%s_%d" % (reg, i), "mrs r0, %s" % reg,
+                              pre=["ldr.w r7, =0x%08X" % rnd(rng), "msr APSR_nzcvqg, r7"]))
+    # MSR: the APSR fields it writes, read back with MRS
+    for reg in ("APSR_nzcvq", "APSR_g", "APSR_nzcvqg", "IAPSR_nzcvq", "EAPSR_nzcvqg", "XPSR_nzcvq", "IPSR", "EPSR", "IEPSR"):
+        for i in range(2):
+            cases.append(Case("msr_%s_%d" % (reg.lower(), i), "msr %s, r1" % reg, [("r1", "0x%08X" % rnd(rng))],
+                              pre=["ldr.w r7, =0x%08X" % rnd(rng), "msr APSR_nzcvqg, r7"], post=["mrs r2, apsr"],
+                              flags=True))
+    # Barriers and hints
+    for insn in ("dmb ish", "dmb sy", "dsb sy", "dsb ishst", "isb sy", "nop.w", "yield", "yield.w", "dbg #5"):
+        cases.append(Case("hint_" + insn.replace(" ", "_").replace(".", "_").replace("#", ""), insn))
+    return cases
+
+
 GROUPS = {"ls": ("loads and stores", ls_cases), "br": ("branches", br_cases),
-          "mx": ("SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, bit operations, multiply and divide", mx_cases)}
+          "mx": ("SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, bit operations, multiply and divide", mx_cases),
+          "sy": ("IT blocks, MRS and MSR (program status registers), barriers and hints", sy_cases)}
 
 
 def program(group, title, cases, rng):

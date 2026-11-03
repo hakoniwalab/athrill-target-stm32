@@ -39,6 +39,7 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
 		return err;
 	}
 	core->reg.next_pc = core->reg.pc + length;
+	core->it_written = FALSE;
 	if (length == 2U) {
 		err = thumb_execute16(core, (uint16)insn);
 	}
@@ -50,6 +51,11 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
 	}
 	if (err != STD_E_OK) {
 		return err;
+	}
+	/* ITAdvance() after every instruction but IT, whether its condition
+	 * passed or not. */
+	if (!core->it_written) {
+		core->reg.itstate = ArmITAdvance(core->reg.itstate);
 	}
 	core->reg.pc = core->reg.next_pc;
 	return STD_E_OK;

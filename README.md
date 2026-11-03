@@ -28,12 +28,14 @@ with this target's M-profile implementation of its profile interface
 (`src/cpu/arm_target_profile.h`). The data-processing instructions (with the
 SP-relative forms, ADR and MOVT), the loads and stores, the branches (B, BL,
 BLX, BX, CBZ, CBNZ, TBB, TBH), the extend, bitfield and bit operations (REV,
-RBIT, CLZ) and the multiply and divide instructions run that way in all their
-16- and 32-bit encodings; the glue of all but the first data-processing
+RBIT, CLZ), the multiply and divide instructions, IT, the barriers and the
+MRS/MSR of the program status registers run that way in all their 16- and
+32-bit encodings; the glue of all but the first data-processing
 instructions is generated from a table (`tools/glue_table.py`,
 `tools/generate_glue.py`), and every encoding is tested against QEMU
-(`test/insn`, `docs/testing.md`). Exceptions, the IT block and the MPU are
-not modelled yet.
+(`test/insn`, `docs/testing.md`). Exceptions (with the special registers of
+MRS/MSR other than the program status registers) and the MPU are not
+modelled yet.
 
 ## Build and run
 

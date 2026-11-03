@@ -81,6 +81,11 @@ The start-up also needs, before any instruction is reached:
 
 ## Progress
 
+MRS and MSR count as one encoding each, but only their program status
+registers run (SYSm 0-7); the start-up's MRS and MSR are mostly of BASEPRI,
+PRIMASK and CONTROL (27 uses before the OS, 303 with it), which still stop
+the run. The figures after "without" leave those uses out.
+
 Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 (share of the start-up's instructions, counted by use):
 
@@ -91,3 +96,4 @@ Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 | 2026-11-03 | 226 encodings (and loads and stores) | 73 of 93 encodings, 86.5% / 86.5% of uses | 120 of 184 encodings, 80.8% / 80.8% of uses |
 | 2026-11-04 | 230 encodings (and BL, BLX, CBZ, CBNZ) | 76 of 93 encodings, 92.2% / 92.2% of uses | 124 of 184 encodings, 91.1% / 91.1% of uses |
 | 2026-11-04 | 290 encodings (and SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, REV/RBIT/CLZ, multiply, divide) | 87 of 93 encodings, 95.0% / 95.0% of uses | 150 of 184 encodings, 94.9% / 94.9% of uses |
+| 2026-11-04 | 300 encodings (and IT, BX in common, MRS/MSR of the program status registers, barriers, hints) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 157 of 184 encodings, 99.0% / 99.0% of uses; 96.4% without the MRS/MSR of other registers |

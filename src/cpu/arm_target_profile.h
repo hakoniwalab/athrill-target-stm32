@@ -3,9 +3,8 @@
  * Armv7-M, Thumb state only.
  *
  * Not yet modelled: exceptions (a fault stops the run with its error instead
- * of entering a handler, and there is no exception return through PC), the
- * MPU, and the IT state (instructions other than conditional branches are
- * unconditional).
+ * of entering a handler, and there is no exception return through PC) and
+ * the MPU.
  */
 #ifndef ATHRILL_STM32_ARM_TARGET_PROFILE_H
 #define ATHRILL_STM32_ARM_TARGET_PROFILE_H
@@ -14,6 +13,7 @@
 #include "bus.h"
 #include "std_errno.h"
 #include "arm_common/arm_types.h"
+#include "arm_common/arm_helpers.h"
 
 static inline uint32 ArmR(const TargetCoreType *core, uint32 n)
 {
@@ -242,21 +242,47 @@ static inline void ArmClearExclusiveLocal(TargetCoreType *core)
 	core->exclusive_valid = FALSE;
 }
 
+/* ITSTATE.IT<7:0> = itstate (IT); thumb_execute does not advance it after IT. */
+static inline void ArmITStateWrite(TargetCoreType *core, uint32 itstate)
+{
+	core->reg.itstate = itstate & 0xFFU;
+	core->it_written = TRUE;
+}
+
+/* IPSR: without exceptions the core is always in Thread mode (0). */
+static inline uint32 ArmIPSR(const TargetCoreType *core)
+{
+	(void)core;
+	return 0U;
+}
+
+/* The Cortex-M7 has the DSP extension. */
+static inline bool ArmHaveDSPExt(const TargetCoreType *core)
+{
+	(void)core;
+	return TRUE;
+}
+
 /*
  * CurrentCond() of an instruction that is not a conditional branch: the IT
- * state's condition. IT is not executed yet, so it is always AL, and
- * InITBlock() is always FALSE.
+ * state's condition in an IT block, AL outside one.
  */
 static inline uint32 Stm32CurrentCond(const TargetCoreType *core)
 {
-	(void)core;
+	if (ArmInITBlock(core->reg.itstate)) {
+		return ArmITCondition(core->reg.itstate);
+	}
 	return ARM_COND_AL;
 }
 
 static inline bool Stm32InITBlock(const TargetCoreType *core)
 {
-	(void)core;
-	return FALSE;
+	return ArmInITBlock(core->reg.itstate);
+}
+
+static inline bool Stm32LastInITBlock(const TargetCoreType *core)
+{
+	return ArmLastInITBlock(core->reg.itstate);
 }
 
 #endif /* ATHRILL_STM32_ARM_TARGET_PROFILE_H */

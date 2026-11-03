@@ -41,12 +41,17 @@ KINDS = {
     "unary": ("arm_unary_input_type", "arm_dp_output_type", ("Rd", "Rm"), None),
     "mul": ("arm_mul_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm", "Ra"), None),
     "mul_long": ("arm_mul_long_input_type", "arm_mul_long_output_type", ("RdLo", "RdHi", "Rn", "Rm"), None),
+    "bx": ("arm_blx_reg_input_type", "arm_b_output_type", ("Rm",), None),
+    "it": ("arm_it_input_type", None, (), None),
+    "mrs": ("arm_mrs_input_type", "arm_dp_output_type", ("Rd",), None),
+    "msr": ("arm_msr_input_type", "arm_dp_output_type", ("Rn",), None),
 }
 # Kinds whose instructions are not conditional (no ConditionPassed()).
-NO_COND = {"cb"}
+NO_COND = {"cb", "it"}
 HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm_common/arm_pseudo_multiple.h",
            "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h", "arm_common/arm_pseudo_extend.h",
-           "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h"]
+           "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h",
+           "arm_common/arm_pseudo_system.h"]
 
 
 def decoder_ids(width):
@@ -83,8 +88,6 @@ def comment(e):
     if e.unpred:
         # "a; b": two conditions, one line each as in the manual
         lines += ["if %s then UNPREDICTABLE;" % u for u in e.unpred.split("; ")]
-    if e.unpred and e.unpred_c is None:
-        lines.append("(InITBlock() is FALSE while IT is not executed: nothing to check here.)")
     if e.note:
         lines.append(e.note)
     return "/* " + "\n *     ".join(lines) + " */\n"
@@ -98,13 +101,17 @@ def executor(e, width):
         body.append("\tuint32 %s = %s;\n" % (var, fields(expr, e.id, width)))
     if e.kind in KINDS:
         in_type, out_type, _, _ = KINDS[e.kind]
-        body.append("\t%s in;\n\t%s out;\n" % (in_type, out_type))
+        body.append("\t%s in;\n" % in_type)
+        if out_type:
+            body.append("\t%s out;\n" % out_type)
     if not e.regs and e.kind not in KINDS:
         body.append("\t(void)insn;\n")
     if body:
         body.append("\n")
     if e.unpred_c:
         body.append("\tif (%s) {\n\t\treturn STD_E_INVALID;\n\t}\n" % fields(strip_outer(e.unpred_c), e.id, width))
+    if e.later_c:
+        body.append("\tif (%s) {\n\t\treturn STD_E_DECODE;\n\t}\n" % fields(strip_outer(e.later_c), e.id, width))
     if e.kind == "hint":
         body.append("\t(void)core;\n\treturn STD_E_OK;\n")
     elif e.kind == "clrex":
@@ -122,7 +129,10 @@ def executor(e, width):
                     body.append("\tARM_SET_REG(core, &in, %s, %s);\n" % (member, fields(expr, e.id, width)))
             else:
                 body.append("\tin.%s = %s;\n" % (member, fields(expr, e.id, width)))
-        body.append("\treturn arm_pseudo_%s(core, &in, &out);\n" % e.call)
+        if KINDS[e.kind][1]:
+            body.append("\treturn arm_pseudo_%s(core, &in, &out);\n" % e.call)
+        else:
+            body.append("\treturn arm_pseudo_%s(core, &in);\n" % e.call)
     return name, comment(e) + "static Std_ReturnType %s(TargetCoreType *core, %s insn)\n{\n%s}\n" % (
         name, insn_type, "".join(body))
 
@@ -139,6 +149,8 @@ def main():
             sys.exit("%s: not a generated decoder id" % e.id)
         if e.id in seen:
             sys.exit("%s: two table entries" % e.id)
+        if e.unpred and e.unpred_c is None and not e.note:
+            sys.exit("%s: an UNPREDICTABLE condition without a check (unpred_c) or a note" % e.id)
         if e.id in hand[width]:
             sys.exit("%s: has a hand-written executor in thumb_exec%d.c" % (e.id, width))
         seen.add(e.id)

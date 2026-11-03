@@ -1121,6 +1121,9 @@ static Std_ReturnType exec_b_t4(TargetCoreType *core, uint32 insn)
 		| (t32w_B_T4_imm10(insn) << 12)
 		| (t32w_B_T4_imm11(insn) << 1);
 
+	if (thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "B";
 	in.cond = Stm32CurrentCond(core);
 	in.imm32 = SignExtend(imm25, 25U);

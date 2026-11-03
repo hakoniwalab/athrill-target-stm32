@@ -14,12 +14,12 @@
 #include "arm_common/arm_pseudo_extend.h"
 #include "arm_common/arm_pseudo_bitfield.h"
 #include "arm_common/arm_pseudo_multiply.h"
+#include "arm_common/arm_pseudo_system.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
  *     t = UInt(Rt); n = UInt(Rn); imm32 = ZeroExtend(imm12, 32); index = TRUE; add = TRUE; wback = FALSE;
- *     if t == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if t == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_ldr_i_t3(TargetCoreType *core, uint32 insn)
 {
 	uint32 t = t32w_LDR_i_T3_Rt(insn);
@@ -27,6 +27,9 @@ static Std_ReturnType exec_ldr_i_t3(TargetCoreType *core, uint32 insn)
 	arm_ls_imm_input_type in;
 	arm_ls_output_type out;
 
+	if ((t == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "LDR";
 	in.cond = Stm32CurrentCond(core);
 	ARM_SET_REG(core, &in, Rt, t);
@@ -223,8 +226,7 @@ static Std_ReturnType exec_strh_i_t2(TargetCoreType *core, uint32 insn)
  *     if Rn == '1101' && P == '0' && U == '1' && W == '1' && imm8 == '00000100' then SEE POP;
  *     if P == '0' && W == '0' then UNDEFINED;
  *     t = UInt(Rt); n = UInt(Rn); imm32 = ZeroExtend(imm8, 32); index = (P == '1'); add = (U == '1'); wback = (W == '1');
- *     if (wback && n == t) || (t == 15 && InITBlock() && !LastInITBlock()) then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if (wback && n == t) || (t == 15 && InITBlock() && !LastInITBlock()) then UNPREDICTABLE; */
 static Std_ReturnType exec_ldr_i_t4_off(TargetCoreType *core, uint32 insn)
 {
 	uint32 t = t32w_LDR_i_T4_off_Rt(insn);
@@ -232,6 +234,9 @@ static Std_ReturnType exec_ldr_i_t4_off(TargetCoreType *core, uint32 insn)
 	arm_ls_imm_input_type in;
 	arm_ls_output_type out;
 
+	if ((t == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "LDR";
 	in.cond = Stm32CurrentCond(core);
 	ARM_SET_REG(core, &in, Rt, t);
@@ -257,7 +262,7 @@ static Std_ReturnType exec_ldr_i_t4_post(TargetCoreType *core, uint32 insn)
 	arm_ls_imm_input_type in;
 	arm_ls_output_type out;
 
-	if (n == t) {
+	if ((n == t) || ((t == 15U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "LDR";
@@ -285,7 +290,7 @@ static Std_ReturnType exec_ldr_i_t4_pre(TargetCoreType *core, uint32 insn)
 	arm_ls_imm_input_type in;
 	arm_ls_output_type out;
 
-	if (n == t) {
+	if ((n == t) || ((t == 15U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "LDR";
@@ -1074,14 +1079,16 @@ static Std_ReturnType exec_strht_t1(TargetCoreType *core, uint32 insn)
 
 /* LDR_l_T2: LDR<c>.W <Rt>, <label>
  *     t = UInt(Rt); imm32 = ZeroExtend(imm12, 32); add = (U == '1');
- *     if t == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if t == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_ldr_l_t2(TargetCoreType *core, uint32 insn)
 {
 	uint32 t = t32w_LDR_l_T2_Rt(insn);
 	arm_ls_lit_input_type in;
 	arm_ls_output_type out;
 
+	if ((t == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "LDR";
 	in.cond = Stm32CurrentCond(core);
 	ARM_SET_REG(core, &in, Rt, t);
@@ -1186,7 +1193,7 @@ static Std_ReturnType exec_ldr_r_t2(TargetCoreType *core, uint32 insn)
 	arm_ls_reg_input_type in;
 	arm_ls_output_type out;
 
-	if (thumb_sp_or_pc(m)) {
+	if (thumb_sp_or_pc(m) || ((t == 15U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "LDR";
@@ -1647,7 +1654,7 @@ static Std_ReturnType exec_ldm_t2(TargetCoreType *core, uint32 insn)
 	arm_ls_multiple_input_type in;
 	arm_ls_output_type out;
 
-	if ((n == 15U) || (BitCount(registers) < 2U) || ((t32w_LDM_T2_P(insn) != 0U) && (t32w_LDM_T2_M(insn) != 0U)) || ((t32w_LDM_T2_W(insn) != 0U) && (ARM_BIT(registers, n) != 0U))) {
+	if ((n == 15U) || (BitCount(registers) < 2U) || ((t32w_LDM_T2_P(insn) != 0U) && (t32w_LDM_T2_M(insn) != 0U)) || ((t32w_LDM_T2_W(insn) != 0U) && (ARM_BIT(registers, n) != 0U)) || ((ARM_BIT(registers, 15U) != 0U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "LDM";
@@ -1668,7 +1675,7 @@ static Std_ReturnType exec_ldmdb_t1(TargetCoreType *core, uint32 insn)
 	arm_ls_multiple_input_type in;
 	arm_ls_output_type out;
 
-	if ((n == 15U) || (BitCount(registers) < 2U) || ((t32w_LDMDB_T1_P(insn) != 0U) && (t32w_LDMDB_T1_M(insn) != 0U)) || ((t32w_LDMDB_T1_W(insn) != 0U) && (ARM_BIT(registers, n) != 0U))) {
+	if ((n == 15U) || (BitCount(registers) < 2U) || ((t32w_LDMDB_T1_P(insn) != 0U) && (t32w_LDMDB_T1_M(insn) != 0U)) || ((t32w_LDMDB_T1_W(insn) != 0U) && (ARM_BIT(registers, n) != 0U)) || ((ARM_BIT(registers, 15U) != 0U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "LDMDB";
@@ -1833,7 +1840,7 @@ static Std_ReturnType exec_tbb_t1(TargetCoreType *core, uint32 insn)
 	arm_tb_input_type in;
 	arm_b_output_type out;
 
-	if ((n == 13U) || thumb_sp_or_pc(m)) {
+	if ((n == 13U) || thumb_sp_or_pc(m) || thumb_in_it_not_last(core)) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "TBB";
@@ -1853,7 +1860,7 @@ static Std_ReturnType exec_tbh_t1(TargetCoreType *core, uint32 insn)
 	arm_tb_input_type in;
 	arm_b_output_type out;
 
-	if ((n == 13U) || thumb_sp_or_pc(m)) {
+	if ((n == 13U) || thumb_sp_or_pc(m) || thumb_in_it_not_last(core)) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "TBH";
@@ -1961,8 +1968,7 @@ static Std_ReturnType exec_pli_r_t1(TargetCoreType *core, uint32 insn)
 
 /* BL_i_T1: BL<c> <label>
  *     I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32);
- *     if InITBlock() && !LastInITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_bl_i_t1(TargetCoreType *core, uint32 insn)
 {
 	uint32 s = t32w_BL_i_T1_S(insn);
@@ -1971,6 +1977,9 @@ static Std_ReturnType exec_bl_i_t1(TargetCoreType *core, uint32 insn)
 	arm_b_input_type in;
 	arm_b_output_type out;
 
+	if (thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "BL";
 	in.cond = Stm32CurrentCond(core);
 	in.imm32 = SignExtend((s << 24) | (i1 << 23) | (i2 << 22) | (t32w_BL_i_T1_imm10(insn) << 12) | (t32w_BL_i_T1_imm11(insn) << 1), 25U);
@@ -2210,7 +2219,6 @@ static Std_ReturnType exec_add_sp_i_t3(TargetCoreType *core, uint32 insn)
 /* ADDS_SP_i_T3: ADDS<c>.W <Rd>, SP, #<const>
  *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
  *     if d == 15 && !setflags then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.)
  *     (ADDS/SUBS with Rd == '1111' is CMN/CMP: another id in the generated decoder.) */
 static Std_ReturnType exec_adds_sp_i_t3(TargetCoreType *core, uint32 insn)
 {
@@ -2253,7 +2261,6 @@ static Std_ReturnType exec_sub_sp_i_t2(TargetCoreType *core, uint32 insn)
 /* SUBS_SP_i_T2: SUBS<c>.W <Rd>, SP, #<const>
  *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
  *     if d == 15 && !setflags then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.)
  *     (ADDS/SUBS with Rd == '1111' is CMN/CMP: another id in the generated decoder.) */
 static Std_ReturnType exec_subs_sp_i_t2(TargetCoreType *core, uint32 insn)
 {
@@ -3065,6 +3072,123 @@ static Std_ReturnType exec_umlal_t1(TargetCoreType *core, uint32 insn)
 	return arm_pseudo_umlal(core, &in, &out);
 }
 
+/* MRS_T1_AS: MRS<c> <Rd>, <spec_reg>
+ *     d = UInt(Rd);
+ *     if d IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20}) then UNPREDICTABLE;
+ *     (R, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above (MSP, PSP, PRIMASK, BASEPRI, FAULTMASK, CONTROL) are not executed yet.) */
+static Std_ReturnType exec_mrs_t1_as(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MRS_T1_AS_Rd(insn);
+	uint32 sysm = (insn & 0xFFU);
+	arm_mrs_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || !thumb_sysm_valid(sysm) || (t32w_MRS_T1_AS_R(insn) != 0U)) {
+		return STD_E_INVALID;
+	}
+	if (sysm >= 8U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "MRS";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	in.SYSm = sysm;
+	return arm_pseudo_mrs_xpsr(core, &in, &out);
+}
+
+/* MSR_r_T1_AS: MSR<c> <spec_reg>, <Rn>
+ *     n = UInt(Rn);
+ *     if mask == '00' || (mask != '10' && !(UInt(SYSm) IN {0..3})) then UNPREDICTABLE;
+ *     if n IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20}) then UNPREDICTABLE;
+ *     (R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above are not executed yet.) */
+static Std_ReturnType exec_msr_r_t1_as(TargetCoreType *core, uint32 insn)
+{
+	uint32 n = t32w_MSR_r_T1_AS_Rn(insn);
+	uint32 sysm = (insn & 0xFFU);
+	uint32 mask = t32w_MSR_r_T1_AS_mask(insn) >> 2;
+	arm_msr_input_type in;
+	arm_dp_output_type out;
+
+	if ((mask == 0U) || ((mask != 2U) && (sysm > 3U)) || thumb_sp_or_pc(n) || !thumb_sysm_valid(sysm) || (t32w_MSR_r_T1_AS_R(insn) != 0U) || ((t32w_MSR_r_T1_AS_mask(insn) & 3U) != 0U)) {
+		return STD_E_INVALID;
+	}
+	if (sysm >= 8U) {
+		return STD_E_DECODE;
+	}
+	in.instrName = "MSR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.SYSm = sysm;
+	in.mask = mask;
+	return arm_pseudo_msr_xpsr(core, &in, &out);
+}
+
+/* DMB_T1: DMB<c> <option>
+ *     // No additional decoding required
+ *     A barrier: no effect here (one core; memory accesses complete in order). */
+static Std_ReturnType exec_dmb_t1(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
+/* DSB_T1: DSB<c> <option>
+ *     // No additional decoding required
+ *     A barrier: no effect here (one core; memory accesses complete in order). */
+static Std_ReturnType exec_dsb_t1(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
+/* ISB_T1: ISB<c> <option>
+ *     // No additional decoding required
+ *     A barrier: no effect here (no pipeline: each instruction is fetched as it runs). */
+static Std_ReturnType exec_isb_t1(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
+/* NOP_T2: NOP<c>.W
+ *     // No additional decoding required
+ *     No operation. */
+static Std_ReturnType exec_nop_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
+/* YIELD_T2: YIELD<c>.W
+ *     // No additional decoding required
+ *     A hint: no effect here (no other threads). */
+static Std_ReturnType exec_yield_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
+/* DBG_T1: DBG<c> #<option>
+ *     // No additional decoding required
+ *     A hint: no effect here (no debug system). */
+static Std_ReturnType exec_dbg_t1(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -3195,4 +3319,12 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_UMULL_T1] = exec_umull_t1,
 	[T32_32_SMLAL_T1] = exec_smlal_t1,
 	[T32_32_UMLAL_T1] = exec_umlal_t1,
+	[T32_32_MRS_T1_AS] = exec_mrs_t1_as,
+	[T32_32_MSR_r_T1_AS] = exec_msr_r_t1_as,
+	[T32_32_DMB_T1] = exec_dmb_t1,
+	[T32_32_DSB_T1] = exec_dsb_t1,
+	[T32_32_ISB_T1] = exec_isb_t1,
+	[T32_32_NOP_T2] = exec_nop_t2,
+	[T32_32_YIELD_T2] = exec_yield_t2,
+	[T32_32_DBG_T1] = exec_dbg_t1,
 };

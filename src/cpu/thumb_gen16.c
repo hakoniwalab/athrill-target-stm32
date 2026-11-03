@@ -14,6 +14,7 @@
 #include "arm_common/arm_pseudo_extend.h"
 #include "arm_common/arm_pseudo_bitfield.h"
 #include "arm_common/arm_pseudo_multiply.h"
+#include "arm_common/arm_pseudo_system.h"
 
 /* LDR_i_T1: LDR <Rt>, [<Rn>{, #<imm5:'00'>}]
  *     imm32 = ZeroExtend(imm5:'00', 32); t = UInt(Rt); n = UInt(Rn); index = TRUE; add = TRUE; wback = FALSE; */
@@ -404,7 +405,7 @@ static Std_ReturnType exec_pop_t1(TargetCoreType *core, uint16 insn)
 	arm_ls_multiple_input_type in;
 	arm_ls_output_type out;
 
-	if (BitCount(registers) < 1U) {
+	if ((BitCount(registers) < 1U) || ((ARM_BIT(registers, 15U) != 0U) && thumb_in_it_not_last(core))) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "POP";
@@ -466,7 +467,7 @@ static Std_ReturnType exec_blx_r_t1(TargetCoreType *core, uint16 insn)
 	arm_blx_reg_input_type in;
 	arm_b_output_type out;
 
-	if (m == 15U) {
+	if ((m == 15U) || thumb_in_it_not_last(core)) {
 		return STD_E_INVALID;
 	}
 	in.instrName = "BLX";
@@ -477,14 +478,16 @@ static Std_ReturnType exec_blx_r_t1(TargetCoreType *core, uint16 insn)
 
 /* CBZ_T1: CBZ <Rn>, <label>
  *     n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');
- *     if InITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if InITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_cbz_t1(TargetCoreType *core, uint16 insn)
 {
 	uint32 n = t32_CBZ_T1_Rn(insn);
 	arm_cb_input_type in;
 	arm_b_output_type out;
 
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "CBZ";
 	ARM_SET_REG(core, &in, Rn, n);
 	in.imm32 = (t32_CBZ_T1_i(insn) << 6) | (t32_CBZ_T1_imm5(insn) << 1);
@@ -494,14 +497,16 @@ static Std_ReturnType exec_cbz_t1(TargetCoreType *core, uint16 insn)
 
 /* CBNZ_T1: CBNZ <Rn>, <label>
  *     n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');
- *     if InITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if InITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_cbnz_t1(TargetCoreType *core, uint16 insn)
 {
 	uint32 n = t32_CBNZ_T1_Rn(insn);
 	arm_cb_input_type in;
 	arm_b_output_type out;
 
+	if (Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "CBNZ";
 	ARM_SET_REG(core, &in, Rn, n);
 	in.imm32 = (t32_CBNZ_T1_i(insn) << 6) | (t32_CBNZ_T1_imm5(insn) << 1);
@@ -511,8 +516,7 @@ static Std_ReturnType exec_cbnz_t1(TargetCoreType *core, uint16 insn)
 
 /* ADD_SP_r_T1: ADD<c> <Rdm>, SP, <Rdm>
  *     d = UInt(DM:Rdm); m = UInt(DM:Rdm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);
- *     if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
- *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+ *     if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
 static Std_ReturnType exec_add_sp_r_t1(TargetCoreType *core, uint16 insn)
 {
 	uint32 d = (t32_ADD_SP_r_T1_DM(insn) << 3) | t32_ADD_SP_r_T1_Rdm(insn);
@@ -520,6 +524,9 @@ static Std_ReturnType exec_add_sp_r_t1(TargetCoreType *core, uint16 insn)
 	arm_dp_reg_input_type in;
 	arm_dp_output_type out;
 
+	if ((d == 15U) && thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
 	in.instrName = "ADD";
 	in.cond = Stm32CurrentCond(core);
 	in.setflags = FALSE;
@@ -761,6 +768,55 @@ static Std_ReturnType exec_mul_t1(TargetCoreType *core, uint16 insn)
 	return arm_pseudo_mul(core, &in, &out);
 }
 
+/* BX_T1: BX<c> <Rm>
+ *     m = UInt(Rm);
+ *     if InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
+static Std_ReturnType exec_bx_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 m = t32_BX_T1_Rm(insn);
+	arm_blx_reg_input_type in;
+	arm_b_output_type out;
+
+	if (thumb_in_it_not_last(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "BX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_bx(core, &in, &out);
+}
+
+/* IT_T1: IT{<x>{<y>{<z>}}} <firstcond>
+ *     if mask == '0000' then SEE "Related encodings";
+ *     if firstcond == '1111' || (firstcond == '1110' && BitCount(mask) != 1) then UNPREDICTABLE;
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (mask == '0000' is the hints: other ids in the generated decoder.) */
+static Std_ReturnType exec_it_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 firstcond = t32_IT_T1_firstcond(insn);
+	uint32 mask = t32_IT_T1_mask(insn);
+	arm_it_input_type in;
+
+	if ((firstcond == 15U) || ((firstcond == 14U) && (BitCount(mask) != 1U)) || Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "IT";
+	in.firstcond = firstcond;
+	in.mask = mask;
+	return arm_pseudo_it(core, &in);
+}
+
+/* YIELD_T1: YIELD<c>
+ *     // No additional decoding required
+ *     A hint: no effect here (no other threads). */
+static Std_ReturnType exec_yield_t1(TargetCoreType *core, uint16 insn)
+{
+	(void)insn;
+
+	(void)core;
+	return STD_E_OK;
+}
+
 const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_LDR_i_T1] = exec_ldr_i_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_i_t2,
@@ -800,4 +856,7 @@ const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_REV16_T1] = exec_rev16_t1,
 	[T32_16_REVSH_T1] = exec_revsh_t1,
 	[T32_16_MUL_T1] = exec_mul_t1,
+	[T32_16_BX_T1] = exec_bx_t1,
+	[T32_16_IT_T1] = exec_it_t1,
+	[T32_16_YIELD_T1] = exec_yield_t1,
 };

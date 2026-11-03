@@ -21,6 +21,7 @@ typedef struct {
     uint32 pc;	/* address of the instruction being executed */
     uint32 next_pc;	/* address of the next instruction (written by a branch) */
     uint32 apsr;
+    uint32 itstate;	/* EPSR.IT<7:0> (ITSTATE) */
 } CpuRegisterType;
 
 typedef struct TargetCoreTypeTag {
@@ -31,6 +32,7 @@ typedef struct TargetCoreTypeTag {
     std_bool access_fault;
     std_bool exclusive_valid;	/* local exclusive monitor (LDREX/STREX) */
     uint32 exclusive_address;
+    std_bool it_written;	/* this instruction was IT: the IT state does not advance */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;

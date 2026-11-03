@@ -13,11 +13,12 @@ src/cpu/thumb_gen16.c and thumb_gen32.c from them.
 """
 
 IN_IT_LAST = "InITBlock() && !LastInITBlock()"
+IN_IT_LAST_C = "thumb_in_it_not_last(core)"
 
 
 class Entry:
     def __init__(self, id, instr, syntax, ops, kind, call, regs, members,
-                 see=(), unpred=None, unpred_c=None, note=None):
+                 see=(), unpred=None, unpred_c=None, note=None, later_c=None):
         self.id = id
         self.instr = instr
         self.syntax = syntax
@@ -30,6 +31,7 @@ class Entry:
         self.unpred = unpred
         self.unpred_c = unpred_c
         self.note = note
+        self.later_c = later_c    # C condition of forms not executed yet (STD_E_DECODE)
 
 
 ENTRIES = []
@@ -98,7 +100,7 @@ LOADS32 = [
     ("LDRSH", "ldrsh", "LDRSH_i_T1", "Related encodings (memory hints)", "t == 13"),
 ]
 UNPRED_C_T = {
-    "t == 15 && " + IN_IT_LAST: None,     # InITBlock() is FALSE while IT is not executed
+    "t == 15 && " + IN_IT_LAST: "(t == 15U) && " + IN_IT_LAST_C,
     "t == 13": "(t == 13U)",
 }
 for instr, call, id, see_pld, unpred in LOADS32:
@@ -148,7 +150,7 @@ for instr, call, prefix, see_pld, unpriv in LOADS8:
         see.append("if P == '0' && W == '0' then UNDEFINED;")
         if instr == "LDR":
             unpred = "(wback && n == t) || (t == 15 && %s)" % IN_IT_LAST
-            unpred_c = "(n == t)" if wback == "TRUE" else None
+            unpred_c = ("(n == t) || " if wback == "TRUE" else "") + "((t == 15U) && %s)" % IN_IT_LAST_C
         else:
             unpred = "t == 13 || (t == 15 && W == '1') || (wback && n == t)"
             unpred_c = "(t == 13U) || (t == 15U) || (n == t)" if wback == "TRUE" else "(t == 13U)"
@@ -184,7 +186,7 @@ for instr, call in (("LDRT", "ldrt"), ("LDRBT", "ldrbt"), ("LDRHT", "ldrht"), ("
 
 # Literal (32-bit)
 for instr, call, id, see_pld, unpred, unpred_c in (
-        ("LDR", "ldr", "LDR_l_T2", None, "t == 15 && " + IN_IT_LAST, None),
+        ("LDR", "ldr", "LDR_l_T2", None, "t == 15 && " + IN_IT_LAST, "(t == 15U) && " + IN_IT_LAST_C),
         ("LDRB", "ldrb", "LDRB_l_T1", "PLD", "t == 13", "(t == 13U)"),
         ("LDRH", "ldrh", "LDRH_l_T1", "Related encodings (memory hints)", "t == 13", "(t == 13U)"),
         ("LDRSB", "ldrsb", "LDRSB_l_T1", "PLI", "t == 13", "(t == 13U)"),
@@ -198,7 +200,8 @@ for instr, call, id, see_pld, unpred, unpred_c in (
 O_T2_REG = ("t = UInt(Rt); n = UInt(Rn); m = UInt(Rm); index = TRUE; add = TRUE; wback = FALSE;"
             " (shift_t, shift_n) = (SRType_LSL, UInt(imm2));")
 for instr, call, see_pld, unpred, unpred_c in (
-        ("LDR", "ldr", None, "m IN {13,15} || (t == 15 && %s)" % IN_IT_LAST, "thumb_sp_or_pc(m)"),
+        ("LDR", "ldr", None, "m IN {13,15} || (t == 15 && %s)" % IN_IT_LAST,
+         "thumb_sp_or_pc(m) || ((t == 15U) && %s)" % IN_IT_LAST_C),
         ("LDRB", "ldrb", "PLD", "t == 13 || m IN {13,15}", "(t == 13U) || thumb_sp_or_pc(m)"),
         ("LDRH", "ldrh", "Related encodings (memory hints)", "t == 13 || m IN {13,15}", "(t == 13U) || thumb_sp_or_pc(m)"),
         ("LDRSB", "ldrsb", "PLI", "t == 13 || m IN {13,15}", "(t == 13U) || thumb_sp_or_pc(m)"),
@@ -262,7 +265,7 @@ entry("POP_T1", "POP", "POP <registers>", "registers = P:'0000000':register_list
       "ls_multiple", "ldm", [("registers", "({P} << 15) | " + LIST16)],
       {"Rn": "13U", "registers": "registers", "wback": "TRUE"},
       unpred="BitCount(registers) < 1 || (registers<15> == '1' && %s)" % IN_IT_LAST,
-      unpred_c="(BitCount(registers) < 1U)")
+      unpred_c="(BitCount(registers) < 1U) || ((ARM_BIT(registers, 15U) != 0U) && %s)" % IN_IT_LAST_C)
 entry("STM_T1", "STM", "STM<c> <Rn>!, <registers>", "n = UInt(Rn); registers = '00000000':register_list; wback = TRUE;",
       "ls_multiple", "stm", [("n", "{Rn}"), ("registers", LIST16)],
       {"Rn": "n", "registers": "registers", "wback": "TRUE"}, unpred="BitCount(registers) < 1",
@@ -277,7 +280,8 @@ M32_UNPRED_ST_C = "(n == 15U) || (BitCount(registers) < 2U) || (({W} != 0U) && (
 M32_UNPRED_LD = ("n == 15 || BitCount(registers) < 2 || (P == '1' && M == '1') || (wback && registers<n> == '1')"
                  " || (registers<15> == '1' && %s)" % IN_IT_LAST)
 M32_UNPRED_LD_C = ("(n == 15U) || (BitCount(registers) < 2U) || (({P} != 0U) && ({M} != 0U))"
-                   " || (({W} != 0U) && (ARM_BIT(registers, n) != 0U))")
+                   " || (({W} != 0U) && (ARM_BIT(registers, n) != 0U))"
+                   " || ((ARM_BIT(registers, 15U) != 0U) && %s)" % IN_IT_LAST_C)
 entry("STM_T2", "STM", "STM<c>.W <Rn>{!}, <registers>",
       "n = UInt(Rn); registers = '0':M:'0':register_list; wback = (W == '1');", "ls_multiple", "stm",
       [("n", "{Rn}"), ("registers", "({M} << 14) | " + LIST32)],
@@ -324,7 +328,7 @@ for instr, call in (("TBB", "tbb"), ("TBH", "tbh")):
     entry(instr + "_T1", instr, "%s<c> [<Rn>, <Rm>%s]" % (instr, ", LSL #1" if instr == "TBH" else ""),
           "n = UInt(Rn); m = UInt(Rm); is_tbh = %s;" % ("TRUE" if instr == "TBH" else "FALSE"), "tb", call,
           [("n", "{Rn}"), ("m", "{Rm}")], {"Rn": "n", "Rm": "m"},
-          unpred="n == 13 || m IN {13,15} || (%s)" % IN_IT_LAST, unpred_c="(n == 13U) || thumb_sp_or_pc(m)")
+          unpred="n == 13 || m IN {13,15} || (%s)" % IN_IT_LAST, unpred_c="(n == 13U) || thumb_sp_or_pc(m) || " + IN_IT_LAST_C)
 # Memory hints: no architectural effect in this target.
 for id, instr, syntax, ops, unpred, unpred_c, regs in (
         ("PLD_i_T1", "PLD", "PLD<c> [<Rn>, #<imm12>]", "n = UInt(Rn); imm32 = ZeroExtend(imm12, 32); add = TRUE;", None, None, []),
@@ -351,14 +355,14 @@ entry("BL_i_T1", "BL", "BL<c> <label>",
       "I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32);", "bl", "bl",
       [("s", "{S}"), ("i1", "({J1} ^ s) ^ 1U"), ("i2", "({J2} ^ s) ^ 1U")],
       {"imm32": "SignExtend((s << 24) | (i1 << 23) | (i2 << 22) | ({imm10} << 12) | ({imm11} << 1), 25U)"},
-      unpred=IN_IT_LAST)
+      unpred=IN_IT_LAST, unpred_c=IN_IT_LAST_C)
 entry("BLX_r_T1", "BLX", "BLX<c> <Rm>", "m = UInt(Rm);", "blx", "blx_reg", [("m", "{Rm}")], {"Rm": "m"},
-      unpred="m == 15 || (%s)" % IN_IT_LAST, unpred_c="m == 15U")
+      unpred="m == 15 || (%s)" % IN_IT_LAST, unpred_c="(m == 15U) || " + IN_IT_LAST_C)
 for instr, nonzero in (("CBZ", "FALSE"), ("CBNZ", "TRUE")):
     entry(instr + "_T1", instr, "%s <Rn>, <label>" % instr,
           "n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');", "cb", "cb",
           [("n", "{Rn}")], {"Rn": "n", "imm32": "({i} << 6) | ({imm5} << 1)", "nonzero": nonzero},
-          unpred="InITBlock()")
+          unpred="InITBlock()", unpred_c="Stm32InITBlock(core)")
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +382,7 @@ def dp_reg(id, instr, call, syntax, ops, d, n, m, setflags, shift_t, shift_n, mo
 dp_reg("ADD_SP_r_T1", "ADD", "add_reg", "ADD<c> <Rdm>, SP, <Rdm>",
        "d = UInt(DM:Rdm); m = UInt(DM:Rdm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);",
        "({DM} << 3) | {Rdm}", "13U", "d", "FALSE", "SRType_LSL", "0U",
-       unpred="d == 15 && InITBlock() && !LastInITBlock()")
+       unpred="d == 15 && " + IN_IT_LAST, unpred_c="(d == 15U) && " + IN_IT_LAST_C)
 dp_reg("ADD_SP_r_T2", "ADD", "add_reg", "ADD<c> SP, <Rm>",
        "if Rm == '1101' then SEE encoding T1; d = 13; m = UInt(Rm); setflags = FALSE;"
        " (shift_t, shift_n) = (SRType_LSL, 0);",
@@ -515,3 +519,47 @@ for instr in ("SMULL", "UMULL", "SMLAL", "UMLAL"):
           {"setflags": "FALSE", "RdLo": "dlo", "RdHi": "dhi", "Rn": "n", "Rm": "m"},
           unpred="dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15}; dHi == dLo",
           unpred_c="thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)")
+
+
+# ---------------------------------------------------------------------------
+# BX, IT, MRS and MSR (program status registers), barriers and hints
+# ---------------------------------------------------------------------------
+
+entry("BX_T1", "BX", "BX<c> <Rm>", "m = UInt(Rm);", "bx", "bx", [("m", "{Rm}")], {"Rm": "m"},
+      unpred=IN_IT_LAST, unpred_c=IN_IT_LAST_C)
+entry("IT_T1", "IT", "IT{<x>{<y>{<z>}}} <firstcond>",
+      "if mask == '0000' then SEE \"Related encodings\";", "it", "it",
+      [("firstcond", "{firstcond}"), ("mask", "{mask}")], {"firstcond": "firstcond", "mask": "mask"},
+      unpred="firstcond == '1111' || (firstcond == '1110' && BitCount(mask) != 1); InITBlock()",
+      unpred_c="(firstcond == 15U) || ((firstcond == 14U) && (BitCount(mask) != 1U)) || Stm32InITBlock(core)",
+      note="(mask == '0000' is the hints: other ids in the generated decoder.)")
+# The generated decoder has the Armv7-A forms of MRS and MSR (fields R, mask<3:0>); in
+# Armv7-M, SYSm is bits 7:0 and mask<1:0> bits 11:10, and R and mask<1:0> of the
+# A form are (0).
+SYSM = "(insn & 0xFFU)"
+entry("MRS_T1_AS", "MRS", "MRS<c> <Rd>, <spec_reg>",
+      "d = UInt(Rd);",
+      "mrs", "mrs_xpsr", [("d", "{Rd}"), ("sysm", SYSM)], {"Rd": "d", "SYSm": "sysm"},
+      unpred="d IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20})",
+      unpred_c="thumb_sp_or_pc(d) || !thumb_sysm_valid(sysm) || ({R} != 0U)",
+      note="(R, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above (MSP, PSP, PRIMASK, BASEPRI,"
+           " FAULTMASK, CONTROL) are not executed yet.)",
+      later_c="sysm >= 8U")
+entry("MSR_r_T1_AS", "MSR", "MSR<c> <spec_reg>, <Rn>",
+      "n = UInt(Rn);",
+      "msr", "msr_xpsr", [("n", "{Rn}"), ("sysm", SYSM), ("mask", "{mask} >> 2")],
+      {"Rn": "n", "SYSm": "sysm", "mask": "mask"},
+      unpred="mask == '00' || (mask != '10' && !(UInt(SYSm) IN {0..3})); n IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20})",
+      unpred_c="(mask == 0U) || ((mask != 2U) && (sysm > 3U)) || thumb_sp_or_pc(n) || !thumb_sysm_valid(sysm)"
+               " || ({R} != 0U) || (({mask} & 3U) != 0U)",
+      note="(R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above are not executed yet.)",
+      later_c="sysm >= 8U")
+for id, instr, syntax, note in (
+        ("DMB_T1", "DMB", "DMB<c> <option>", "A barrier: no effect here (one core; memory accesses complete in order)."),
+        ("DSB_T1", "DSB", "DSB<c> <option>", "A barrier: no effect here (one core; memory accesses complete in order)."),
+        ("ISB_T1", "ISB", "ISB<c> <option>", "A barrier: no effect here (no pipeline: each instruction is fetched as it runs)."),
+        ("NOP_T2", "NOP", "NOP<c>.W", "No operation."),
+        ("YIELD_T1", "YIELD", "YIELD<c>", "A hint: no effect here (no other threads)."),
+        ("YIELD_T2", "YIELD", "YIELD<c>.W", "A hint: no effect here (no other threads)."),
+        ("DBG_T1", "DBG", "DBG<c> #<option>", "A hint: no effect here (no debug system).")):
+    entry(id, instr, syntax, "// No additional decoding required", "hint", None, [], {}, note=note)

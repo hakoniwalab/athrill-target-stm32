@@ -85,6 +85,19 @@ static inline Std_ReturnType thumb_mov_rsr(TargetCoreType *core, const char *nam
 	return arm_pseudo_mov_rsr(core, &in, &out);
 }
 
+/* InITBlock() && !LastInITBlock(): what makes a branch or a write to PC
+ * UNPREDICTABLE before the end of an IT block. */
+static inline bool thumb_in_it_not_last(const TargetCoreType *core)
+{
+	return Stm32InITBlock(core) && !Stm32LastInITBlock(core);
+}
+
+/* UInt(SYSm) IN {0..3,5..9,16..20}: the special registers of MRS and MSR. */
+static inline bool thumb_sysm_valid(uint32 sysm)
+{
+	return (sysm <= 3U) || ((sysm >= 5U) && (sysm <= 9U)) || ((sysm >= 16U) && (sysm <= 20U));
+}
+
 /* SP or PC: the registers most 32-bit encodings make UNPREDICTABLE. */
 static inline bool thumb_sp_or_pc(uint32 n)
 {
