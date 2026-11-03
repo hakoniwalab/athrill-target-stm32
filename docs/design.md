@@ -31,6 +31,7 @@ needs to run and to be checked, not the whole chip:
 | 7 | Athrill's execution engine follows the RISC-V target: decode cache, batched execution, straight-line blocks, and the rule that any speed-up gives byte-identical output to one-instruction-at-a-time execution | Speed without changing behaviour; the rule makes each step checkable |
 | 8 | No code from other emulators (QEMU, Renode and others). They may be used as references for behaviour and for comparing traces only | Athrill's own implementation and licence |
 | 9 | ArduPilot is GPL: Athrill runs ArduPilot binaries, and no ArduPilot code or header enters this repository | Keeps this repository MIT |
+| 10 | The Thumb-2 decoder tables are generated from Arm's machine-readable AARCHMRS data (T32), restricted to the Armv7-M instructions, with the M-profile differences added by hand; every 16-bit encoding and sampled 32-bit encodings are cross-checked against GNU objdump and llvm-objdump (see [survey](survey.md), 6). The package's licence notice is read before use | Arm's own data under a BSD licence, as `riscv-opcodes` is for the RISC-V target; two independent disassemblers as oracles |
 
 ## 3. What Athrill models
 
