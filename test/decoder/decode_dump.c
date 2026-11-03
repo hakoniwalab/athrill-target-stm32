@@ -2,7 +2,8 @@
  * Prints the generated decoders' instruction name for each Thumb instruction
  * given as hex (4 digits for a 16-bit instruction, 8 digits for a 32-bit one,
  * first halfword first): from the arguments, or from stdin one per line.
- * Used by tools/crosscheck_t32_decoder32.py and the decoder test.
+ * Used by athrill-arm-common's tools/crosscheck_t32_decoder32.py and the
+ * decoder test.
  */
 #include <stdio.h>
 #include <string.h>

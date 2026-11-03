@@ -2,7 +2,12 @@
 
 The Thumb decoders, 16-bit and 32-bit, are generated from Arm's Architecture
 Machine Readable Specification (AARCHMRS), as decided in
-[design.md](design.md) (decision 10).
+[design.md](design.md) (decision 10). The generators, the cross-check tools
+and the Armv7-M rules (`rules_armv7m.py`) are in
+[athrill-arm-common](https://github.com/hakoniwalab/athrill-arm-common)
+(`tools/`), shared with Athrill's other Arm targets; this target keeps the
+generated files and the results below. The commands are run from this
+checkout, with athrill-arm-common next to it.
 
 ## Source
 
@@ -17,7 +22,7 @@ made from. The package itself is not kept in this repository.
 
 ## How it is generated
 
-`tools/generate_t32_decoder.py` reads the T32 instruction set, a tree of
+`tools/generate_t32_decoder16.py` reads the T32 instruction set, a tree of
 instruction groups whose nodes carry an encoding (fixed bits and named fields)
 and a decode condition. For each of the 65,536 halfwords it evaluates the
 whole tree, so the table means exactly what the data says, conditions
@@ -36,7 +41,7 @@ Armv7-M is not the A-profile, so the generator applies these rules:
 - Hints Armv7-M does not allocate (0xBFx0, including SEVL) decode as NOP:
   Armv7-M executes them as NOP.
 
-Which instructions run is decided by `src/cpu/thumb_exec16.c`, which has an
+Which instructions run is decided by `src/cpu/thumb_exec16.c` and `thumb_exec32.c`, which have an
 executor per instruction id; an instruction without one stops the run with
 its name.
 
@@ -44,7 +49,7 @@ its name.
 mkdir -p aarchmrs
 curl -L --fail -o aarchmrs/AARCHMRS.tar.gz "https://developer.arm.com/-/cdn-downloads/permalink/Exploration-Tools-OS-Machine-Readable-Data/AARCHMRS_BSD/AARCHMRS_OPENSOURCE_A_profile_FAT-2026-09.tar.gz"
 tar -xzf aarchmrs/AARCHMRS.tar.gz -C aarchmrs
-python tools/generate_t32_decoder.py aarchmrs/Instructions.json AARCHMRS_OPENSOURCE_A_profile_FAT-2026-09
+python ../athrill-arm-common/tools/generate_t32_decoder16.py armv7m aarchmrs/Instructions.json AARCHMRS_OPENSOURCE_A_profile_FAT-2026-09 src/cpu/decoder
 ```
 
 ### 32-bit instructions
@@ -78,14 +83,14 @@ double-precision registers). Besides the should-be and
   and 16-bit forms are Advanced SIMD and decode as undefined.
 
 ```bash
-python tools/generate_t32_decoder32.py aarchmrs/Instructions.json AARCHMRS_OPENSOURCE_A_profile_FAT-2026-09
+python ../athrill-arm-common/tools/generate_t32_decoder32.py armv7m aarchmrs/Instructions.json AARCHMRS_OPENSOURCE_A_profile_FAT-2026-09 src/cpu/decoder
 ```
 
 ## Cross-check
 
 ### 16-bit instructions
 
-`tools/crosscheck_t32_decoder.py` compares the table with GNU objdump and
+`tools/crosscheck_t32_decoder16.py` compares the table with GNU objdump and
 llvm-objdump (Cortex-M7) for every halfword that is not the first half of a
 32-bit instruction (59,392 values), mapping the data's instruction names to
 the disassemblers' mnemonics. The listings are made in the toolchain image:
@@ -93,7 +98,7 @@ the disassemblers' mnemonics. The listings are made in the toolchain image:
 ```bash
 python -c "import struct; open('all16.bin','wb').write(b''.join(struct.pack('<H', v) for v in range(65536) if (v >> 11) not in (29, 30, 31)))"
 docker run --rm -v "$PWD:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -D -b binary -m arm -M force-thumb all16.bin > gnu.txt && arm-none-eabi-objcopy -I binary -O elf32-littlearm -B arm --rename-section .data=.text,contents,alloc,load,readonly,code all16.bin all16.o && llvm-objdump -d -z --triple=thumbv7em-none-eabi --mcpu=cortex-m7 all16.o > llvm.txt'
-python tools/crosscheck_t32_decoder.py gnu.txt llvm.txt
+python ../athrill-arm-common/tools/crosscheck_t32_decoder16.py src/cpu/decoder gnu.txt llvm.txt
 ```
 
 Result with the package above:
@@ -123,10 +128,10 @@ generated decoder's names; built by CMake as `decode_dump` (with
 `BUILD_TESTING`), it also runs a CTest on a few known instructions.
 
 ```bash
-python tools/crosscheck_t32_decoder32.py make aarchmrs/Instructions.json w32
+python ../athrill-arm-common/tools/crosscheck_t32_decoder32.py make aarchmrs/Instructions.json w32
 build/decode_dump < w32/words.txt > w32/ours.txt
 docker run --rm -v "$PWD/w32:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -D -b binary -m arm -M force-thumb all32.bin > gnu32.txt && arm-none-eabi-objcopy -I binary -O elf32-littlearm -B arm --rename-section .data=.text,contents,alloc,load,readonly,code all32.bin all32.o && llvm-objdump -d -z --triple=thumbv7em-none-eabi --mcpu=cortex-m7 all32.o > llvm32.txt'
-python tools/crosscheck_t32_decoder32.py check aarchmrs/Instructions.json w32
+python ../athrill-arm-common/tools/crosscheck_t32_decoder32.py check armv7m aarchmrs/Instructions.json w32
 ```
 
 A sample that does not agree is put in a class that explains it, using Arm's
