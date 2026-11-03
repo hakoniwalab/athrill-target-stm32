@@ -15,6 +15,9 @@
 #include "arm_common/arm_pseudo_bitfield.h"
 #include "arm_common/arm_pseudo_multiply.h"
 #include "arm_common/arm_pseudo_system.h"
+#include "arm_common/arm_pseudo_parallel.h"
+#include "arm_common/arm_pseudo_saturate.h"
+#include "arm_common/arm_pseudo_dsp_multiply.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
@@ -3189,6 +3192,2326 @@ static Std_ReturnType exec_dbg_t1(TargetCoreType *core, uint32 insn)
 	return STD_E_OK;
 }
 
+/* SADD8_T1: SADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SADD8_T1_Rd(insn);
+	uint32 n = t32w_SADD8_T1_Rn(insn);
+	uint32 m = t32w_SADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_sadd8(core, &in, &out);
+}
+
+/* QADD8_T1: QADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QADD8_T1_Rd(insn);
+	uint32 n = t32w_QADD8_T1_Rn(insn);
+	uint32 m = t32w_QADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qadd8(core, &in, &out);
+}
+
+/* SHADD8_T1: SHADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHADD8_T1_Rd(insn);
+	uint32 n = t32w_SHADD8_T1_Rn(insn);
+	uint32 m = t32w_SHADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shadd8(core, &in, &out);
+}
+
+/* UADD8_T1: UADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UADD8_T1_Rd(insn);
+	uint32 n = t32w_UADD8_T1_Rn(insn);
+	uint32 m = t32w_UADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uadd8(core, &in, &out);
+}
+
+/* UQADD8_T1: UQADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQADD8_T1_Rd(insn);
+	uint32 n = t32w_UQADD8_T1_Rn(insn);
+	uint32 m = t32w_UQADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqadd8(core, &in, &out);
+}
+
+/* UHADD8_T1: UHADD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhadd8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHADD8_T1_Rd(insn);
+	uint32 n = t32w_UHADD8_T1_Rn(insn);
+	uint32 m = t32w_UHADD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHADD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhadd8(core, &in, &out);
+}
+
+/* SADD16_T1: SADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SADD16_T1_Rd(insn);
+	uint32 n = t32w_SADD16_T1_Rn(insn);
+	uint32 m = t32w_SADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_sadd16(core, &in, &out);
+}
+
+/* QADD16_T1: QADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QADD16_T1_Rd(insn);
+	uint32 n = t32w_QADD16_T1_Rn(insn);
+	uint32 m = t32w_QADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qadd16(core, &in, &out);
+}
+
+/* SHADD16_T1: SHADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHADD16_T1_Rd(insn);
+	uint32 n = t32w_SHADD16_T1_Rn(insn);
+	uint32 m = t32w_SHADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shadd16(core, &in, &out);
+}
+
+/* UADD16_T1: UADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UADD16_T1_Rd(insn);
+	uint32 n = t32w_UADD16_T1_Rn(insn);
+	uint32 m = t32w_UADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uadd16(core, &in, &out);
+}
+
+/* UQADD16_T1: UQADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQADD16_T1_Rd(insn);
+	uint32 n = t32w_UQADD16_T1_Rn(insn);
+	uint32 m = t32w_UQADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqadd16(core, &in, &out);
+}
+
+/* UHADD16_T1: UHADD16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhadd16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHADD16_T1_Rd(insn);
+	uint32 n = t32w_UHADD16_T1_Rn(insn);
+	uint32 m = t32w_UHADD16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHADD16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhadd16(core, &in, &out);
+}
+
+/* SASX_T1: SASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SASX_T1_Rd(insn);
+	uint32 n = t32w_SASX_T1_Rn(insn);
+	uint32 m = t32w_SASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_sasx(core, &in, &out);
+}
+
+/* QASX_T1: QASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QASX_T1_Rd(insn);
+	uint32 n = t32w_QASX_T1_Rn(insn);
+	uint32 m = t32w_QASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qasx(core, &in, &out);
+}
+
+/* SHASX_T1: SHASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHASX_T1_Rd(insn);
+	uint32 n = t32w_SHASX_T1_Rn(insn);
+	uint32 m = t32w_SHASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shasx(core, &in, &out);
+}
+
+/* UASX_T1: UASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UASX_T1_Rd(insn);
+	uint32 n = t32w_UASX_T1_Rn(insn);
+	uint32 m = t32w_UASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uasx(core, &in, &out);
+}
+
+/* UQASX_T1: UQASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQASX_T1_Rd(insn);
+	uint32 n = t32w_UQASX_T1_Rn(insn);
+	uint32 m = t32w_UQASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqasx(core, &in, &out);
+}
+
+/* UHASX_T1: UHASX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhasx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHASX_T1_Rd(insn);
+	uint32 n = t32w_UHASX_T1_Rn(insn);
+	uint32 m = t32w_UHASX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHASX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhasx(core, &in, &out);
+}
+
+/* SSUB8_T1: SSUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ssub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSUB8_T1_Rd(insn);
+	uint32 n = t32w_SSUB8_T1_Rn(insn);
+	uint32 m = t32w_SSUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_ssub8(core, &in, &out);
+}
+
+/* QSUB8_T1: QSUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qsub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QSUB8_T1_Rd(insn);
+	uint32 n = t32w_QSUB8_T1_Rn(insn);
+	uint32 m = t32w_QSUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QSUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qsub8(core, &in, &out);
+}
+
+/* SHSUB8_T1: SHSUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shsub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHSUB8_T1_Rd(insn);
+	uint32 n = t32w_SHSUB8_T1_Rn(insn);
+	uint32 m = t32w_SHSUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHSUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shsub8(core, &in, &out);
+}
+
+/* USUB8_T1: USUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USUB8_T1_Rd(insn);
+	uint32 n = t32w_USUB8_T1_Rn(insn);
+	uint32 m = t32w_USUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_usub8(core, &in, &out);
+}
+
+/* UQSUB8_T1: UQSUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqsub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQSUB8_T1_Rd(insn);
+	uint32 n = t32w_UQSUB8_T1_Rn(insn);
+	uint32 m = t32w_UQSUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQSUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqsub8(core, &in, &out);
+}
+
+/* UHSUB8_T1: UHSUB8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhsub8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHSUB8_T1_Rd(insn);
+	uint32 n = t32w_UHSUB8_T1_Rn(insn);
+	uint32 m = t32w_UHSUB8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHSUB8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhsub8(core, &in, &out);
+}
+
+/* SSUB16_T1: SSUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ssub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSUB16_T1_Rd(insn);
+	uint32 n = t32w_SSUB16_T1_Rn(insn);
+	uint32 m = t32w_SSUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_ssub16(core, &in, &out);
+}
+
+/* QSUB16_T1: QSUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qsub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QSUB16_T1_Rd(insn);
+	uint32 n = t32w_QSUB16_T1_Rn(insn);
+	uint32 m = t32w_QSUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QSUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qsub16(core, &in, &out);
+}
+
+/* SHSUB16_T1: SHSUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shsub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHSUB16_T1_Rd(insn);
+	uint32 n = t32w_SHSUB16_T1_Rn(insn);
+	uint32 m = t32w_SHSUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHSUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shsub16(core, &in, &out);
+}
+
+/* USUB16_T1: USUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USUB16_T1_Rd(insn);
+	uint32 n = t32w_USUB16_T1_Rn(insn);
+	uint32 m = t32w_USUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_usub16(core, &in, &out);
+}
+
+/* UQSUB16_T1: UQSUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqsub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQSUB16_T1_Rd(insn);
+	uint32 n = t32w_UQSUB16_T1_Rn(insn);
+	uint32 m = t32w_UQSUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQSUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqsub16(core, &in, &out);
+}
+
+/* UHSUB16_T1: UHSUB16<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhsub16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHSUB16_T1_Rd(insn);
+	uint32 n = t32w_UHSUB16_T1_Rn(insn);
+	uint32 m = t32w_UHSUB16_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHSUB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhsub16(core, &in, &out);
+}
+
+/* SSAX_T1: SSAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ssax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSAX_T1_Rd(insn);
+	uint32 n = t32w_SSAX_T1_Rn(insn);
+	uint32 m = t32w_SSAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_ssax(core, &in, &out);
+}
+
+/* QSAX_T1: QSAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qsax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QSAX_T1_Rd(insn);
+	uint32 n = t32w_QSAX_T1_Rn(insn);
+	uint32 m = t32w_QSAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QSAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qsax(core, &in, &out);
+}
+
+/* SHSAX_T1: SHSAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_shsax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SHSAX_T1_Rd(insn);
+	uint32 n = t32w_SHSAX_T1_Rn(insn);
+	uint32 m = t32w_SHSAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SHSAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_shsax(core, &in, &out);
+}
+
+/* USAX_T1: USAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USAX_T1_Rd(insn);
+	uint32 n = t32w_USAX_T1_Rn(insn);
+	uint32 m = t32w_USAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_usax(core, &in, &out);
+}
+
+/* UQSAX_T1: UQSAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uqsax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UQSAX_T1_Rd(insn);
+	uint32 n = t32w_UQSAX_T1_Rn(insn);
+	uint32 m = t32w_UQSAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UQSAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uqsax(core, &in, &out);
+}
+
+/* UHSAX_T1: UHSAX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uhsax_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UHSAX_T1_Rd(insn);
+	uint32 n = t32w_UHSAX_T1_Rn(insn);
+	uint32 m = t32w_UHSAX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UHSAX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_uhsax(core, &in, &out);
+}
+
+/* QADD_T1: QADD<c> <Rd>, <Rm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qadd_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QADD_T1_Rd(insn);
+	uint32 n = t32w_QADD_T1_Rn(insn);
+	uint32 m = t32w_QADD_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QADD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qadd(core, &in, &out);
+}
+
+/* QSUB_T1: QSUB<c> <Rd>, <Rm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qsub_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QSUB_T1_Rd(insn);
+	uint32 n = t32w_QSUB_T1_Rn(insn);
+	uint32 m = t32w_QSUB_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QSUB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qsub(core, &in, &out);
+}
+
+/* QDADD_T1: QDADD<c> <Rd>, <Rm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qdadd_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QDADD_T1_Rd(insn);
+	uint32 n = t32w_QDADD_T1_Rn(insn);
+	uint32 m = t32w_QDADD_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QDADD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qdadd(core, &in, &out);
+}
+
+/* QDSUB_T1: QDSUB<c> <Rd>, <Rm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_qdsub_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_QDSUB_T1_Rd(insn);
+	uint32 n = t32w_QDSUB_T1_Rn(insn);
+	uint32 m = t32w_QDSUB_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "QDSUB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_qdsub(core, &in, &out);
+}
+
+/* SEL_T1: SEL<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sel_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SEL_T1_Rd(insn);
+	uint32 n = t32w_SEL_T1_Rn(insn);
+	uint32 m = t32w_SEL_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SEL";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_sel(core, &in, &out);
+}
+
+/* SMULBB_T1: SMULBB<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smulbb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULBB_T1_Rd(insn);
+	uint32 n = t32w_SMULBB_T1_Rn(insn);
+	uint32 m = t32w_SMULBB_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULBB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulxy(core, &in, &out);
+}
+
+/* SMLABB_T1: SMLABB<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULBB, SMULBT, SMULTB, SMULTT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlabb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLABB_T1_Rd(insn);
+	uint32 n = t32w_SMLABB_T1_Rn(insn);
+	uint32 m = t32w_SMLABB_T1_Rm(insn);
+	uint32 a = t32w_SMLABB_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLABB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlaxy(core, &in, &out);
+}
+
+/* SMULBT_T1: SMULBT<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smulbt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULBT_T1_Rd(insn);
+	uint32 n = t32w_SMULBT_T1_Rn(insn);
+	uint32 m = t32w_SMULBT_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULBT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulxy(core, &in, &out);
+}
+
+/* SMLABT_T1: SMLABT<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULBB, SMULBT, SMULTB, SMULTT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlabt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLABT_T1_Rd(insn);
+	uint32 n = t32w_SMLABT_T1_Rn(insn);
+	uint32 m = t32w_SMLABT_T1_Rm(insn);
+	uint32 a = t32w_SMLABT_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLABT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlaxy(core, &in, &out);
+}
+
+/* SMULTB_T1: SMULTB<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smultb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULTB_T1_Rd(insn);
+	uint32 n = t32w_SMULTB_T1_Rn(insn);
+	uint32 m = t32w_SMULTB_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = TRUE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulxy(core, &in, &out);
+}
+
+/* SMLATB_T1: SMLATB<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULBB, SMULBT, SMULTB, SMULTT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlatb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLATB_T1_Rd(insn);
+	uint32 n = t32w_SMLATB_T1_Rn(insn);
+	uint32 m = t32w_SMLATB_T1_Rm(insn);
+	uint32 a = t32w_SMLATB_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLATB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = TRUE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlaxy(core, &in, &out);
+}
+
+/* SMULTT_T1: SMULTT<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smultt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULTT_T1_Rd(insn);
+	uint32 n = t32w_SMULTT_T1_Rn(insn);
+	uint32 m = t32w_SMULTT_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULTT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = TRUE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulxy(core, &in, &out);
+}
+
+/* SMLATT_T1: SMLATT<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULBB, SMULBT, SMULTB, SMULTT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); n_high = (N == '1'); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlatt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLATT_T1_Rd(insn);
+	uint32 n = t32w_SMLATT_T1_Rn(insn);
+	uint32 m = t32w_SMLATT_T1_Rm(insn);
+	uint32 a = t32w_SMLATT_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLATT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = TRUE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlaxy(core, &in, &out);
+}
+
+/* SMULWB_T1: SMULWB<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smulwb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULWB_T1_Rd(insn);
+	uint32 n = t32w_SMULWB_T1_Rn(insn);
+	uint32 m = t32w_SMULWB_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULWB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulwy(core, &in, &out);
+}
+
+/* SMLAWB_T1: SMLAWB<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULWB, SMULWT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlawb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLAWB_T1_Rd(insn);
+	uint32 n = t32w_SMLAWB_T1_Rn(insn);
+	uint32 m = t32w_SMLAWB_T1_Rm(insn);
+	uint32 a = t32w_SMLAWB_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLAWB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlawy(core, &in, &out);
+}
+
+/* SMULWT_T1: SMULWT<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smulwt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMULWT_T1_Rd(insn);
+	uint32 n = t32w_SMULWT_T1_Rn(insn);
+	uint32 m = t32w_SMULWT_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULWT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smulwy(core, &in, &out);
+}
+
+/* SMLAWT_T1: SMLAWT<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMULWB, SMULWT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_high = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlawt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLAWT_T1_Rd(insn);
+	uint32 n = t32w_SMLAWT_T1_Rn(insn);
+	uint32 m = t32w_SMLAWT_T1_Rm(insn);
+	uint32 a = t32w_SMLAWT_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLAWT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlawy(core, &in, &out);
+}
+
+/* SMUAD_T1: SMUAD<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smuad_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMUAD_T1_Rd(insn);
+	uint32 n = t32w_SMUAD_T1_Rn(insn);
+	uint32 m = t32w_SMUAD_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMUAD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smuad(core, &in, &out);
+}
+
+/* SMUADX_T1: SMUADX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smuadx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMUADX_T1_Rd(insn);
+	uint32 n = t32w_SMUADX_T1_Rn(insn);
+	uint32 m = t32w_SMUADX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMUADX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	in.round = FALSE;
+	return arm_pseudo_smuad(core, &in, &out);
+}
+
+/* SMLAD_T1: SMLAD<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMUAD; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlad_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLAD_T1_Rd(insn);
+	uint32 n = t32w_SMLAD_T1_Rn(insn);
+	uint32 m = t32w_SMLAD_T1_Rm(insn);
+	uint32 a = t32w_SMLAD_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLAD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlad(core, &in, &out);
+}
+
+/* SMLADX_T1: SMLADX<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMUAD; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smladx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLADX_T1_Rd(insn);
+	uint32 n = t32w_SMLADX_T1_Rn(insn);
+	uint32 m = t32w_SMLADX_T1_Rm(insn);
+	uint32 a = t32w_SMLADX_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLADX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	in.round = FALSE;
+	return arm_pseudo_smlad(core, &in, &out);
+}
+
+/* SMUSD_T1: SMUSD<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smusd_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMUSD_T1_Rd(insn);
+	uint32 n = t32w_SMUSD_T1_Rn(insn);
+	uint32 m = t32w_SMUSD_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMUSD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smusd(core, &in, &out);
+}
+
+/* SMUSDX_T1: SMUSDX<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smusdx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMUSDX_T1_Rd(insn);
+	uint32 n = t32w_SMUSDX_T1_Rn(insn);
+	uint32 m = t32w_SMUSDX_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMUSDX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	in.round = FALSE;
+	return arm_pseudo_smusd(core, &in, &out);
+}
+
+/* SMLSD_T1: SMLSD<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMUSD; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlsd_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLSD_T1_Rd(insn);
+	uint32 n = t32w_SMLSD_T1_Rn(insn);
+	uint32 m = t32w_SMLSD_T1_Rm(insn);
+	uint32 a = t32w_SMLSD_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLSD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smlsd(core, &in, &out);
+}
+
+/* SMLSDX_T1: SMLSDX<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMUSD; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); m_swap = (M == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smlsdx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMLSDX_T1_Rd(insn);
+	uint32 n = t32w_SMLSDX_T1_Rn(insn);
+	uint32 m = t32w_SMLSDX_T1_Rm(insn);
+	uint32 a = t32w_SMLSDX_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLSDX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	in.round = FALSE;
+	return arm_pseudo_smlsd(core, &in, &out);
+}
+
+/* SMMUL_T1: SMMUL<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smmul_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMUL_T1_Rd(insn);
+	uint32 n = t32w_SMMUL_T1_Rn(insn);
+	uint32 m = t32w_SMMUL_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMUL";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smmul(core, &in, &out);
+}
+
+/* SMMULR_T1: SMMULR<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smmulr_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMULR_T1_Rd(insn);
+	uint32 n = t32w_SMMULR_T1_Rn(insn);
+	uint32 m = t32w_SMMULR_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMULR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = TRUE;
+	return arm_pseudo_smmul(core, &in, &out);
+}
+
+/* SMMLA_T1: SMMLA<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMMUL; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smmla_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMLA_T1_Rd(insn);
+	uint32 n = t32w_SMMLA_T1_Rn(insn);
+	uint32 m = t32w_SMMLA_T1_Rm(insn);
+	uint32 a = t32w_SMMLA_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMLA";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smmla(core, &in, &out);
+}
+
+/* SMMLAR_T1: SMMLAR<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE SMMUL; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_smmlar_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMLAR_T1_Rd(insn);
+	uint32 n = t32w_SMMLAR_T1_Rn(insn);
+	uint32 m = t32w_SMMLAR_T1_Rm(insn);
+	uint32 a = t32w_SMMLAR_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMLAR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = TRUE;
+	return arm_pseudo_smmla(core, &in, &out);
+}
+
+/* SMMLS_T1: SMMLS<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smmls_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMLS_T1_Rd(insn);
+	uint32 n = t32w_SMMLS_T1_Rn(insn);
+	uint32 m = t32w_SMMLS_T1_Rm(insn);
+	uint32 a = t32w_SMMLS_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || thumb_sp_or_pc(a)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMLS";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_smmls(core, &in, &out);
+}
+
+/* SMMLSR_T1: SMMLSR<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); round = (R == '1');
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_smmlsr_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SMMLSR_T1_Rd(insn);
+	uint32 n = t32w_SMMLSR_T1_Rn(insn);
+	uint32 m = t32w_SMMLSR_T1_Rm(insn);
+	uint32 a = t32w_SMMLSR_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || thumb_sp_or_pc(a)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMMLSR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = TRUE;
+	return arm_pseudo_smmls(core, &in, &out);
+}
+
+/* USAD8_T1: USAD8<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usad8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USAD8_T1_Rd(insn);
+	uint32 n = t32w_USAD8_T1_Rn(insn);
+	uint32 m = t32w_USAD8_T1_Rm(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USAD8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_usad8(core, &in, &out);
+}
+
+/* USADA8_T1: USADA8<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE USAD8; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_usada8_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USADA8_T1_Rd(insn);
+	uint32 n = t32w_USADA8_T1_Rn(insn);
+	uint32 m = t32w_USADA8_T1_Rm(insn);
+	uint32 a = t32w_USADA8_T1_Ra(insn);
+	arm_dsp_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USADA8";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	in.round = FALSE;
+	return arm_pseudo_usada8(core, &in, &out);
+}
+
+/* SMLALBB_T1: SMLALBB<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlalbb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALBB_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALBB_T1_RdHi(insn);
+	uint32 n = t32w_SMLALBB_T1_Rn(insn);
+	uint32 m = t32w_SMLALBB_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALBB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlalxy(core, &in, &out);
+}
+
+/* SMLALBT_T1: SMLALBT<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlalbt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALBT_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALBT_T1_RdHi(insn);
+	uint32 n = t32w_SMLALBT_T1_Rn(insn);
+	uint32 m = t32w_SMLALBT_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALBT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlalxy(core, &in, &out);
+}
+
+/* SMLALTB_T1: SMLALTB<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlaltb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALTB_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALTB_T1_RdHi(insn);
+	uint32 n = t32w_SMLALTB_T1_Rn(insn);
+	uint32 m = t32w_SMLALTB_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = TRUE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlalxy(core, &in, &out);
+}
+
+/* SMLALTT_T1: SMLALTT<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); n_high = (N == '1'); m_high = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlaltt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALTT_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALTT_T1_RdHi(insn);
+	uint32 n = t32w_SMLALTT_T1_Rn(insn);
+	uint32 m = t32w_SMLALTT_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALTT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = TRUE;
+	in.m_high = TRUE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlalxy(core, &in, &out);
+}
+
+/* SMLALD_T1: SMLALD<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlald_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALD_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALD_T1_RdHi(insn);
+	uint32 n = t32w_SMLALD_T1_Rn(insn);
+	uint32 m = t32w_SMLALD_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlald(core, &in, &out);
+}
+
+/* SMLALDX_T1: SMLALDX<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlaldx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLALDX_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLALDX_T1_RdHi(insn);
+	uint32 n = t32w_SMLALDX_T1_Rn(insn);
+	uint32 m = t32w_SMLALDX_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLALDX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	return arm_pseudo_smlald(core, &in, &out);
+}
+
+/* SMLSLD_T1: SMLSLD<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlsld_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLSLD_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLSLD_T1_RdHi(insn);
+	uint32 n = t32w_SMLSLD_T1_Rn(insn);
+	uint32 m = t32w_SMLSLD_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLSLD";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	return arm_pseudo_smlsld(core, &in, &out);
+}
+
+/* SMLSLDX_T1: SMLSLDX<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); m_swap = (M == '1');
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlsldx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLSLDX_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLSLDX_T1_RdHi(insn);
+	uint32 n = t32w_SMLSLDX_T1_Rn(insn);
+	uint32 m = t32w_SMLSLDX_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLSLDX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = TRUE;
+	return arm_pseudo_smlsld(core, &in, &out);
+}
+
+/* UMAAL_T1: UMAAL<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm);
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_umaal_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_UMAAL_T1_RdLo(insn);
+	uint32 dhi = t32w_UMAAL_T1_RdHi(insn);
+	uint32 n = t32w_UMAAL_T1_Rn(insn);
+	uint32 m = t32w_UMAAL_T1_Rm(insn);
+	arm_dsp_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UMAAL";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.n_high = FALSE;
+	in.m_high = FALSE;
+	in.m_swap = FALSE;
+	return arm_pseudo_umaal(core, &in, &out);
+}
+
+/* SSAT_T1_LSL: SSAT<c> <Rd>, #<imm>, <Rn>{, <shift>}
+ *     if sh == '1' && (imm3:imm2) == '00000' then SEE SSAT16; d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm)+1; (shift_t, shift_n) = DecodeImmShift(sh:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ssat_t1_lsl(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSAT_T1_LSL_Rd(insn);
+	uint32 n = t32w_SSAT_T1_LSL_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSAT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_SSAT_T1_LSL_sat_imm(insn) + 1U;
+	in.shift_t = SRType_LSL;
+	in.shift_n = thumb_imm5(t32w_SSAT_T1_LSL_imm3(insn), t32w_SSAT_T1_LSL_imm2(insn));
+	return arm_pseudo_ssat(core, &in, &out);
+}
+
+/* SSAT_T1_ASR: SSAT<c> <Rd>, #<imm>, <Rn>{, <shift>}
+ *     if sh == '1' && (imm3:imm2) == '00000' then SEE SSAT16; d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm)+1; (shift_t, shift_n) = DecodeImmShift(sh:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE;
+ *     (sh = '1' with a zero amount is SSAT16: another id in the generated decoder.) */
+static Std_ReturnType exec_ssat_t1_asr(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSAT_T1_ASR_Rd(insn);
+	uint32 n = t32w_SSAT_T1_ASR_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSAT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_SSAT_T1_ASR_sat_imm(insn) + 1U;
+	in.shift_t = SRType_ASR;
+	in.shift_n = thumb_imm5(t32w_SSAT_T1_ASR_imm3(insn), t32w_SSAT_T1_ASR_imm2(insn));
+	return arm_pseudo_ssat(core, &in, &out);
+}
+
+/* SSAT16_T1: SSAT16<c> <Rd>, #<imm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm)+1;
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ssat16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SSAT16_T1_Rd(insn);
+	uint32 n = t32w_SSAT16_T1_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SSAT16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_SSAT16_T1_sat_imm(insn) + 1U;
+	in.shift_t = SRType_LSL;
+	in.shift_n = 0U;
+	return arm_pseudo_ssat16(core, &in, &out);
+}
+
+/* USAT_T1_LSL: USAT<c> <Rd>, #<imm>, <Rn>{, <shift>}
+ *     if sh == '1' && (imm3:imm2) == '00000' then SEE USAT16; d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm); (shift_t, shift_n) = DecodeImmShift(sh:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usat_t1_lsl(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USAT_T1_LSL_Rd(insn);
+	uint32 n = t32w_USAT_T1_LSL_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USAT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_USAT_T1_LSL_sat_imm(insn);
+	in.shift_t = SRType_LSL;
+	in.shift_n = thumb_imm5(t32w_USAT_T1_LSL_imm3(insn), t32w_USAT_T1_LSL_imm2(insn));
+	return arm_pseudo_usat(core, &in, &out);
+}
+
+/* USAT_T1_ASR: USAT<c> <Rd>, #<imm>, <Rn>{, <shift>}
+ *     if sh == '1' && (imm3:imm2) == '00000' then SEE USAT16; d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm); (shift_t, shift_n) = DecodeImmShift(sh:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE;
+ *     (sh = '1' with a zero amount is USAT16: another id in the generated decoder.) */
+static Std_ReturnType exec_usat_t1_asr(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USAT_T1_ASR_Rd(insn);
+	uint32 n = t32w_USAT_T1_ASR_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USAT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_USAT_T1_ASR_sat_imm(insn);
+	in.shift_t = SRType_ASR;
+	in.shift_n = thumb_imm5(t32w_USAT_T1_ASR_imm3(insn), t32w_USAT_T1_ASR_imm2(insn));
+	return arm_pseudo_usat(core, &in, &out);
+}
+
+/* USAT16_T1: USAT16<c> <Rd>, #<imm>, <Rn>
+ *     d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_usat16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_USAT16_T1_Rd(insn);
+	uint32 n = t32w_USAT16_T1_Rn(insn);
+	arm_sat_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "USAT16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.saturate_to = t32w_USAT16_T1_sat_imm(insn);
+	in.shift_t = SRType_LSL;
+	in.shift_n = 0U;
+	return arm_pseudo_usat16(core, &in, &out);
+}
+
+/* PKHBT_T1: PKHBT<c> <Rd>, <Rn>, <Rm>{, LSL #<imm>}
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); tbform = (tb == '1'); (shift_t, shift_n) = DecodeImmShift(tb:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_pkhbt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_PKHBT_T1_Rd(insn);
+	uint32 n = t32w_PKHBT_T1_Rn(insn);
+	uint32 m = t32w_PKHBT_T1_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "PKHBT";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_LSL;
+	in.shift_n = thumb_shift_n(0U, thumb_imm5(t32w_PKHBT_T1_imm3(insn), t32w_PKHBT_T1_imm2(insn)));
+	return arm_pseudo_pkhbt(core, &in, &out);
+}
+
+/* PKHTB_T1: PKHTB<c> <Rd>, <Rn>, <Rm>{, ASR #<imm>}
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); tbform = (tb == '1'); (shift_t, shift_n) = DecodeImmShift(tb:'0', imm3:imm2);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_pkhtb_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_PKHTB_T1_Rd(insn);
+	uint32 n = t32w_PKHTB_T1_Rn(insn);
+	uint32 m = t32w_PKHTB_T1_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "PKHTB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_ASR;
+	in.shift_n = thumb_shift_n(2U, thumb_imm5(t32w_PKHTB_T1_imm3(insn), t32w_PKHTB_T1_imm2(insn)));
+	return arm_pseudo_pkhtb(core, &in, &out);
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -3327,4 +5650,90 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_NOP_T2] = exec_nop_t2,
 	[T32_32_YIELD_T2] = exec_yield_t2,
 	[T32_32_DBG_T1] = exec_dbg_t1,
+	[T32_32_SADD8_T1] = exec_sadd8_t1,
+	[T32_32_QADD8_T1] = exec_qadd8_t1,
+	[T32_32_SHADD8_T1] = exec_shadd8_t1,
+	[T32_32_UADD8_T1] = exec_uadd8_t1,
+	[T32_32_UQADD8_T1] = exec_uqadd8_t1,
+	[T32_32_UHADD8_T1] = exec_uhadd8_t1,
+	[T32_32_SADD16_T1] = exec_sadd16_t1,
+	[T32_32_QADD16_T1] = exec_qadd16_t1,
+	[T32_32_SHADD16_T1] = exec_shadd16_t1,
+	[T32_32_UADD16_T1] = exec_uadd16_t1,
+	[T32_32_UQADD16_T1] = exec_uqadd16_t1,
+	[T32_32_UHADD16_T1] = exec_uhadd16_t1,
+	[T32_32_SASX_T1] = exec_sasx_t1,
+	[T32_32_QASX_T1] = exec_qasx_t1,
+	[T32_32_SHASX_T1] = exec_shasx_t1,
+	[T32_32_UASX_T1] = exec_uasx_t1,
+	[T32_32_UQASX_T1] = exec_uqasx_t1,
+	[T32_32_UHASX_T1] = exec_uhasx_t1,
+	[T32_32_SSUB8_T1] = exec_ssub8_t1,
+	[T32_32_QSUB8_T1] = exec_qsub8_t1,
+	[T32_32_SHSUB8_T1] = exec_shsub8_t1,
+	[T32_32_USUB8_T1] = exec_usub8_t1,
+	[T32_32_UQSUB8_T1] = exec_uqsub8_t1,
+	[T32_32_UHSUB8_T1] = exec_uhsub8_t1,
+	[T32_32_SSUB16_T1] = exec_ssub16_t1,
+	[T32_32_QSUB16_T1] = exec_qsub16_t1,
+	[T32_32_SHSUB16_T1] = exec_shsub16_t1,
+	[T32_32_USUB16_T1] = exec_usub16_t1,
+	[T32_32_UQSUB16_T1] = exec_uqsub16_t1,
+	[T32_32_UHSUB16_T1] = exec_uhsub16_t1,
+	[T32_32_SSAX_T1] = exec_ssax_t1,
+	[T32_32_QSAX_T1] = exec_qsax_t1,
+	[T32_32_SHSAX_T1] = exec_shsax_t1,
+	[T32_32_USAX_T1] = exec_usax_t1,
+	[T32_32_UQSAX_T1] = exec_uqsax_t1,
+	[T32_32_UHSAX_T1] = exec_uhsax_t1,
+	[T32_32_QADD_T1] = exec_qadd_t1,
+	[T32_32_QSUB_T1] = exec_qsub_t1,
+	[T32_32_QDADD_T1] = exec_qdadd_t1,
+	[T32_32_QDSUB_T1] = exec_qdsub_t1,
+	[T32_32_SEL_T1] = exec_sel_t1,
+	[T32_32_SMULBB_T1] = exec_smulbb_t1,
+	[T32_32_SMLABB_T1] = exec_smlabb_t1,
+	[T32_32_SMULBT_T1] = exec_smulbt_t1,
+	[T32_32_SMLABT_T1] = exec_smlabt_t1,
+	[T32_32_SMULTB_T1] = exec_smultb_t1,
+	[T32_32_SMLATB_T1] = exec_smlatb_t1,
+	[T32_32_SMULTT_T1] = exec_smultt_t1,
+	[T32_32_SMLATT_T1] = exec_smlatt_t1,
+	[T32_32_SMULWB_T1] = exec_smulwb_t1,
+	[T32_32_SMLAWB_T1] = exec_smlawb_t1,
+	[T32_32_SMULWT_T1] = exec_smulwt_t1,
+	[T32_32_SMLAWT_T1] = exec_smlawt_t1,
+	[T32_32_SMUAD_T1] = exec_smuad_t1,
+	[T32_32_SMUADX_T1] = exec_smuadx_t1,
+	[T32_32_SMLAD_T1] = exec_smlad_t1,
+	[T32_32_SMLADX_T1] = exec_smladx_t1,
+	[T32_32_SMUSD_T1] = exec_smusd_t1,
+	[T32_32_SMUSDX_T1] = exec_smusdx_t1,
+	[T32_32_SMLSD_T1] = exec_smlsd_t1,
+	[T32_32_SMLSDX_T1] = exec_smlsdx_t1,
+	[T32_32_SMMUL_T1] = exec_smmul_t1,
+	[T32_32_SMMULR_T1] = exec_smmulr_t1,
+	[T32_32_SMMLA_T1] = exec_smmla_t1,
+	[T32_32_SMMLAR_T1] = exec_smmlar_t1,
+	[T32_32_SMMLS_T1] = exec_smmls_t1,
+	[T32_32_SMMLSR_T1] = exec_smmlsr_t1,
+	[T32_32_USAD8_T1] = exec_usad8_t1,
+	[T32_32_USADA8_T1] = exec_usada8_t1,
+	[T32_32_SMLALBB_T1] = exec_smlalbb_t1,
+	[T32_32_SMLALBT_T1] = exec_smlalbt_t1,
+	[T32_32_SMLALTB_T1] = exec_smlaltb_t1,
+	[T32_32_SMLALTT_T1] = exec_smlaltt_t1,
+	[T32_32_SMLALD_T1] = exec_smlald_t1,
+	[T32_32_SMLALDX_T1] = exec_smlaldx_t1,
+	[T32_32_SMLSLD_T1] = exec_smlsld_t1,
+	[T32_32_SMLSLDX_T1] = exec_smlsldx_t1,
+	[T32_32_UMAAL_T1] = exec_umaal_t1,
+	[T32_32_SSAT_T1_LSL] = exec_ssat_t1_lsl,
+	[T32_32_SSAT_T1_ASR] = exec_ssat_t1_asr,
+	[T32_32_SSAT16_T1] = exec_ssat16_t1,
+	[T32_32_USAT_T1_LSL] = exec_usat_t1_lsl,
+	[T32_32_USAT_T1_ASR] = exec_usat_t1_asr,
+	[T32_32_USAT16_T1] = exec_usat16_t1,
+	[T32_32_PKHBT_T1] = exec_pkhbt_t1,
+	[T32_32_PKHTB_T1] = exec_pkhtb_t1,
 };

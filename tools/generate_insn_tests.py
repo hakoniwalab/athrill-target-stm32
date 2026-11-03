@@ -453,9 +453,54 @@ def sy_cases(rng):
     return cases
 
 
+# ---------------------------------------------------------------------------
+# DSP: each case starts from random N Z C V Q and GE (MSR) and reads the
+# APSR back into r6 (MRS), so GE and Q are compared too.
+# ---------------------------------------------------------------------------
+
+def dsp_cases(rng):
+    cases = []
+
+    def case(name, insn, regs):
+        setup = [(r, "0x%08X" % value(rng)) for r in regs]
+        apsr = (rng.getrandbits(5) << 27) | (rng.getrandbits(4) << 16)
+        cases.append(Case(name, insn, setup, pre=["ldr.w r7, =0x%08X" % apsr, "msr APSR_nzcvqg, r7"],
+                          post=["mrs r6, apsr"]))
+
+    for i in range(CASES):
+        for op in ("add16", "asx", "sax", "sub16", "add8", "sub8"):
+            for prefix in ("s", "u", "q", "uq", "sh", "uh"):
+                case("%s%s_%d" % (prefix, op, i), "%s%s r0, r1, r2" % (prefix, op), ("r1", "r2"))
+        for mnem in ("qadd", "qsub", "qdadd", "qdsub", "sel", "usad8"):
+            case("%s_%d" % (mnem, i), "%s r0, r1, r2" % mnem, ("r1", "r2"))
+        for x in "bt":
+            for y in "bt":
+                case("smul%s%s_%d" % (x, y, i), "smul%s%s r0, r1, r2" % (x, y), ("r1", "r2"))
+                case("smla%s%s_%d" % (x, y, i), "smla%s%s r0, r1, r2, r3" % (x, y), ("r1", "r2", "r3"))
+                case("smlal%s%s_%d" % (x, y, i), "smlal%s%s r0, r4, r1, r2" % (x, y), ("r0", "r1", "r2", "r4"))
+            case("smulw%s_%d" % (x, i), "smulw%s r0, r1, r2" % x, ("r1", "r2"))
+            case("smlaw%s_%d" % (x, i), "smlaw%s r0, r1, r2, r3" % x, ("r1", "r2", "r3"))
+        for mnem in ("smuad", "smuadx", "smusd", "smusdx", "smmul", "smmulr"):
+            case("%s_%d" % (mnem, i), "%s r0, r1, r2" % mnem, ("r1", "r2"))
+        for mnem in ("smlad", "smladx", "smlsd", "smlsdx", "smmla", "smmlar", "smmls", "smmlsr", "usada8"):
+            case("%s_%d" % (mnem, i), "%s r0, r1, r2, r3" % mnem, ("r1", "r2", "r3"))
+        for mnem in ("smlald", "smlaldx", "smlsld", "smlsldx", "umaal"):
+            case("%s_%d" % (mnem, i), "%s r0, r4, r1, r2" % mnem, ("r0", "r1", "r2", "r4"))
+        case("ssat_lsl_%d" % i, "ssat r0, #%d, r1, lsl #%d" % (rng.randrange(1, 33), rng.randrange(32)), ("r1",))
+        case("ssat_asr_%d" % i, "ssat r0, #%d, r1, asr #%d" % (rng.randrange(1, 33), rng.randrange(1, 32)), ("r1",))
+        case("usat_lsl_%d" % i, "usat r0, #%d, r1, lsl #%d" % (rng.randrange(32), rng.randrange(32)), ("r1",))
+        case("usat_asr_%d" % i, "usat r0, #%d, r1, asr #%d" % (rng.randrange(32), rng.randrange(1, 32)), ("r1",))
+        case("ssat16_%d" % i, "ssat16 r0, #%d, r1" % rng.randrange(1, 17), ("r1",))
+        case("usat16_%d" % i, "usat16 r0, #%d, r1" % rng.randrange(16), ("r1",))
+        case("pkhbt_%d" % i, "pkhbt r0, r1, r2, lsl #%d" % rng.randrange(32), ("r1", "r2"))
+        case("pkhtb_%d" % i, "pkhtb r0, r1, r2, asr #%d" % rng.randrange(1, 33), ("r1", "r2"))
+    return cases
+
+
 GROUPS = {"ls": ("loads and stores", ls_cases), "br": ("branches", br_cases),
           "mx": ("SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, bit operations, multiply and divide", mx_cases),
-          "sy": ("IT blocks, MRS and MSR (program status registers), barriers and hints", sy_cases)}
+          "sy": ("IT blocks, MRS and MSR (program status registers), barriers and hints", sy_cases),
+          "dsp": ("DSP extension", dsp_cases)}
 
 
 def program(group, title, cases, rng):

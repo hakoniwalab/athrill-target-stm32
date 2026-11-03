@@ -563,3 +563,116 @@ for id, instr, syntax, note in (
         ("YIELD_T2", "YIELD", "YIELD<c>.W", "A hint: no effect here (no other threads)."),
         ("DBG_T1", "DBG", "DBG<c> #<option>", "A hint: no effect here (no debug system).")):
     entry(id, instr, syntax, "// No additional decoding required", "hint", None, [], {}, note=note)
+
+
+# ---------------------------------------------------------------------------
+# DSP extension: parallel addition and subtraction, SEL, saturation, PKH,
+# DSP multiplies
+# ---------------------------------------------------------------------------
+
+DSP_UNPRED = "d IN {13,15} || n IN {13,15} || m IN {13,15}"
+DSP_UNPRED_C = "thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)"
+DSP_REGS = [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}")]
+
+
+def dsp(id, instr, call, syntax, ops, ra=None, n_high="FALSE", m_high="FALSE", m_swap="FALSE", round_="FALSE", **kw):
+    """ra: None (no Ra), "acc" (a == 13 UNPREDICTABLE) or "acc_sp_pc" (a IN {13,15})."""
+    regs = list(DSP_REGS)
+    unpred, unpred_c = DSP_UNPRED, DSP_UNPRED_C
+    if ra:
+        regs.append(("a", "{Ra}"))
+        unpred += " || a == 13" if ra == "acc" else " || a IN {13,15}"
+        unpred_c += " || (a == 13U)" if ra == "acc" else " || thumb_sp_or_pc(a)"
+    entry(id, instr, syntax, ops, "dsp", call, regs,
+          {"Rd": "d", "Rn": "n", "Rm": "m", "Ra": "a" if ra else None,
+           "n_high": n_high, "m_high": m_high, "m_swap": m_swap, "round": round_},
+          unpred=unpred, unpred_c=unpred_c, **kw)
+
+
+for op in ("ADD8", "ADD16", "ASX", "SUB8", "SUB16", "SAX"):
+    for prefix in ("S", "Q", "SH", "U", "UQ", "UH"):
+        instr = prefix + op
+        dsp(instr + "_T1", instr, instr.lower(), "%s<c> <Rd>, <Rn>, <Rm>" % instr, "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);")
+for instr in ("QADD", "QSUB", "QDADD", "QDSUB", "SEL"):
+    dsp(instr + "_T1", instr, instr.lower(), "%s<c> <Rd>, <Rn>, <Rm>" % instr if instr == "SEL"
+        else "%s<c> <Rd>, <Rm>, <Rn>" % instr, "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);")
+for x in "BT":
+    for y in "BT":
+        nh, mh = ("TRUE" if x == "T" else "FALSE"), ("TRUE" if y == "T" else "FALSE")
+        hl = "n_high = (N == '1'); m_high = (M == '1');"
+        dsp("SMUL%s%s_T1" % (x, y), "SMUL%s%s" % (x, y), "smulxy", "SMUL%s%s<c> <Rd>, <Rn>, <Rm>" % (x, y),
+            "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); " + hl, n_high=nh, m_high=mh)
+        dsp("SMLA%s%s_T1" % (x, y), "SMLA%s%s" % (x, y), "smlaxy", "SMLA%s%s<c> <Rd>, <Rn>, <Rm>, <Ra>" % (x, y),
+            "if Ra == '1111' then SEE SMULBB, SMULBT, SMULTB, SMULTT;"
+            " d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); " + hl, ra="acc", n_high=nh, m_high=mh)
+for y in "BT":
+    mh = "TRUE" if y == "T" else "FALSE"
+    dsp("SMULW%s_T1" % y, "SMULW" + y, "smulwy", "SMULW%s<c> <Rd>, <Rn>, <Rm>" % y,
+        "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); m_high = (M == '1');", m_high=mh)
+    dsp("SMLAW%s_T1" % y, "SMLAW" + y, "smlawy", "SMLAW%s<c> <Rd>, <Rn>, <Rm>, <Ra>" % y,
+        "if Ra == '1111' then SEE SMULWB, SMULWT; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra);"
+        " m_high = (M == '1');", ra="acc", m_high=mh)
+for base, acc, see in (("SMUAD", None, None), ("SMLAD", "acc", "SMUAD"), ("SMUSD", None, None), ("SMLSD", "acc", "SMUSD")):
+    for x in ("", "X"):
+        instr = base + x
+        ops = ("if Ra == '1111' then SEE %s; " % see if see else "") + \
+            "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);%s m_swap = (M == '1');" % (" a = UInt(Ra);" if acc else "")
+        dsp(instr + "_T1", instr, base.lower(), "%s<c> <Rd>, <Rn>, <Rm>%s" % (instr, ", <Ra>" if acc else ""), ops,
+            ra=acc, m_swap="TRUE" if x else "FALSE")
+for base, acc, see in (("SMMUL", None, None), ("SMMLA", "acc", "SMMUL"), ("SMMLS", "acc_sp_pc", None)):
+    for r in ("", "R"):
+        instr = base + r
+        ops = ("if Ra == '1111' then SEE %s; " % see if see else "") + \
+            "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);%s round = (R == '1');" % (" a = UInt(Ra);" if acc else "")
+        dsp(instr + "_T1", instr, base.lower(), "%s<c> <Rd>, <Rn>, <Rm>%s" % (instr, ", <Ra>" if acc else ""), ops,
+            ra=acc, round_="TRUE" if r else "FALSE")
+dsp("USAD8_T1", "USAD8", "usad8", "USAD8<c> <Rd>, <Rn>, <Rm>", "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);")
+dsp("USADA8_T1", "USADA8", "usada8", "USADA8<c> <Rd>, <Rn>, <Rm>, <Ra>",
+    "if Ra == '1111' then SEE USAD8; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra);", ra="acc")
+
+
+def dsp_long(id, instr, call, syntax, ops, n_high="FALSE", m_high="FALSE", m_swap="FALSE"):
+    entry(id, instr, syntax, ops, "dsp_long", call, [("dlo", "{RdLo}"), ("dhi", "{RdHi}"), ("n", "{Rn}"), ("m", "{Rm}")],
+          {"RdLo": "dlo", "RdHi": "dhi", "Rn": "n", "Rm": "m", "n_high": n_high, "m_high": m_high, "m_swap": m_swap},
+          unpred="dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15}; dHi == dLo",
+          unpred_c="thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)")
+
+
+L_OPS = "dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm);"
+for x in "BT":
+    for y in "BT":
+        dsp_long("SMLAL%s%s_T1" % (x, y), "SMLAL%s%s" % (x, y), "smlalxy", "SMLAL%s%s<c> <RdLo>, <RdHi>, <Rn>, <Rm>" % (x, y),
+                 L_OPS + " n_high = (N == '1'); m_high = (M == '1');",
+                 n_high="TRUE" if x == "T" else "FALSE", m_high="TRUE" if y == "T" else "FALSE")
+for base in ("SMLALD", "SMLSLD"):
+    for x in ("", "X"):
+        dsp_long(base + x + "_T1", base + x, base.lower(), "%s%s<c> <RdLo>, <RdHi>, <Rn>, <Rm>" % (base, x),
+                 L_OPS + " m_swap = (M == '1');", m_swap="TRUE" if x else "FALSE")
+dsp_long("UMAAL_T1", "UMAAL", "umaal", "UMAAL<c> <RdLo>, <RdHi>, <Rn>, <Rm>", L_OPS)
+
+# Saturation: SSAT and USAT have one id per shift (sh: LSL, ASR)
+SAT_UNPRED, SAT_UNPRED_C = "d IN {13,15} || n IN {13,15}", "thumb_sp_or_pc(d) || thumb_sp_or_pc(n)"
+for instr, plus in (("SSAT", " + 1U"), ("USAT", "")):
+    for sh, shift_t in (("LSL", "SRType_LSL"), ("ASR", "SRType_ASR")):
+        entry("%s_T1_%s" % (instr, sh), instr, "%s<c> <Rd>, #<imm>, <Rn>{, <shift>}" % instr,
+              "if sh == '1' && (imm3:imm2) == '00000' then SEE %s16; d = UInt(Rd); n = UInt(Rn);"
+              " saturate_to = UInt(sat_imm)%s; (shift_t, shift_n) = DecodeImmShift(sh:'0', imm3:imm2);"
+              % (instr, "+1" if plus else ""), "sat", instr.lower(), [("d", "{Rd}"), ("n", "{Rn}")],
+              {"Rd": "d", "Rn": "n", "saturate_to": "{sat_imm}" + plus, "shift_t": shift_t,
+               "shift_n": "thumb_imm5({imm3}, {imm2})"},
+              unpred=SAT_UNPRED, unpred_c=SAT_UNPRED_C,
+              note="(sh = '1' with a zero amount is %s16: another id in the generated decoder.)" % instr
+              if sh == "ASR" else None)
+    entry(instr + "16_T1", instr + "16", "%s16<c> <Rd>, #<imm>, <Rn>" % instr,
+          "d = UInt(Rd); n = UInt(Rn); saturate_to = UInt(sat_imm)%s;" % ("+1" if plus else ""),
+          "sat", instr.lower() + "16", [("d", "{Rd}"), ("n", "{Rn}")],
+          {"Rd": "d", "Rn": "n", "saturate_to": "{sat_imm}" + plus, "shift_t": "SRType_LSL", "shift_n": "0U"},
+          unpred=SAT_UNPRED, unpred_c=SAT_UNPRED_C)
+for instr, shift_t in (("PKHBT", "SRType_LSL"), ("PKHTB", "SRType_ASR")):
+    tb = instr == "PKHTB"
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rn>, <Rm>{, %s #<imm>}" % (instr, "ASR" if tb else "LSL"),
+          "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); tbform = (tb == '1');"
+          " (shift_t, shift_n) = DecodeImmShift(tb:'0', imm3:imm2);", "dp_reg", instr.lower(), DSP_REGS,
+          {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "shift_t": shift_t,
+           "shift_n": "thumb_shift_n(%s, thumb_imm5({imm3}, {imm2}))" % ("2U" if tb else "0U")},
+          unpred=DSP_UNPRED, unpred_c=DSP_UNPRED_C)

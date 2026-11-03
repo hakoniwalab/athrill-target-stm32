@@ -10,7 +10,7 @@
 # instructions at the same addresses but for the USART register offsets.
 set -e
 cd "$(dirname "$0")"
-tests="insn dp dp2 ls br mx sy"
+tests="insn dp dp2 ls br mx sy dsp"
 docker run --rm -v "$PWD:/work" -w /work athrill-stm32-toolchain sh -c "
   set -e
   for t in $tests; do

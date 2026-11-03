@@ -45,13 +45,17 @@ KINDS = {
     "it": ("arm_it_input_type", None, (), None),
     "mrs": ("arm_mrs_input_type", "arm_dp_output_type", ("Rd",), None),
     "msr": ("arm_msr_input_type", "arm_dp_output_type", ("Rn",), None),
+    "dsp": ("arm_dsp_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm", "Ra"), None),
+    "sat": ("arm_sat_input_type", "arm_dp_output_type", ("Rd", "Rn"), None),
+    "dsp_long": ("arm_dsp_long_input_type", "arm_mul_long_output_type", ("RdLo", "RdHi", "Rn", "Rm"), None),
 }
 # Kinds whose instructions are not conditional (no ConditionPassed()).
 NO_COND = {"cb", "it"}
 HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm_common/arm_pseudo_multiple.h",
            "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h", "arm_common/arm_pseudo_extend.h",
            "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h",
-           "arm_common/arm_pseudo_system.h"]
+           "arm_common/arm_pseudo_system.h", "arm_common/arm_pseudo_parallel.h", "arm_common/arm_pseudo_saturate.h",
+           "arm_common/arm_pseudo_dsp_multiply.h"]
 
 
 def decoder_ids(width):

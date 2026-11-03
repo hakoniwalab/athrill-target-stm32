@@ -97,3 +97,4 @@ Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 | 2026-11-04 | 230 encodings (and BL, BLX, CBZ, CBNZ) | 76 of 93 encodings, 92.2% / 92.2% of uses | 124 of 184 encodings, 91.1% / 91.1% of uses |
 | 2026-11-04 | 290 encodings (and SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, REV/RBIT/CLZ, multiply, divide) | 87 of 93 encodings, 95.0% / 95.0% of uses | 150 of 184 encodings, 94.9% / 94.9% of uses |
 | 2026-11-04 | 300 encodings (and IT, BX in common, MRS/MSR of the program status registers, barriers, hints) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 157 of 184 encodings, 99.0% / 99.0% of uses; 96.4% without the MRS/MSR of other registers |
+| 2026-11-05 | 386 encodings (and the DSP extension; the start-up uses none) | unchanged | unchanged; whole firmware: 97.6% of its instructions have an executor, 2.3% are floating point |
