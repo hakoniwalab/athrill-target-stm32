@@ -4,6 +4,13 @@
 #include "mpu_types.h"
 #include <stdio.h>
 #include <string.h>
+#include "arm_common/arm_m_exception.h"
+
+/* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
+#define STM32_NUM_IRQ		110U
+#define STM32_PRIORITY_BITS	4U
+#define STM32_CPUID		0x411FC270U
+#define STM32_CCR_WRITABLE	0x0007031BU
 
 CpuType virtual_cpu;
 
@@ -14,6 +21,9 @@ static void reset_core(TargetCoreType *core)
 	memset(core, 0, sizeof(*core));
 	core->core_id = id;
 	core->reset_pending = TRUE;
+	ArmMReset(&core->m, STM32_NUM_IRQ, STM32_PRIORITY_BITS, TRUE);
+	core->scs.cpuid = STM32_CPUID;
+	core->scs.ccr_writable = STM32_CCR_WRITABLE;
 }
 
 /*
@@ -31,6 +41,7 @@ static Std_ReturnType take_reset(TargetCoreType *core)
 		printf("ERROR: no vector table at 0x%08x\n", STM32_RESET_VTOR);
 		return STD_E_SEGV;
 	}
+	core->m.vtor = STM32_RESET_VTOR;	/* the boot address: the flash, aliased at 0 on the device */
 	core->reg.r[CPU_REG_SP] = sp & ~3U;
 	core->reg.pc = entry & ~1U;
 	core->reg.r[CPU_REG_LR] = 0xFFFFFFFFU;
@@ -86,8 +97,26 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 	}
 	core->internal_cycle++;
 	virtual_cpu.cores[id].elaps++;
-	if (core->is_halt) {
+	if (core->scs.reset_requested) {
+		/* AIRCR.SYSRESETREQ */
+		reset_core(core);
 		return STD_E_OK;
+	}
+	if (core->is_halt) {
+		/* WFI, WFE: woken by an exception that would preempt were PRIMASK clear, or by an event (WFE) */
+		uint32 primask = core->m.primask;
+
+		core->m.primask = 0U;
+		if ((ArmMPendingToTake(&core->m) != 0U) || (core->wfe && core->m.event)) {
+			core->is_halt = FALSE;
+			if (core->wfe) {
+				core->m.event = FALSE;
+			}
+		}
+		core->m.primask = primask;
+		if (core->is_halt) {
+			return STD_E_OK;
+		}
 	}
 	err = thumb_execute(core);
 	if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
@@ -100,7 +129,7 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 			what = "UNPREDICTABLE instruction";
 		}
 		else if (err == STD_E_EXEC) {
-			what = "UsageFault (invalid state) at instruction";
+			what = "lockup (a fault that cannot be taken) at instruction";
 		}
 		printf("ERROR: %s 0x%0*x (%s) at 0x%08x\n", what, (int)(length * 2U), insn, name, core->reg.pc);
 	}

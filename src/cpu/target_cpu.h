@@ -2,6 +2,7 @@
 #define ATHRILL_STM32_TARGET_CPU_H
 
 #include "std_types.h"
+#include "arm_common/arm_m_types.h"
 
 #define ATHRILL_TARGET_ARCH "ARMv7-M"
 #define ATHRILL_TARGET_VERSION "0.1.0"
@@ -35,6 +36,14 @@ typedef struct TargetCoreTypeTag {
     std_bool exclusive_valid;	/* local exclusive monitor (LDREX/STREX) */
     uint32 exclusive_address;
     std_bool it_written;	/* this instruction was IT: the IT state does not advance */
+    ArmMStateType m;		/* the exception model (athrill-arm-common arm_m_exception.h) */
+    ArmMSysTickType systick;
+    ArmMScsConfigType scs;
+    uint32 sync_exception;	/* an exception this instruction raised (SVCall, a fault), taken after it */
+    uint32 sync_return;		/* its return address */
+    std_bool exc_return_pending;	/* this instruction wrote an EXC_RETURN value to PC in Handler mode */
+    uint32 exc_return;
+    std_bool wfe;		/* halted by WFE (an event also wakes it) */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;

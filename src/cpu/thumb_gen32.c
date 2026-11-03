@@ -20,6 +20,7 @@
 #include "arm_common/arm_pseudo_dsp_multiply.h"
 #include "arm_common/arm_pseudo_fp_ls.h"
 #include "arm_common/arm_pseudo_fp_convert.h"
+#include "arm_common/arm_pseudo_m_system.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
@@ -3080,7 +3081,7 @@ static Std_ReturnType exec_umlal_t1(TargetCoreType *core, uint32 insn)
 /* MRS_T1_AS: MRS<c> <Rd>, <spec_reg>
  *     d = UInt(Rd);
  *     if d IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20}) then UNPREDICTABLE;
- *     (R, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above (MSP, PSP, PRIMASK, BASEPRI, FAULTMASK, CONTROL) are not executed yet.) */
+ *     (R, (0) in Armv7-M, set: UNPREDICTABLE here.) */
 static Std_ReturnType exec_mrs_t1_as(TargetCoreType *core, uint32 insn)
 {
 	uint32 d = t32w_MRS_T1_AS_Rd(insn);
@@ -3091,21 +3092,18 @@ static Std_ReturnType exec_mrs_t1_as(TargetCoreType *core, uint32 insn)
 	if (thumb_sp_or_pc(d) || !thumb_sysm_valid(sysm) || (t32w_MRS_T1_AS_R(insn) != 0U)) {
 		return STD_E_INVALID;
 	}
-	if (sysm >= 8U) {
-		return STD_E_DECODE;
-	}
 	in.instrName = "MRS";
 	in.cond = Stm32CurrentCond(core);
 	ARM_SET_REG(core, &in, Rd, d);
 	in.SYSm = sysm;
-	return arm_pseudo_mrs_xpsr(core, &in, &out);
+	return arm_pseudo_mrs(core, &in, &out);
 }
 
 /* MSR_r_T1_AS: MSR<c> <spec_reg>, <Rn>
  *     n = UInt(Rn);
  *     if mask == '00' || (mask != '10' && !(UInt(SYSm) IN {0..3})) then UNPREDICTABLE;
  *     if n IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20}) then UNPREDICTABLE;
- *     (R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above are not executed yet.) */
+ *     (R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here.) */
 static Std_ReturnType exec_msr_r_t1_as(TargetCoreType *core, uint32 insn)
 {
 	uint32 n = t32w_MSR_r_T1_AS_Rn(insn);
@@ -3117,15 +3115,12 @@ static Std_ReturnType exec_msr_r_t1_as(TargetCoreType *core, uint32 insn)
 	if ((mask == 0U) || ((mask != 2U) && (sysm > 3U)) || thumb_sp_or_pc(n) || !thumb_sysm_valid(sysm) || (t32w_MSR_r_T1_AS_R(insn) != 0U) || ((t32w_MSR_r_T1_AS_mask(insn) & 3U) != 0U)) {
 		return STD_E_INVALID;
 	}
-	if (sysm >= 8U) {
-		return STD_E_DECODE;
-	}
 	in.instrName = "MSR";
 	in.cond = Stm32CurrentCond(core);
 	ARM_SET_REG(core, &in, Rn, n);
 	in.SYSm = sysm;
 	in.mask = mask;
-	return arm_pseudo_msr_xpsr(core, &in, &out);
+	return arm_pseudo_msr(core, &in, &out);
 }
 
 /* DMB_T1: DMB<c> <option>

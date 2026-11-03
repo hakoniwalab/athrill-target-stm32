@@ -34,9 +34,13 @@ barriers and the MRS/MSR of the program status registers run that way in all the
 32-bit encodings; the glue of all but the first data-processing
 instructions is generated from a table (`tools/glue_table.py`,
 `tools/generate_glue.py`), and every encoding is tested against QEMU
-(`test/insn`, `docs/testing.md`). Exceptions (with the special registers of
-MRS/MSR other than the program status registers), the MPU and the FPU's
-access control (CPACR: the FPU is always enabled) are not modelled yet.
+(`test/insn`, `docs/testing.md`). Exceptions are the M profile's model from
+athrill-arm-common (NVIC, SysTick, the system control block, the
+floating-point context with lazy preservation; checked against QEMU by
+`test/insn/exc.S`). Not modelled yet: the MPU, the FPU's access control
+(CPACR: the FPU is always enabled), and the faults of memory accesses (a bus
+error or an unaligned access stops the run instead of a BusFault or
+UsageFault).
 
 ## Build and run
 

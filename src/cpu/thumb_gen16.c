@@ -20,6 +20,7 @@
 #include "arm_common/arm_pseudo_dsp_multiply.h"
 #include "arm_common/arm_pseudo_fp_ls.h"
 #include "arm_common/arm_pseudo_fp_convert.h"
+#include "arm_common/arm_pseudo_m_system.h"
 
 /* LDR_i_T1: LDR <Rt>, [<Rn>{, #<imm5:'00'>}]
  *     imm32 = ZeroExtend(imm5:'00', 32); t = UInt(Rt); n = UInt(Rn); index = TRUE; add = TRUE; wback = FALSE; */
@@ -822,6 +823,56 @@ static Std_ReturnType exec_yield_t1(TargetCoreType *core, uint16 insn)
 	return STD_E_OK;
 }
 
+/* CPSIE_T1_AS: CPSIE <iflags>
+ *     if A == '1' then UNPREDICTABLE ((0) in Armv7-M); enable = (im == '0'); disable = (im == '1'); affectPRI = (I == '1'); affectFAULT = (F == '1');
+ *     if InITBlock() then UNPREDICTABLE;
+ *     if I == '0' && F == '0' then UNPREDICTABLE;
+ *     (CPS is not conditional.) */
+static Std_ReturnType exec_cpsie_t1_as(TargetCoreType *core, uint16 insn)
+{
+	arm_cps_input_type in;
+
+	if (Stm32InITBlock(core) || ((t32_CPSIE_T1_AS_I(insn) == 0U) && (t32_CPSIE_T1_AS_F(insn) == 0U)) || (t32_CPSIE_T1_AS_A(insn) != 0U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "CPSIE";
+	in.enable = TRUE;
+	in.affectPRI = t32_CPSIE_T1_AS_I(insn) != 0U;
+	in.affectFAULT = t32_CPSIE_T1_AS_F(insn) != 0U;
+	return arm_pseudo_cps(core, &in);
+}
+
+/* CPSID_T1_AS: CPSID <iflags>
+ *     if A == '1' then UNPREDICTABLE ((0) in Armv7-M); enable = (im == '0'); disable = (im == '1'); affectPRI = (I == '1'); affectFAULT = (F == '1');
+ *     if InITBlock() then UNPREDICTABLE;
+ *     if I == '0' && F == '0' then UNPREDICTABLE;
+ *     (CPS is not conditional.) */
+static Std_ReturnType exec_cpsid_t1_as(TargetCoreType *core, uint16 insn)
+{
+	arm_cps_input_type in;
+
+	if (Stm32InITBlock(core) || ((t32_CPSID_T1_AS_I(insn) == 0U) && (t32_CPSID_T1_AS_F(insn) == 0U)) || (t32_CPSID_T1_AS_A(insn) != 0U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "CPSID";
+	in.enable = FALSE;
+	in.affectPRI = t32_CPSID_T1_AS_I(insn) != 0U;
+	in.affectFAULT = t32_CPSID_T1_AS_F(insn) != 0U;
+	return arm_pseudo_cps(core, &in);
+}
+
+/* SVC_T1: SVC<c> #<imm8>
+ *     imm32 = ZeroExtend(imm8, 32); */
+static Std_ReturnType exec_svc_t1(TargetCoreType *core, uint16 insn)
+{
+	arm_svc_input_type in;
+
+	in.instrName = "SVC";
+	in.cond = Stm32CurrentCond(core);
+	in.imm32 = t32_SVC_T1_imm8(insn);
+	return arm_pseudo_svc(core, &in);
+}
+
 const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_LDR_i_T1] = exec_ldr_i_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_i_t2,
@@ -864,4 +915,7 @@ const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_BX_T1] = exec_bx_t1,
 	[T32_16_IT_T1] = exec_it_t1,
 	[T32_16_YIELD_T1] = exec_yield_t1,
+	[T32_16_CPSIE_T1_AS] = exec_cpsie_t1_as,
+	[T32_16_CPSID_T1_AS] = exec_cpsid_t1_as,
+	[T32_16_SVC_T1] = exec_svc_t1,
 };

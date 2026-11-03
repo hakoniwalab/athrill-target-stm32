@@ -541,21 +541,18 @@ entry("IT_T1", "IT", "IT{<x>{<y>{<z>}}} <firstcond>",
 SYSM = "(insn & 0xFFU)"
 entry("MRS_T1_AS", "MRS", "MRS<c> <Rd>, <spec_reg>",
       "d = UInt(Rd);",
-      "mrs", "mrs_xpsr", [("d", "{Rd}"), ("sysm", SYSM)], {"Rd": "d", "SYSm": "sysm"},
+      "mrs", "mrs", [("d", "{Rd}"), ("sysm", SYSM)], {"Rd": "d", "SYSm": "sysm"},
       unpred="d IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20})",
       unpred_c="thumb_sp_or_pc(d) || !thumb_sysm_valid(sysm) || ({R} != 0U)",
-      note="(R, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above (MSP, PSP, PRIMASK, BASEPRI,"
-           " FAULTMASK, CONTROL) are not executed yet.)",
-      later_c="sysm >= 8U")
+      note="(R, (0) in Armv7-M, set: UNPREDICTABLE here.)")
 entry("MSR_r_T1_AS", "MSR", "MSR<c> <spec_reg>, <Rn>",
       "n = UInt(Rn);",
-      "msr", "msr_xpsr", [("n", "{Rn}"), ("sysm", SYSM), ("mask", "{mask} >> 2")],
+      "msr", "msr", [("n", "{Rn}"), ("sysm", SYSM), ("mask", "{mask} >> 2")],
       {"Rn": "n", "SYSm": "sysm", "mask": "mask"},
       unpred="mask == '00' || (mask != '10' && !(UInt(SYSm) IN {0..3})); n IN {13,15} || !(UInt(SYSm) IN {0..3,5..9,16..20})",
       unpred_c="(mask == 0U) || ((mask != 2U) && (sysm > 3U)) || thumb_sp_or_pc(n) || !thumb_sysm_valid(sysm)"
                " || ({R} != 0U) || (({mask} & 3U) != 0U)",
-      note="(R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here. SYSm 8 and above are not executed yet.)",
-      later_c="sysm >= 8U")
+      note="(R and bits 9:8, (0) in Armv7-M, set: UNPREDICTABLE here.)")
 for id, instr, syntax, note in (
         ("DMB_T1", "DMB", "DMB<c> <option>", "A barrier: no effect here (one core; memory accesses complete in order)."),
         ("DSB_T1", "DSB", "DSB<c> <option>", "A barrier: no effect here (one core; memory accesses complete in order)."),
@@ -918,3 +915,19 @@ for sz, dp in (("S", False), ("D", True)):
         fp(instr + "_T2_" + sz, instr, call, "%s.%s <%sd>, <%sn>, <%sm>" % (instr, f, r, r, r),
            "dp_operation = (sz == '1'); d, n, m by the size;", dp, d=True, n=True, m=True,
            unpred="InITBlock()", unpred_c="Stm32InITBlock(core)", note="(Not conditional: in.cond is AL.)")
+
+
+# ---------------------------------------------------------------------------
+# CPS and SVC (the exception model: athrill-arm-common arm_pseudo_m_system.h)
+# ---------------------------------------------------------------------------
+
+for id, enable in (("CPSIE_T1_AS", "TRUE"), ("CPSID_T1_AS", "FALSE")):
+    instr = id[:5]
+    entry(id, instr, "%s <iflags>" % instr,
+          "if A == '1' then UNPREDICTABLE ((0) in Armv7-M); enable = (im == '0'); disable = (im == '1');"
+          " affectPRI = (I == '1'); affectFAULT = (F == '1');", "cps", "cps", [],
+          {"enable": enable, "affectPRI": "{I} != 0U", "affectFAULT": "{F} != 0U"},
+          unpred="InITBlock(); I == '0' && F == '0'",
+          unpred_c="Stm32InITBlock(core) || (({I} == 0U) && ({F} == 0U)) || ({A} != 0U)",
+          note="(CPS is not conditional.)")
+entry("SVC_T1", "SVC", "SVC<c> #<imm8>", "imm32 = ZeroExtend(imm8, 32);", "svc", "svc", [], {"imm32": "{imm8}"})

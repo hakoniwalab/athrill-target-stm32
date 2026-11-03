@@ -110,6 +110,56 @@ static inline uint32 thumb_dreg(uint32 bit, uint32 v)
 	return (bit << 4) | v;
 }
 
+/*
+ * The hints that wait, and BKPT. They are the target's: the core halts and
+ * cpu_supply_clock wakes it.
+ *     WFI: if ConditionPassed() then WaitForInterrupt();
+ *     WFE: if ConditionPassed() then
+ *              if EventRegistered() then ClearEventRegister(); else WaitForEvent();
+ *     SEV: if ConditionPassed() then SendEvent();
+ *     BKPT: BKPTInstrDebugEvent();  // without a debugger: a HardFault (HFSR.DEBUGEVT)
+ */
+static inline Std_ReturnType thumb_wfi(TargetCoreType *core)
+{
+	if (ConditionHolds(Stm32CurrentCond(core), ArmAPSR(core))) {
+		core->is_halt = TRUE;
+		core->wfe = FALSE;
+	}
+	return STD_E_OK;
+}
+
+static inline Std_ReturnType thumb_wfe(TargetCoreType *core)
+{
+	if (ConditionHolds(Stm32CurrentCond(core), ArmAPSR(core))) {
+		if (core->m.event) {
+			core->m.event = FALSE;
+		}
+		else {
+			core->is_halt = TRUE;
+			core->wfe = TRUE;
+		}
+	}
+	return STD_E_OK;
+}
+
+static inline Std_ReturnType thumb_sev(TargetCoreType *core)
+{
+	if (ConditionHolds(Stm32CurrentCond(core), ArmAPSR(core))) {
+		core->m.event = TRUE;
+	}
+	return STD_E_OK;
+}
+
+#define STM32_HFSR_DEBUGEVT	(1U << 31)
+
+static inline Std_ReturnType thumb_bkpt(TargetCoreType *core)
+{
+	core->m.hfsr |= STM32_HFSR_DEBUGEVT;
+	core->sync_exception = ARM_M_EXC_HARDFAULT;
+	core->sync_return = core->reg.pc;
+	return STD_E_OK;
+}
+
 /* SP or PC: the registers most 32-bit encodings make UNPREDICTABLE. */
 static inline bool thumb_sp_or_pc(uint32 n)
 {

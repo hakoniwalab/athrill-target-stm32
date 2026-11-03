@@ -1130,7 +1130,41 @@ static Std_ReturnType exec_b_t4(TargetCoreType *core, uint32 insn)
 	return arm_pseudo_b(core, &in, &out);
 }
 
+/*
+ * The target's: the hints that wait (thumb_glue.h), UDF.
+ */
+
+static Std_ReturnType exec_wfi_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+	return thumb_wfi(core);
+}
+
+static Std_ReturnType exec_wfe_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+	return thumb_wfe(core);
+}
+
+static Std_ReturnType exec_sev_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)insn;
+	return thumb_sev(core);
+}
+
+/* UDF: UNDEFINED (thumb_execute takes the UsageFault UNDEFINSTR). */
+static Std_ReturnType exec_udf_t2(TargetCoreType *core, uint32 insn)
+{
+	(void)core;
+	(void)insn;
+	return STD_E_DECODE;
+}
+
 static const ThumbExec32 executors[T32_32_ID_NUM] = {
+	[T32_32_WFI_T2] = exec_wfi_t2,
+	[T32_32_WFE_T2] = exec_wfe_t2,
+	[T32_32_SEV_T2] = exec_sev_t2,
+	[T32_32_UDF_T2] = exec_udf_t2,
 	[T32_32_ADD_i_T3] = exec_add_imm_t3,
 	[T32_32_ADDS_i_T3] = exec_adds_imm_t3,
 	[T32_32_ADD_i_T4] = exec_add_imm_t4,

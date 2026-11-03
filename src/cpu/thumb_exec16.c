@@ -313,7 +313,7 @@ static Std_ReturnType exec_b_t2(TargetCoreType *core, uint16 insn)
 }
 
 /*
- * Instructions not yet in athrill-arm-common.
+ * The target's: the hints and BKPT (thumb_glue.h), UDF.
  */
 
 static Std_ReturnType exec_nop(TargetCoreType *core, uint16 insn)
@@ -323,12 +323,36 @@ static Std_ReturnType exec_nop(TargetCoreType *core, uint16 insn)
 	return STD_E_OK;
 }
 
-/* WFI: there are no interrupt sources yet, so the core stays halted. */
 static Std_ReturnType exec_wfi(TargetCoreType *core, uint16 insn)
 {
 	(void)insn;
-	core->is_halt = TRUE;
-	return STD_E_OK;
+	return thumb_wfi(core);
+}
+
+static Std_ReturnType exec_wfe(TargetCoreType *core, uint16 insn)
+{
+	(void)insn;
+	return thumb_wfe(core);
+}
+
+static Std_ReturnType exec_sev(TargetCoreType *core, uint16 insn)
+{
+	(void)insn;
+	return thumb_sev(core);
+}
+
+static Std_ReturnType exec_bkpt(TargetCoreType *core, uint16 insn)
+{
+	(void)insn;
+	return thumb_bkpt(core);
+}
+
+/* UDF: UNDEFINED (thumb_execute takes the UsageFault UNDEFINSTR). */
+static Std_ReturnType exec_udf(TargetCoreType *core, uint16 insn)
+{
+	(void)core;
+	(void)insn;
+	return STD_E_DECODE;
 }
 
 static const ThumbExec16 executors[T32_16_ID_NUM] = {
@@ -363,6 +387,10 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_B_T2] = exec_b_t2,
 	[T32_16_NOP_T1] = exec_nop,
 	[T32_16_WFI_T1] = exec_wfi,
+	[T32_16_WFE_T1] = exec_wfe,
+	[T32_16_SEV_T1] = exec_sev,
+	[T32_16_BKPT_T1] = exec_bkpt,
+	[T32_16_UDF_T1] = exec_udf,
 };
 
 Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn)

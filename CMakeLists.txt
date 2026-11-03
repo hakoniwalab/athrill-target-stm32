@@ -67,6 +67,7 @@ endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
   src/device/device.c src/device/peripheral/stm32_usart.c
+  src/device/peripheral/arm_m_scs_device.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
 if(ATHRILL_ENABLE_EXDEV)
@@ -122,7 +123,7 @@ if(BUILD_TESTING)
   # Instruction tests (test/insn): every encoding of the instructions run
   # through athrill-arm-common, compared with the output of the same
   # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
-  foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc)
+  foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
   endforeach()
 endif()

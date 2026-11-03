@@ -2,9 +2,10 @@
  * The M profile for athrill-arm-common's pseudo-code (its arm_profile.h):
  * Armv7-M, Thumb state only.
  *
- * Not yet modelled: exceptions (a fault stops the run with its error instead
- * of entering a handler, and there is no exception return through PC) and
- * the MPU.
+ * Exceptions are the M profile's model (athrill-arm-common arm_m_exception.h,
+ * state in core->m): thumb_execute takes them between instructions. Not yet
+ * modelled: the MPU, and the faults of memory accesses (a bus error or an
+ * unaligned access stops the run instead of a BusFault or UsageFault).
  */
 #ifndef ATHRILL_STM32_ARM_TARGET_PROFILE_H
 #define ATHRILL_STM32_ARM_TARGET_PROFILE_H
@@ -67,15 +68,17 @@ static inline Std_ReturnType ArmBranchWritePC(TargetCoreType *core, uint32 addre
  *                                // is taken on the next instruction
  *         BranchTo(address<31:1>:'0');
  *
- * Without exceptions, the core is always in Thread mode, and a branch to an
- * address with bit 0 clear stops the run (STD_E_EXEC) where the UsageFault
- * would be taken.
+ * The exception return is done when the instruction completes
+ * (thumb_execute: ArmMExceptionReturn).
  */
 static inline Std_ReturnType ArmBXWritePC(TargetCoreType *core, uint32 address)
 {
-	if ((address & 1U) == 0U) {
-		return STD_E_EXEC;
+	if (core->m.handler_mode && ((address & 0xF0000000U) == 0xF0000000U)) {
+		core->exc_return_pending = TRUE;
+		core->exc_return = address;
+		return STD_E_OK;
 	}
+	core->m.epsr_t = (address & 1U) != 0U;
 	core->reg.next_pc = address & ~1U;
 	return STD_E_OK;
 }
@@ -88,9 +91,7 @@ static inline Std_ReturnType ArmBXWritePC(TargetCoreType *core, uint32 address)
  */
 static inline Std_ReturnType ArmBLXWritePC(TargetCoreType *core, uint32 address)
 {
-	if ((address & 1U) == 0U) {
-		return STD_E_EXEC;
-	}
+	core->m.epsr_t = (address & 1U) != 0U;
 	core->reg.next_pc = address & ~1U;
 	return STD_E_OK;
 }
@@ -192,21 +193,19 @@ static inline Std_ReturnType ArmMemU_unpriv_W(TargetCoreType *core, uint32 addre
 	return ArmMemU_W(core, address, size, value);
 }
 
-/*
- * IntegerZeroDivideTrappingEnabled(): CCR.DIV_0_TRP, which is not modelled
- * yet: 0, its reset value (SDIV and UDIV by zero give 0).
- */
+/* IntegerZeroDivideTrappingEnabled(): CCR.DIV_0_TRP. */
 static inline bool ArmIntegerZeroDivideTrappingEnabled(const TargetCoreType *core)
 {
-	(void)core;
-	return FALSE;
+	return (core->m.ccr & ARM_M_CCR_DIV_0_TRP) != 0U;
 }
 
-/* GenerateIntegerZeroDivide(): a UsageFault (DIVBYZERO); it stops the run. */
+/* GenerateIntegerZeroDivide(): a UsageFault (DIVBYZERO), taken after the instruction (thumb_execute). */
 static inline Std_ReturnType ArmGenerateIntegerZeroDivide(TargetCoreType *core)
 {
-	(void)core;
-	return STD_E_EXEC;
+	core->m.cfsr |= ARM_M_UFSR_DIVBYZERO << 16;
+	core->sync_exception = ARM_M_EXC_USAGEFAULT;
+	core->sync_return = core->reg.pc;
+	return STD_E_OK;
 }
 
 /*
@@ -271,6 +270,9 @@ static inline void ArmDWrite(TargetCoreType *core, uint32 n, uint64 value)
  * and the cumulative exception bits IDC (7), IXC, UFC, OFC, DZC, IOC (4:0). */
 #define STM32_FPSCR_MASK	0xF7C0009FU
 
+/* ExecuteFPCheck(): the M profile's lazy context preservation (thumb_exec.c). */
+Std_ReturnType ArmExecuteFPCheck(TargetCoreType *core);
+
 static inline uint32 ArmFPSCR(const TargetCoreType *core)
 {
 	return core->reg.fpscr;
@@ -288,11 +290,31 @@ static inline void ArmITStateWrite(TargetCoreType *core, uint32 itstate)
 	core->it_written = TRUE;
 }
 
-/* IPSR: without exceptions the core is always in Thread mode (0). */
 static inline uint32 ArmIPSR(const TargetCoreType *core)
 {
-	(void)core;
-	return 0U;
+	return core->m.ipsr;
+}
+
+static inline uint32 ArmITState(const TargetCoreType *core)
+{
+	return core->reg.itstate;
+}
+
+static inline uint32 ArmNextPC(const TargetCoreType *core)
+{
+	return core->reg.next_pc;
+}
+
+static inline ArmMStateType *ArmMState(const TargetCoreType *core)
+{
+	return (ArmMStateType *)&core->m;
+}
+
+/* CallSupervisor(): SVCall, taken after the instruction (thumb_execute). */
+static inline void ArmCallSupervisor(TargetCoreType *core)
+{
+	core->sync_exception = ARM_M_EXC_SVCALL;
+	core->sync_return = core->reg.next_pc;
 }
 
 /* The Cortex-M7 has the DSP extension. */

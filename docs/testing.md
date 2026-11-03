@@ -127,3 +127,21 @@ close to each other (cancellation, ties), close to integers and halves (the
 conversions' rounding), and directed cases for exact ties, FMA's quiet NaN
 with infinity times zero and square roots whose remainder decides the
 rounding.
+
+### Exception test
+
+`exc.S` is written by hand: each part is a situation of the exception model
+rather than an instruction with random operands. All vectors lead to one
+handler that logs, per exception, IPSR, EXC_RETURN, the frame's address,
+the stacked R0, PC and xPSR, CONTROL and CFSR; a scenario puts an action in
+a table the handler calls for an exception. The scenarios: SVC with an
+unaligned stack, PendSV and SysTick by ICSR, interrupt priorities with a
+nested and a tail-chained interrupt, PRIMASK (with WFI not waiting),
+BASEPRI and BASEPRI_MAX, PRIGROUP, the process stack, unprivileged Thread
+mode, UsageFaults (UDF, division by zero) and their escalation to HardFault,
+INVSTATE, an illegal EXC_RETURN (INVPC), SVC escalated from a handler, the
+floating-point context preserved lazily or left, equal priorities, the
+hints and BKPT. Its reference is QEMU's netduinoplus2 like the integer
+tests (same addresses: the stacked PCs are compared). FPCCR is printed
+without bit 10, which QEMU sets (SFRDY of Armv8-M), a reserved bit of
+Armv7-M.

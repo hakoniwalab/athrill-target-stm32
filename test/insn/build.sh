@@ -13,7 +13,7 @@
 # addresses (link_an500.ld); they print no addresses.
 set -e
 cd "$(dirname "$0")"
-tests="insn dp dp2 ls br mx sy dsp"
+tests="insn dp dp2 ls br mx sy dsp exc"
 fptests="fpm fpa fpc"
 docker run --rm -v "$PWD:/work" -w /work athrill-stm32-toolchain sh -c "
   set -e
