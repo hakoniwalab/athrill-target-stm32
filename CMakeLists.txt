@@ -48,6 +48,7 @@ add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
   src/cpu/thumb_exec16.c
   src/cpu/decoder/t32_decode16.c
+  src/cpu/decoder/t32_decode32.c
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
 stm32_target(athrill_stm32_cpu)
 
@@ -89,6 +90,13 @@ install(TARGETS athrill3 RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if(BUILD_TESTING)
   add_test(NAME athrill3-usage COMMAND athrill3)
+  # Generated decoders on a few known instructions (docs/decoder.md).
+  add_executable(decode_dump test/decoder/decode_dump.c
+    src/cpu/decoder/t32_decode16.c src/cpu/decoder/t32_decode32.c)
+  target_include_directories(decode_dump PRIVATE src/cpu/decoder)
+  add_test(NAME decoder-known COMMAND decode_dump 4770 f000d000 f8d00004 fb91f0f2 eeb70bc0 f3ef8008)
+  set_tests_properties(decoder-known PROPERTIES PASS_REGULAR_EXPRESSION
+    "BX_T1.*BL_i_T1.*LDR_i_T3.*SDIV_T1.*VCVT_sd_T1.*MRS_T1_AS")
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"

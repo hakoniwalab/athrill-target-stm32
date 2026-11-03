@@ -17,11 +17,13 @@ already runs PX4 on the AIFoundry Erbium board this way.
 
 The base of the target runs a bare-metal hello world: Athrill's core with the
 STM32 target, reset from the vector table (main stack pointer and reset
-handler), USART3 transmit (ISR, TDR), and 16-bit Thumb instructions decoded
-by a table generated from Arm's machine-readable architecture data and
+handler), USART3 transmit (ISR, TDR), and Thumb instructions decoded by
+decoders generated from Arm's machine-readable architecture data and
 cross-checked against GNU objdump and llvm-objdump
-([docs/decoder.md](docs/decoder.md)). The executor covers the instructions
-the hello world uses so far.
+([docs/decoder.md](docs/decoder.md)): a table for every 16-bit encoding and
+generated code for the 32-bit ones (Cortex-M7, sampled). The executor covers
+the 16-bit instructions the hello world uses so far; 32-bit instructions are
+decoded but not executed yet.
 
 ## Build and run
 
@@ -45,7 +47,7 @@ test/hello/build.sh
 
 ## Third-party notice
 
-`src/cpu/decoder/t32_decode16.{h,c}` are generated from Arm's Architecture
+`src/cpu/decoder/t32_decode16.{h,c}` and `t32_decode32.{h,c}` are generated from Arm's Architecture
 Machine Readable Specification and are provided under Arm's BSD 3-clause
 licence, reproduced in those files (Copyright 2010-2026 Arm Limited or its
 affiliates). The rest of the repository is under the MIT licence.
