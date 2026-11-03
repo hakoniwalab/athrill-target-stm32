@@ -29,8 +29,9 @@ SET_REGS = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r8", "r9", "r10", "r11", 
 
 
 class Case:
-    def __init__(self, name, insn, setup=(), slot=False, pre=(), post=()):
+    def __init__(self, name, insn, setup=(), slot=False, pre=(), post=(), flags=False):
         self.name = name
+        self.flags = flags        # print NZCV after the instruction
         self.insn = insn          # the instruction under test
         self.setup = list(setup)  # (register, value) after the random values
         self.slot = slot          # print the 16-byte store slot
@@ -271,7 +272,108 @@ def br_cases(rng):
     return cases
 
 
-GROUPS = {"ls": ("loads and stores", ls_cases), "br": ("branches", br_cases)}
+# ---------------------------------------------------------------------------
+# SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, bit operations, multiply
+# and divide. An instruction that writes SP is followed by "mov r0, sp" and
+# SP is put back from r6.
+# ---------------------------------------------------------------------------
+
+EDGE = [0, 1, 0x7F, 0x80, 0xFF, 0x7FFF, 0x8000, 0xFFFF, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF]
+
+
+def value(rng):
+    return rng.choice(EDGE) if rng.random() < 0.3 else rnd(rng)
+
+
+def thumb_const(rng):
+    """A random 32-bit constant that ThumbExpandImm can encode."""
+    b = rng.randrange(1, 256)
+    kind = rng.randrange(5)
+    if kind == 0:
+        return b
+    if kind == 1:
+        return b | (b << 16)
+    if kind == 2:
+        return (b << 8) | (b << 24)
+    if kind == 3:
+        return b * 0x01010101
+    return ((0x80 | rng.randrange(128)) << rng.randrange(0, 25)) & 0xFFFFFFFF
+
+
+def mx_cases(rng):
+    cases = []
+    sp_save = ["mov r6, sp"]
+    sp_restore = ["mov r0, sp", "mov sp, r6"]
+    for i in range(CASES):
+        # SP plus register / immediate, 16-bit
+        cases.append(Case("add_sp_r_t1_%d" % i, "add r2, sp, r2", [("r2", "%d" % (4 * rng.randrange(64)))]))
+        cases.append(Case("add_sp_r_t2_%d" % i, "add sp, r2", [("r2", "%d" % (4 * rng.randrange(-64, 64)))],
+                          pre=sp_save, post=sp_restore))
+        cases.append(Case("add_sp_i_t1_%d" % i, "add r0, sp, #%d" % (4 * rng.randrange(256))))
+        cases.append(Case("add_sp_i_t2_%d" % i, "add sp, #%d" % (4 * rng.randrange(128)), pre=sp_save, post=sp_restore))
+        cases.append(Case("sub_sp_i_t1_%d" % i, "sub sp, #%d" % (4 * rng.randrange(128)), pre=sp_save, post=sp_restore))
+        # SP plus register / immediate, 32-bit
+        for mnem in ("add", "sub"):
+            for s_ in ("", "s"):
+                sh = rng.choice(("lsl", "lsr", "asr", "ror"))
+                amount = rng.randrange(1, 32)
+                cases.append(Case("%s%s_sp_r_w_%d" % (mnem, s_, i), "%s%s.w r0, sp, r2, %s #%d" % (mnem, s_, sh, amount),
+                                  [("r2", "0x%08X" % value(rng))], flags=bool(s_)))
+                cases.append(Case("%s%s_sp_r_rrx_%d" % (mnem, s_, i), "%s%s.w r0, sp, r2, rrx" % (mnem, s_),
+                                  [("r2", "0x%08X" % value(rng))], pre=["cmp r3, r4"], flags=bool(s_)))
+                cases.append(Case("%s%s_sp_i_w_%d" % (mnem, s_, i), "%s%s.w r0, sp, #0x%X" % (mnem, s_, thumb_const(rng)),
+                                  flags=bool(s_)))
+            cases.append(Case("%s_sp_sp_r_w_%d" % (mnem, i), "%s.w sp, sp, r2, lsl #%d" % (mnem, rng.randrange(4)),
+                              [("r2", "%d" % (4 * rng.randrange(16)))], pre=sp_save, post=sp_restore))
+            cases.append(Case("%sw_sp_%d" % (mnem, i), "%sw r0, sp, #%d" % (mnem, rng.randrange(4096))))
+        # ADR (32-bit): back (T2, subtract) and forward (T3, add) over a gap
+        gap = 4 * rng.randrange(1, 200)
+        cases.append(Case("adr_w_back_%d" % i, "adr.w r0, 1b", pre=["b 2f", ".align 2", "1: .space %d" % gap, "2:"]))
+        cases.append(Case("adr_w_fwd_%d" % i, "adr.w r0, 1f", post=["b 2f", ".space %d" % gap, ".align 2", "1:", "2:"]))
+        cases.append(Case("movt_%d" % i, "movt r0, #0x%X" % rng.randrange(0x10000)))
+        # Extend
+        for mnem in ("sxtb", "sxth", "uxtb", "uxth", "rev", "rev16", "revsh"):
+            cases.append(Case("%s_t1_%d" % (mnem, i), "%s r0, r1" % mnem, [("r1", "0x%08X" % value(rng))]))
+        for mnem in ("sxtb", "sxth", "uxtb", "uxth"):
+            cases.append(Case("%s_w_%d" % (mnem, i), "%s.w r0, r1, ror #%d" % (mnem, 8 * rng.randrange(4)),
+                              [("r1", "0x%08X" % value(rng))]))
+        for mnem in ("sxtb16", "uxtb16"):
+            cases.append(Case("%s_%d" % (mnem, i), "%s r0, r1, ror #%d" % (mnem, 8 * rng.randrange(4)),
+                              [("r1", "0x%08X" % value(rng))]))
+        for mnem in ("sxtab", "sxtah", "uxtab", "uxtah", "sxtab16", "uxtab16"):
+            cases.append(Case("%s_%d" % (mnem, i), "%s r0, r1, r2, ror #%d" % (mnem, 8 * rng.randrange(4)),
+                              [("r1", "0x%08X" % value(rng)), ("r2", "0x%08X" % value(rng))]))
+        # Bitfield
+        for mnem in ("sbfx", "ubfx", "bfi"):
+            lsb = rng.randrange(32)
+            width = rng.randrange(1, 33 - lsb)
+            cases.append(Case("%s_%d" % (mnem, i), "%s r0, r1, #%d, #%d" % (mnem, lsb, width),
+                              [("r1", "0x%08X" % value(rng))]))
+        lsb = rng.randrange(32)
+        cases.append(Case("bfc_%d" % i, "bfc r0, #%d, #%d" % (lsb, rng.randrange(1, 33 - lsb))))
+        # Bit operations (32-bit)
+        for mnem in ("rev.w", "rev16.w", "revsh.w", "rbit", "clz"):
+            cases.append(Case("%s_%d" % (mnem.replace(".w", "_w"), i), "%s r0, r1" % mnem,
+                              [("r1", "0x%08X" % (value(rng) >> rng.randrange(32)))]))
+        # Multiply and divide
+        cases.append(Case("muls_t1_%d" % i, "muls r0, r1, r0", [("r0", "0x%08X" % value(rng)), ("r1", "0x%08X" % value(rng))],
+                          flags=True))
+        for mnem, ops in (("mul", "r0, r1, r2"), ("mla", "r0, r1, r2, r3"), ("mls", "r0, r1, r2, r3"),
+                          ("smull", "r0, r4, r1, r2"), ("umull", "r0, r4, r1, r2"),
+                          ("smlal", "r0, r4, r1, r2"), ("umlal", "r0, r4, r1, r2"),
+                          ("sdiv", "r0, r1, r2"), ("udiv", "r0, r1, r2")):
+            cases.append(Case("%s_%d" % (mnem, i), "%s %s" % (mnem, ops),
+                              [("r1", "0x%08X" % value(rng)), ("r2", "0x%08X" % value(rng))]))
+    for mnem in ("sdiv", "udiv"):
+        cases.append(Case("%s_by_zero" % mnem, "%s r0, r1, r2" % mnem, [("r2", "0")]))
+    cases.append(Case("sdiv_overflow", "sdiv r0, r1, r2", [("r1", "0x80000000"), ("r2", "0xFFFFFFFF")]))
+    cases.append(Case("sdiv_negative", "sdiv r0, r1, r2", [("r1", "0xFFFFFF9C"), ("r2", "7")]))
+    cases.append(Case("smlal_same_sign", "smlal r0, r4, r1, r2", [("r1", "0x80000000"), ("r2", "0x80000000")]))
+    return cases
+
+
+GROUPS = {"ls": ("loads and stores", ls_cases), "br": ("branches", br_cases),
+          "mx": ("SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, bit operations, multiply and divide", mx_cases)}
 
 
 def program(group, title, cases, rng):
@@ -291,8 +393,26 @@ def program(group, title, cases, rng):
     .equ SLOTS, 0x20000400
     .equ DUMP,  0x20000800
 
-/* Prints the 13 registers saved at DUMP and, with \\slot, the 4 words at \\slot. */
-.macro DUMP_LINE name, slot=0
+/* r7 = NZCV (bits 3..0), without changing the flags. */
+.macro CAPTURE_FLAGS
+    mov.w r7, #0
+    bpl   4f
+    orr.w r7, r7, #8
+4:
+    bne   5f
+    orr.w r7, r7, #4
+5:
+    bcc   6f
+    orr.w r7, r7, #2
+6:
+    bvc   7f
+    orr.w r7, r7, #1
+7:
+.endm
+
+/* Prints the 13 registers saved at DUMP, with \\flags the NZCV saved after
+ * them, and with \\slot the 4 words at \\slot. */
+.macro DUMP_LINE name, slot=0, flags=0
     ldr   r7, =USART3_BASE
     PUTS  \\name
     ldr   r0, =DUMP
@@ -300,6 +420,10 @@ def program(group, title, cases, rng):
     ldr   r2, [r0, #\\k]
     PRINT_HEX r2
     .endr
+    .if \\flags
+    ldr   r2, [r0, #52]
+    PRINT_HEX r2
+    .endif
     .if \\slot
     ldr   r0, =\\slot
     .irp k, 0, 4, 8, 12
@@ -348,9 +472,13 @@ reset_handler:
         lines += ["    %s" % p for p in c.pre]
         lines.append("    %s" % c.insn)
         lines += ["    %s" % p for p in c.post]
+        if c.flags:
+            lines += ["    CAPTURE_FLAGS", "    push  {r7}"]
         lines.append("    ldr.w r7, =DUMP")
         lines.append("    stm.w r7, {r0-r6, r8-r12, lr}")
-        lines.append("    DUMP_LINE %s, %s" % (c.name, ("0x%08X" % c.slot) if c.slot else "0"))
+        if c.flags:
+            lines += ["    pop   {r2}", "    str   r2, [r7, #52]"]
+        lines.append("    DUMP_LINE %s, %s, %d" % (c.name, ("0x%08X" % c.slot) if c.slot else "0", 1 if c.flags else 0))
         out.append("\n".join(lines) + "\n")
     out.append("""
     PUTS  end

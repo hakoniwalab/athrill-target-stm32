@@ -359,3 +359,159 @@ for instr, nonzero in (("CBZ", "FALSE"), ("CBNZ", "TRUE")):
           "n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');", "cb", "cb",
           [("n", "{Rn}")], {"Rn": "n", "imm32": "({i} << 6) | ({imm5} << 1)", "nonzero": nonzero},
           unpred="InITBlock()")
+
+
+# ---------------------------------------------------------------------------
+# SP-relative ADD and SUB, ADR, MOVT
+# ---------------------------------------------------------------------------
+
+def dp_imm(id, instr, call, syntax, ops, d, n, imm32, setflags, **kw):
+    entry(id, instr, syntax, ops, "dp_imm", call, [("d", d)],
+          {"setflags": setflags, "Rd": "d", "Rn": n, "imm32": imm32, "carry": "FALSE"}, **kw)
+
+
+def dp_reg(id, instr, call, syntax, ops, d, n, m, setflags, shift_t, shift_n, more_regs=(), **kw):
+    entry(id, instr, syntax, ops, "dp_reg", call, [("d", d), ("m", m)] + list(more_regs),
+          {"setflags": setflags, "Rd": "d", "Rn": n, "Rm": "m", "shift_t": shift_t, "shift_n": shift_n}, **kw)
+
+
+dp_reg("ADD_SP_r_T1", "ADD", "add_reg", "ADD<c> <Rdm>, SP, <Rdm>",
+       "d = UInt(DM:Rdm); m = UInt(DM:Rdm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);",
+       "({DM} << 3) | {Rdm}", "13U", "d", "FALSE", "SRType_LSL", "0U",
+       unpred="d == 15 && InITBlock() && !LastInITBlock()")
+dp_reg("ADD_SP_r_T2", "ADD", "add_reg", "ADD<c> SP, <Rm>",
+       "if Rm == '1101' then SEE encoding T1; d = 13; m = UInt(Rm); setflags = FALSE;"
+       " (shift_t, shift_n) = (SRType_LSL, 0);",
+       "13U", "13U", "{Rm}", "FALSE", "SRType_LSL", "0U",
+       note="(Rm == '1101' is ADD SP, SP, SP either way.)")
+dp_imm("ADD_SP_i_T1", "ADD", "add_imm", "ADD<c> <Rd>, SP, #<imm32>",
+       "d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(imm8:'00', 32);", "{Rd}", "13U", "{imm8} << 2", "FALSE")
+dp_imm("ADD_SP_i_T2", "ADD", "add_imm", "ADD<c> SP, SP, #<imm32>",
+       "d = 13; setflags = FALSE; imm32 = ZeroExtend(imm7:'00', 32);", "13U", "13U", "{imm7} << 2", "FALSE")
+dp_imm("SUB_SP_i_T1", "SUB", "sub_imm", "SUB<c> SP, SP, #<imm32>",
+       "d = 13; setflags = FALSE; imm32 = ZeroExtend(imm7:'00', 32);", "13U", "13U", "{imm7} << 2", "FALSE")
+for instr, call, idt in (("ADD", "add_reg", "ADD%s_SP_r_T3"), ("SUB", "sub_reg", "SUB%s_SP_r_T1")):
+    for s_ in ("", "S"):
+        for rrx in (False, True):
+            id = (idt % s_) + ("_RRX" if rrx else "")
+            flags = "TRUE" if s_ else "FALSE"
+            if rrx:
+                shift_t, shift_n = "SRType_RRX", "1U"
+                sp_c = "d == 13U"
+                more = []
+            else:
+                shift_t = "thumb_shift_t(type, imm5)"
+                shift_n = "thumb_shift_n(type, imm5)"
+                sp_c = "(d == 13U) && ((type != 0U) || (imm5 > 3U))"
+                more = [("type", "{stype}"), ("imm5", "thumb_imm5({imm3}, {imm2})")]
+            dp_reg(id, instr, call, "%s%s<c>.W <Rd>, SP, <Rm>{, <shift>}" % (instr, s_),
+                   "d = UInt(Rd); m = UInt(Rm); setflags = (S == '1');"
+                   " (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);",
+                   "{Rd}", "13U", "{Rm}", flags, shift_t, shift_n, more_regs=more,
+                   unpred="d == 13 && (shift_t != SRType_LSL || shift_n > 3); (d == 15 && !setflags) || m IN {13,15}",
+                   unpred_c="(%s) || %s(m == 13U) || (m == 15U)" % (sp_c, "" if s_ else "(d == 15U) || "))
+for instr, call, idt in (("ADD", "add_imm", "ADD%s_SP_i_T3"), ("SUB", "sub_imm", "SUB%s_SP_i_T2")):
+    for s_ in ("", "S"):
+        dp_imm(idt % s_, instr, call, "%s%s<c>.W <Rd>, SP, #<const>" % (instr, s_),
+               "d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);",
+               "{Rd}", "13U", "ThumbExpandImm(thumb_imm12({i}, {imm3}, {imm8}))", "TRUE" if s_ else "FALSE",
+               unpred="d == 15 && !setflags", unpred_c=None if s_ else "d == 15U",
+               note="(ADDS/SUBS with Rd == '1111' is CMN/CMP: another id in the generated decoder.)" if s_ else None)
+for id, instr, call in (("ADD_SP_i_T4", "ADDW", "add_imm"), ("SUB_SP_i_T3", "SUBW", "sub_imm")):
+    dp_imm(id, instr, call, "%s<c> <Rd>, SP, #<imm12>" % instr,
+           "d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(i:imm3:imm8, 32);",
+           "{Rd}", "13U", "thumb_imm12({i}, {imm3}, {imm8})", "FALSE", unpred="d == 15", unpred_c="d == 15U")
+entry("ADR_T1", "ADR", "ADR<c> <Rd>, <label>", "d = UInt(Rd); imm32 = ZeroExtend(imm8:'00', 32); add = TRUE;",
+      "adr", "adr", [("d", "{Rd}")], {"Rd": "d", "imm32": "{imm8} << 2", "add": "TRUE"})
+for id, add in (("ADR_T2", "FALSE"), ("ADR_T3", "TRUE")):
+    entry(id, "ADR", "ADR<c>.W <Rd>, <label>",
+          "d = UInt(Rd); imm32 = ZeroExtend(i:imm3:imm8, 32); add = %s;" % add,
+          "adr", "adr", [("d", "{Rd}")], {"Rd": "d", "imm32": "thumb_imm12({i}, {imm3}, {imm8})", "add": add},
+          unpred="d IN {13,15}", unpred_c="thumb_sp_or_pc(d)")
+entry("MOVT_T1", "MOVT", "MOVT<c> <Rd>, #<imm16>", "d = UInt(Rd); imm16 = imm4:i:imm3:imm8;", "dp_imm", "movt",
+      [("d", "{Rd}")], {"setflags": "FALSE", "Rd": "d", "Rn": None,
+                        "imm32": "({imm4} << 12) | ({i} << 11) | ({imm3} << 8) | {imm8}", "carry": "FALSE"},
+      unpred="d IN {13,15}", unpred_c="thumb_sp_or_pc(d)")
+
+# ---------------------------------------------------------------------------
+# Extend, bitfield, bit operations
+# ---------------------------------------------------------------------------
+
+for instr in ("SXTB", "SXTH", "UXTB", "UXTH"):
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rm>" % instr, "d = UInt(Rd); m = UInt(Rm); rotation = 0;",
+          "extend", instr.lower(), [("d", "{Rd}"), ("m", "{Rm}")], {"Rd": "d", "Rn": None, "Rm": "m", "rotation": "0U"})
+for instr in ("SXTB", "SXTH", "UXTB", "UXTH", "SXTB16", "UXTB16"):
+    id = instr + ("_T1" if instr.endswith("16") else "_T2")
+    entry(id, instr, "%s<c>%s <Rd>, <Rm>{, <rotation>}" % (instr, "" if instr.endswith("16") else ".W"),
+          "d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');",
+          "extend", instr.lower(), [("d", "{Rd}"), ("m", "{Rm}")],
+          {"Rd": "d", "Rn": None, "Rm": "m", "rotation": "{rotate} << 3"},
+          unpred="d IN {13,15} || m IN {13,15}", unpred_c="thumb_sp_or_pc(d) || thumb_sp_or_pc(m)")
+for instr in ("SXTAB", "SXTAH", "UXTAB", "UXTAH", "SXTAB16", "UXTAB16"):
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rn>, <Rm>{, <rotation>}" % instr,
+          "if Rn == '1111' then SEE %s; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');"
+          % instr.replace("A", "", 1),
+          "extend", instr.lower(), [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}")],
+          {"Rd": "d", "Rn": "n", "Rm": "m", "rotation": "{rotate} << 3"},
+          unpred="d IN {13,15} || n == 13 || m IN {13,15}",
+          unpred_c="thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)")
+for instr in ("SBFX", "UBFX"):
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rn>, #<lsb>, #<width>" % instr,
+          "d = UInt(Rd); n = UInt(Rn); lsbit = UInt(imm3:imm2); widthminus1 = UInt(widthm1);",
+          "bfx", instr.lower(), [("d", "{Rd}"), ("n", "{Rn}")],
+          {"Rd": "d", "Rn": "n", "lsbit": "thumb_imm5({imm3}, {imm2})", "widthminus1": "{widthm1}"},
+          unpred="d IN {13,15} || n IN {13,15}", unpred_c="thumb_sp_or_pc(d) || thumb_sp_or_pc(n)")
+entry("BFI_T1", "BFI", "BFI<c> <Rd>, <Rn>, #<lsb>, #<width>",
+      "if Rn == '1111' then SEE BFC; d = UInt(Rd); n = UInt(Rn); msbit = UInt(msb); lsbit = UInt(imm3:imm2);",
+      "bfi", "bfi", [("d", "{Rd}"), ("n", "{Rn}")],
+      {"Rd": "d", "Rn": "n", "lsbit": "thumb_imm5({imm3}, {imm2})", "msbit": "{msb}"},
+      unpred="d IN {13,15} || n == 13", unpred_c="thumb_sp_or_pc(d) || (n == 13U)")
+entry("BFC_T1", "BFC", "BFC<c> <Rd>, #<lsb>, #<width>",
+      "d = UInt(Rd); msbit = UInt(msb); lsbit = UInt(imm3:imm2);",
+      "bfi", "bfc", [("d", "{Rd}")],
+      {"Rd": "d", "Rn": None, "lsbit": "thumb_imm5({imm3}, {imm2})", "msbit": "{msb}"},
+      unpred="d IN {13,15}", unpred_c="thumb_sp_or_pc(d)")
+for instr in ("REV", "REV16", "REVSH"):
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rm>" % instr, "d = UInt(Rd); m = UInt(Rm);",
+          "unary", instr.lower(), [("d", "{Rd}"), ("m", "{Rm}")], {"Rd": "d", "Rm": "m"})
+for instr, id in (("REV", "REV_T2"), ("REV16", "REV16_T2"), ("REVSH", "REVSH_T2"), ("RBIT", "RBIT_T1"), ("CLZ", "CLZ_T1")):
+    entry(id, instr, "%s<c>%s <Rd>, <Rm>" % (instr, ".W" if instr.startswith("REV") else ""),
+          "if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);",
+          "unary", instr.lower(), [("d", "{Rd}"), ("m", "{Rm}")], {"Rd": "d", "Rm": "m"},
+          unpred="d IN {13,15} || m IN {13,15}",
+          unpred_c="({Rn} != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)",
+          note="(Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.)")
+
+# ---------------------------------------------------------------------------
+# Multiply and divide
+# ---------------------------------------------------------------------------
+
+MUL_UNPRED = "d IN {13,15} || n IN {13,15} || m IN {13,15}"
+MUL_UNPRED_C = "thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)"
+entry("MUL_T1", "MUL", "MULS <Rdm>, <Rn>, <Rdm>", "d = UInt(Rdm); n = UInt(Rn); m = UInt(Rdm); setflags = !InITBlock();",
+      "mul", "mul", [("d", "{Rdm}"), ("n", "{Rn}")],
+      {"setflags": "!Stm32InITBlock(core)", "Rd": "d", "Rn": "n", "Rm": "d", "Ra": None})
+entry("MUL_T2", "MUL", "MUL<c> <Rd>, <Rn>, <Rm>", "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;",
+      "mul", "mul", [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}")],
+      {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "Ra": None}, unpred=MUL_UNPRED, unpred_c=MUL_UNPRED_C)
+entry("MLA_T1", "MLA", "MLA<c> <Rd>, <Rn>, <Rm>, <Ra>",
+      "if Ra == '1111' then SEE MUL; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); setflags = FALSE;",
+      "mul", "mla", [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}"), ("a", "{Ra}")],
+      {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "Ra": "a"},
+      unpred=MUL_UNPRED + " || a == 13", unpred_c=MUL_UNPRED_C + " || (a == 13U)")
+entry("MLS_T1", "MLS", "MLS<c> <Rd>, <Rn>, <Rm>, <Ra>",
+      "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra);",
+      "mul", "mls", [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}"), ("a", "{Ra}")],
+      {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "Ra": "a"},
+      unpred=MUL_UNPRED + " || a IN {13,15}", unpred_c=MUL_UNPRED_C + " || thumb_sp_or_pc(a)")
+for instr in ("SDIV", "UDIV"):
+    entry(instr + "_T1", instr, "%s<c> <Rd>, <Rn>, <Rm>" % instr, "d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);",
+          "mul", instr.lower(), [("d", "{Rd}"), ("n", "{Rn}"), ("m", "{Rm}")],
+          {"setflags": "FALSE", "Rd": "d", "Rn": "n", "Rm": "m", "Ra": None}, unpred=MUL_UNPRED, unpred_c=MUL_UNPRED_C)
+for instr in ("SMULL", "UMULL", "SMLAL", "UMLAL"):
+    entry(instr + "_T1", instr, "%s<c> <RdLo>, <RdHi>, <Rn>, <Rm>" % instr,
+          "dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;",
+          "mul_long", instr.lower(), [("dlo", "{RdLo}"), ("dhi", "{RdHi}"), ("n", "{Rn}"), ("m", "{Rm}")],
+          {"setflags": "FALSE", "RdLo": "dlo", "RdHi": "dhi", "Rn": "n", "Rm": "m"},
+          unpred="dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15}; dHi == dLo",
+          unpred_c="thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)")

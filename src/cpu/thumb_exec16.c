@@ -307,12 +307,6 @@ static Std_ReturnType exec_b_t2(TargetCoreType *core, uint16 insn)
  * Instructions not yet in athrill-arm-common.
  */
 
-static Std_ReturnType exec_adr(TargetCoreType *core, uint16 insn)
-{
-	core->reg.r[t32_ADR_T1_Rd(insn)] = Align(ArmPC(core), 4U) + (t32_ADR_T1_imm8(insn) << 2);
-	return STD_E_OK;
-}
-
 /* BX Rm: BXWritePC(R[m]). */
 static Std_ReturnType exec_bx(TargetCoreType *core, uint16 insn)
 {
@@ -364,7 +358,6 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_RSB_i_T1] = exec_rsb_imm_t1,
 	[T32_16_B_T1] = exec_b_t1,
 	[T32_16_B_T2] = exec_b_t2,
-	[T32_16_ADR_T1] = exec_adr,
 	[T32_16_BX_T1] = exec_bx,
 	[T32_16_NOP_T1] = exec_nop,
 	[T32_16_WFI_T1] = exec_wfi,

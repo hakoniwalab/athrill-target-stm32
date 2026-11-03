@@ -14,8 +14,26 @@
     .equ SLOTS, 0x20000400
     .equ DUMP,  0x20000800
 
-/* Prints the 13 registers saved at DUMP and, with \slot, the 4 words at \slot. */
-.macro DUMP_LINE name, slot=0
+/* r7 = NZCV (bits 3..0), without changing the flags. */
+.macro CAPTURE_FLAGS
+    mov.w r7, #0
+    bpl   4f
+    orr.w r7, r7, #8
+4:
+    bne   5f
+    orr.w r7, r7, #4
+5:
+    bcc   6f
+    orr.w r7, r7, #2
+6:
+    bvc   7f
+    orr.w r7, r7, #1
+7:
+.endm
+
+/* Prints the 13 registers saved at DUMP, with \flags the NZCV saved after
+ * them, and with \slot the 4 words at \slot. */
+.macro DUMP_LINE name, slot=0, flags=0
     ldr   r7, =USART3_BASE
     PUTS  \name
     ldr   r0, =DUMP
@@ -23,6 +41,10 @@
     ldr   r2, [r0, #\k]
     PRINT_HEX r2
     .endr
+    .if \flags
+    ldr   r2, [r0, #52]
+    PRINT_HEX r2
+    .endif
     .if \slot
     ldr   r0, =\slot
     .irp k, 0, 4, 8, 12
@@ -75,7 +97,7 @@ reset_handler:
     ldr r0, [r1, #20]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t1_0, 0
+    DUMP_LINE ldr_i_t1_0, 0, 0
 
     /* ldr_i_t1_1 */
     ldr   r0, =0x399B54A4
@@ -97,7 +119,7 @@ reset_handler:
     ldr r0, [r1, #40]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t1_1, 0
+    DUMP_LINE ldr_i_t1_1, 0, 0
 
     /* ldr_i_t1_2 */
     ldr   r0, =0x577E1A0E
@@ -119,7 +141,7 @@ reset_handler:
     ldr r0, [r1, #48]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t1_2, 0
+    DUMP_LINE ldr_i_t1_2, 0, 0
 
     /* ldrb_i_t1_0 */
     ldr   r0, =0xC3EA91E0
@@ -141,7 +163,7 @@ reset_handler:
     ldrb r0, [r1, #8]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_t1_0, 0
+    DUMP_LINE ldrb_i_t1_0, 0, 0
 
     /* ldrb_i_t1_1 */
     ldr   r0, =0x15646576
@@ -163,7 +185,7 @@ reset_handler:
     ldrb r0, [r1, #16]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_t1_1, 0
+    DUMP_LINE ldrb_i_t1_1, 0, 0
 
     /* ldrb_i_t1_2 */
     ldr   r0, =0x0C95C330
@@ -185,7 +207,7 @@ reset_handler:
     ldrb r0, [r1, #7]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_t1_2, 0
+    DUMP_LINE ldrb_i_t1_2, 0, 0
 
     /* ldrh_i_t1_0 */
     ldr   r0, =0x6C633720
@@ -207,7 +229,7 @@ reset_handler:
     ldrh r0, [r1, #56]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_t1_0, 0
+    DUMP_LINE ldrh_i_t1_0, 0, 0
 
     /* ldrh_i_t1_1 */
     ldr   r0, =0x96ADFE98
@@ -229,7 +251,7 @@ reset_handler:
     ldrh r0, [r1, #24]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_t1_1, 0
+    DUMP_LINE ldrh_i_t1_1, 0, 0
 
     /* ldrh_i_t1_2 */
     ldr   r0, =0xE04AFA29
@@ -251,7 +273,7 @@ reset_handler:
     ldrh r0, [r1, #22]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_t1_2, 0
+    DUMP_LINE ldrh_i_t1_2, 0, 0
 
     /* str_i_t1_0 */
     ldr   r0, =0x5523C50B
@@ -273,7 +295,7 @@ reset_handler:
     str r0, [r1, #8]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t1_0, 0x20000400
+    DUMP_LINE str_i_t1_0, 0x20000400, 0
 
     /* str_i_t1_1 */
     ldr   r0, =0x778C4CE6
@@ -295,7 +317,7 @@ reset_handler:
     str r0, [r1, #8]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t1_1, 0x20000410
+    DUMP_LINE str_i_t1_1, 0x20000410, 0
 
     /* str_i_t1_2 */
     ldr   r0, =0x599AD33F
@@ -317,7 +339,7 @@ reset_handler:
     str r0, [r1, #4]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t1_2, 0x20000420
+    DUMP_LINE str_i_t1_2, 0x20000420, 0
 
     /* strb_i_t1_0 */
     ldr   r0, =0xC2939742
@@ -339,7 +361,7 @@ reset_handler:
     strb r0, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_t1_0, 0x20000430
+    DUMP_LINE strb_i_t1_0, 0x20000430, 0
 
     /* strb_i_t1_1 */
     ldr   r0, =0x8202BBA3
@@ -361,7 +383,7 @@ reset_handler:
     strb r0, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_t1_1, 0x20000440
+    DUMP_LINE strb_i_t1_1, 0x20000440, 0
 
     /* strb_i_t1_2 */
     ldr   r0, =0xFA647B52
@@ -383,7 +405,7 @@ reset_handler:
     strb r0, [r1, #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_t1_2, 0x20000450
+    DUMP_LINE strb_i_t1_2, 0x20000450, 0
 
     /* strh_i_t1_0 */
     ldr   r0, =0x9176EDBF
@@ -405,7 +427,7 @@ reset_handler:
     strh r0, [r1, #2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_t1_0, 0x20000460
+    DUMP_LINE strh_i_t1_0, 0x20000460, 0
 
     /* strh_i_t1_1 */
     ldr   r0, =0x93D36728
@@ -427,7 +449,7 @@ reset_handler:
     strh r0, [r1, #6]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_t1_1, 0x20000470
+    DUMP_LINE strh_i_t1_1, 0x20000470, 0
 
     /* strh_i_t1_2 */
     ldr   r0, =0x573DD032
@@ -449,7 +471,7 @@ reset_handler:
     strh r0, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_t1_2, 0x20000480
+    DUMP_LINE strh_i_t1_2, 0x20000480, 0
 
     /* str_i_t2_0 */
     ldr   r0, =0x9CDC9374
@@ -471,7 +493,7 @@ reset_handler:
     str r0, [sp, #60]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t2_0, 0
+    DUMP_LINE str_i_t2_0, 0, 0
 
     /* ldr_i_t2_0 */
     ldr   r0, =0x2279068B
@@ -493,7 +515,7 @@ reset_handler:
     ldr r2, [sp, #60]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t2_0, 0
+    DUMP_LINE ldr_i_t2_0, 0, 0
 
     /* str_i_t2_1 */
     ldr   r0, =0xD7E7F49D
@@ -515,7 +537,7 @@ reset_handler:
     str r0, [sp, #16]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t2_1, 0
+    DUMP_LINE str_i_t2_1, 0, 0
 
     /* ldr_i_t2_1 */
     ldr   r0, =0x1B060018
@@ -537,7 +559,7 @@ reset_handler:
     ldr r2, [sp, #16]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t2_1, 0
+    DUMP_LINE ldr_i_t2_1, 0, 0
 
     /* str_i_t2_2 */
     ldr   r0, =0xB8AB9D3B
@@ -559,7 +581,7 @@ reset_handler:
     str r0, [sp, #24]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_t2_2, 0
+    DUMP_LINE str_i_t2_2, 0, 0
 
     /* ldr_i_t2_2 */
     ldr   r0, =0x9654881C
@@ -581,7 +603,7 @@ reset_handler:
     ldr r2, [sp, #24]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_t2_2, 0
+    DUMP_LINE ldr_i_t2_2, 0, 0
 
     /* ldr_r_t1_0 */
     ldr   r0, =0x344996B3
@@ -603,7 +625,7 @@ reset_handler:
     ldr r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_t1_0, 0
+    DUMP_LINE ldr_r_t1_0, 0, 0
 
     /* ldr_r_t1_1 */
     ldr   r0, =0x38F71726
@@ -625,7 +647,7 @@ reset_handler:
     ldr r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_t1_1, 0
+    DUMP_LINE ldr_r_t1_1, 0, 0
 
     /* ldr_r_t1_2 */
     ldr   r0, =0x484BF9C9
@@ -647,7 +669,7 @@ reset_handler:
     ldr r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_t1_2, 0
+    DUMP_LINE ldr_r_t1_2, 0, 0
 
     /* ldrb_r_t1_0 */
     ldr   r0, =0xF68CD3B0
@@ -669,7 +691,7 @@ reset_handler:
     ldrb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_t1_0, 0
+    DUMP_LINE ldrb_r_t1_0, 0, 0
 
     /* ldrb_r_t1_1 */
     ldr   r0, =0x4A9F8D87
@@ -691,7 +713,7 @@ reset_handler:
     ldrb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_t1_1, 0
+    DUMP_LINE ldrb_r_t1_1, 0, 0
 
     /* ldrb_r_t1_2 */
     ldr   r0, =0x366D51FF
@@ -713,7 +735,7 @@ reset_handler:
     ldrb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_t1_2, 0
+    DUMP_LINE ldrb_r_t1_2, 0, 0
 
     /* ldrh_r_t1_0 */
     ldr   r0, =0x4F96F9AF
@@ -735,7 +757,7 @@ reset_handler:
     ldrh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_t1_0, 0
+    DUMP_LINE ldrh_r_t1_0, 0, 0
 
     /* ldrh_r_t1_1 */
     ldr   r0, =0x8B892F3C
@@ -757,7 +779,7 @@ reset_handler:
     ldrh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_t1_1, 0
+    DUMP_LINE ldrh_r_t1_1, 0, 0
 
     /* ldrh_r_t1_2 */
     ldr   r0, =0x41643FB9
@@ -779,7 +801,7 @@ reset_handler:
     ldrh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_t1_2, 0
+    DUMP_LINE ldrh_r_t1_2, 0, 0
 
     /* ldrsb_r_t1_0 */
     ldr   r0, =0xA20B8532
@@ -801,7 +823,7 @@ reset_handler:
     ldrsb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_t1_0, 0
+    DUMP_LINE ldrsb_r_t1_0, 0, 0
 
     /* ldrsb_r_t1_1 */
     ldr   r0, =0x14ACA4CF
@@ -823,7 +845,7 @@ reset_handler:
     ldrsb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_t1_1, 0
+    DUMP_LINE ldrsb_r_t1_1, 0, 0
 
     /* ldrsb_r_t1_2 */
     ldr   r0, =0x7C1A2596
@@ -845,7 +867,7 @@ reset_handler:
     ldrsb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_t1_2, 0
+    DUMP_LINE ldrsb_r_t1_2, 0, 0
 
     /* ldrsh_r_t1_0 */
     ldr   r0, =0x1B45D6F9
@@ -867,7 +889,7 @@ reset_handler:
     ldrsh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_t1_0, 0
+    DUMP_LINE ldrsh_r_t1_0, 0, 0
 
     /* ldrsh_r_t1_1 */
     ldr   r0, =0x10CF2257
@@ -889,7 +911,7 @@ reset_handler:
     ldrsh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_t1_1, 0
+    DUMP_LINE ldrsh_r_t1_1, 0, 0
 
     /* ldrsh_r_t1_2 */
     ldr   r0, =0x658A9959
@@ -911,7 +933,7 @@ reset_handler:
     ldrsh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_t1_2, 0
+    DUMP_LINE ldrsh_r_t1_2, 0, 0
 
     /* str_r_t1_0 */
     ldr   r0, =0x19EC09A2
@@ -933,7 +955,7 @@ reset_handler:
     str r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_t1_0, 0x20000490
+    DUMP_LINE str_r_t1_0, 0x20000490, 0
 
     /* str_r_t1_1 */
     ldr   r0, =0xB2546015
@@ -955,7 +977,7 @@ reset_handler:
     str r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_t1_1, 0x200004A0
+    DUMP_LINE str_r_t1_1, 0x200004A0, 0
 
     /* str_r_t1_2 */
     ldr   r0, =0x14A2DD73
@@ -977,7 +999,7 @@ reset_handler:
     str r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_t1_2, 0x200004B0
+    DUMP_LINE str_r_t1_2, 0x200004B0, 0
 
     /* strb_r_t1_0 */
     ldr   r0, =0xBF8B23F4
@@ -999,7 +1021,7 @@ reset_handler:
     strb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_t1_0, 0x200004C0
+    DUMP_LINE strb_r_t1_0, 0x200004C0, 0
 
     /* strb_r_t1_1 */
     ldr   r0, =0x3DEAD130
@@ -1021,7 +1043,7 @@ reset_handler:
     strb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_t1_1, 0x200004D0
+    DUMP_LINE strb_r_t1_1, 0x200004D0, 0
 
     /* strb_r_t1_2 */
     ldr   r0, =0xB186B6A1
@@ -1043,7 +1065,7 @@ reset_handler:
     strb r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_t1_2, 0x200004E0
+    DUMP_LINE strb_r_t1_2, 0x200004E0, 0
 
     /* strh_r_t1_0 */
     ldr   r0, =0x02AAC68D
@@ -1065,7 +1087,7 @@ reset_handler:
     strh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_t1_0, 0x200004F0
+    DUMP_LINE strh_r_t1_0, 0x200004F0, 0
 
     /* strh_r_t1_1 */
     ldr   r0, =0x031F973F
@@ -1087,7 +1109,7 @@ reset_handler:
     strh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_t1_1, 0x20000500
+    DUMP_LINE strh_r_t1_1, 0x20000500, 0
 
     /* strh_r_t1_2 */
     ldr   r0, =0xB3FDC819
@@ -1109,7 +1131,7 @@ reset_handler:
     strh r0, [r1, r2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_t1_2, 0x20000510
+    DUMP_LINE strh_r_t1_2, 0x20000510, 0
 
     /* ldr_l_t1_0 */
     ldr   r0, =0x45EEFDA3
@@ -1135,7 +1157,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_t1_0, 0
+    DUMP_LINE ldr_l_t1_0, 0, 0
 
     /* ldr_l_t1_1 */
     ldr   r0, =0xB5417F14
@@ -1161,7 +1183,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_t1_1, 0
+    DUMP_LINE ldr_l_t1_1, 0, 0
 
     /* ldr_l_t1_2 */
     ldr   r0, =0x753B65B7
@@ -1187,7 +1209,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_t1_2, 0
+    DUMP_LINE ldr_l_t1_2, 0, 0
 
     /* ldr_i_w12_0 */
     ldr   r0, =0x9B80E1E4
@@ -1209,7 +1231,7 @@ reset_handler:
     ldr.w r0, [r1, #2049]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_w12_0, 0
+    DUMP_LINE ldr_i_w12_0, 0, 0
 
     /* ldr_i_w12_1 */
     ldr   r0, =0xBB41C210
@@ -1231,7 +1253,7 @@ reset_handler:
     ldr.w r0, [r1, #1837]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_w12_1, 0
+    DUMP_LINE ldr_i_w12_1, 0, 0
 
     /* ldr_i_w12_2 */
     ldr   r0, =0xF0315B48
@@ -1253,7 +1275,7 @@ reset_handler:
     ldr.w r0, [r1, #2639]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_w12_2, 0
+    DUMP_LINE ldr_i_w12_2, 0, 0
 
     /* ldrb_i_w12_0 */
     ldr   r0, =0x5AB68066
@@ -1275,7 +1297,7 @@ reset_handler:
     ldrb.w r0, [r1, #3662]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_w12_0, 0
+    DUMP_LINE ldrb_i_w12_0, 0, 0
 
     /* ldrb_i_w12_1 */
     ldr   r0, =0x58CB5A65
@@ -1297,7 +1319,7 @@ reset_handler:
     ldrb.w r0, [r1, #4048]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_w12_1, 0
+    DUMP_LINE ldrb_i_w12_1, 0, 0
 
     /* ldrb_i_w12_2 */
     ldr   r0, =0x1C5AC3BB
@@ -1319,7 +1341,7 @@ reset_handler:
     ldrb.w r0, [r1, #2884]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_w12_2, 0
+    DUMP_LINE ldrb_i_w12_2, 0, 0
 
     /* ldrh_i_w12_0 */
     ldr   r0, =0x7C414212
@@ -1341,7 +1363,7 @@ reset_handler:
     ldrh.w r0, [r1, #2012]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_w12_0, 0
+    DUMP_LINE ldrh_i_w12_0, 0, 0
 
     /* ldrh_i_w12_1 */
     ldr   r0, =0xF9571EB6
@@ -1363,7 +1385,7 @@ reset_handler:
     ldrh.w r0, [r1, #574]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_w12_1, 0
+    DUMP_LINE ldrh_i_w12_1, 0, 0
 
     /* ldrh_i_w12_2 */
     ldr   r0, =0xED2925F5
@@ -1385,7 +1407,7 @@ reset_handler:
     ldrh.w r0, [r1, #780]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_w12_2, 0
+    DUMP_LINE ldrh_i_w12_2, 0, 0
 
     /* ldrsb_i_w12_0 */
     ldr   r0, =0x8BD558F7
@@ -1407,7 +1429,7 @@ reset_handler:
     ldrsb.w r0, [r1, #999]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_w12_0, 0
+    DUMP_LINE ldrsb_i_w12_0, 0, 0
 
     /* ldrsb_i_w12_1 */
     ldr   r0, =0xBF1E594E
@@ -1429,7 +1451,7 @@ reset_handler:
     ldrsb.w r0, [r1, #2463]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_w12_1, 0
+    DUMP_LINE ldrsb_i_w12_1, 0, 0
 
     /* ldrsb_i_w12_2 */
     ldr   r0, =0x9D0AC7F1
@@ -1451,7 +1473,7 @@ reset_handler:
     ldrsb.w r0, [r1, #3216]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_w12_2, 0
+    DUMP_LINE ldrsb_i_w12_2, 0, 0
 
     /* ldrsh_i_w12_0 */
     ldr   r0, =0x2EEF37C1
@@ -1473,7 +1495,7 @@ reset_handler:
     ldrsh.w r0, [r1, #475]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_w12_0, 0
+    DUMP_LINE ldrsh_i_w12_0, 0, 0
 
     /* ldrsh_i_w12_1 */
     ldr   r0, =0x5B89451C
@@ -1495,7 +1517,7 @@ reset_handler:
     ldrsh.w r0, [r1, #2643]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_w12_1, 0
+    DUMP_LINE ldrsh_i_w12_1, 0, 0
 
     /* ldrsh_i_w12_2 */
     ldr   r0, =0xD0EED080
@@ -1517,7 +1539,7 @@ reset_handler:
     ldrsh.w r0, [r1, #3010]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_w12_2, 0
+    DUMP_LINE ldrsh_i_w12_2, 0, 0
 
     /* str_i_w12_0 */
     ldr   r0, =0x1FD618F4
@@ -1539,7 +1561,7 @@ reset_handler:
     str.w r0, [r1, #2309]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_w12_0, 0x20000520
+    DUMP_LINE str_i_w12_0, 0x20000520, 0
 
     /* str_i_w12_1 */
     ldr   r0, =0xF78C2DD1
@@ -1561,7 +1583,7 @@ reset_handler:
     str.w r0, [r1, #4046]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_w12_1, 0x20000530
+    DUMP_LINE str_i_w12_1, 0x20000530, 0
 
     /* str_i_w12_2 */
     ldr   r0, =0x0EC7E0E8
@@ -1583,7 +1605,7 @@ reset_handler:
     str.w r0, [r1, #2253]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_w12_2, 0x20000540
+    DUMP_LINE str_i_w12_2, 0x20000540, 0
 
     /* strb_i_w12_0 */
     ldr   r0, =0xF081FDEC
@@ -1605,7 +1627,7 @@ reset_handler:
     strb.w r0, [r1, #1099]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_w12_0, 0x20000550
+    DUMP_LINE strb_i_w12_0, 0x20000550, 0
 
     /* strb_i_w12_1 */
     ldr   r0, =0xDFB12ED3
@@ -1627,7 +1649,7 @@ reset_handler:
     strb.w r0, [r1, #2863]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_w12_1, 0x20000560
+    DUMP_LINE strb_i_w12_1, 0x20000560, 0
 
     /* strb_i_w12_2 */
     ldr   r0, =0xDF360454
@@ -1649,7 +1671,7 @@ reset_handler:
     strb.w r0, [r1, #2835]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_w12_2, 0x20000570
+    DUMP_LINE strb_i_w12_2, 0x20000570, 0
 
     /* strh_i_w12_0 */
     ldr   r0, =0x3C35AD43
@@ -1671,7 +1693,7 @@ reset_handler:
     strh.w r0, [r1, #1403]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_w12_0, 0x20000580
+    DUMP_LINE strh_i_w12_0, 0x20000580, 0
 
     /* strh_i_w12_1 */
     ldr   r0, =0x51D92B4C
@@ -1693,7 +1715,7 @@ reset_handler:
     strh.w r0, [r1, #1414]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_w12_1, 0x20000590
+    DUMP_LINE strh_i_w12_1, 0x20000590, 0
 
     /* strh_i_w12_2 */
     ldr   r0, =0x08A9C6FF
@@ -1715,7 +1737,7 @@ reset_handler:
     strh.w r0, [r1, #3338]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_w12_2, 0x200005A0
+    DUMP_LINE strh_i_w12_2, 0x200005A0, 0
 
     /* ldr_i_off_0 */
     ldr   r0, =0x471396EA
@@ -1737,7 +1759,7 @@ reset_handler:
     ldr r0, [r1, #-228]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_off_0, 0
+    DUMP_LINE ldr_i_off_0, 0, 0
 
     /* ldr_i_post_0 */
     ldr   r0, =0x36BD1311
@@ -1759,7 +1781,7 @@ reset_handler:
     ldr r0, [r1], #228
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_post_0, 0
+    DUMP_LINE ldr_i_post_0, 0, 0
 
     /* ldr_i_pre_0 */
     ldr   r0, =0x5967910D
@@ -1781,7 +1803,7 @@ reset_handler:
     ldr r0, [r1, #0]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_pre_0, 0
+    DUMP_LINE ldr_i_pre_0, 0, 0
 
     /* ldr_i_off_1 */
     ldr   r0, =0x9DAB9C31
@@ -1803,7 +1825,7 @@ reset_handler:
     ldr r0, [r1, #-1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_off_1, 0
+    DUMP_LINE ldr_i_off_1, 0, 0
 
     /* ldr_i_post_1 */
     ldr   r0, =0x2A95A81E
@@ -1825,7 +1847,7 @@ reset_handler:
     ldr r0, [r1], #1
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_post_1, 0
+    DUMP_LINE ldr_i_post_1, 0, 0
 
     /* ldr_i_pre_1 */
     ldr   r0, =0xD1E261BF
@@ -1847,7 +1869,7 @@ reset_handler:
     ldr r0, [r1, #1]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_pre_1, 0
+    DUMP_LINE ldr_i_pre_1, 0, 0
 
     /* ldr_i_off_2 */
     ldr   r0, =0xDE947290
@@ -1869,7 +1891,7 @@ reset_handler:
     ldr r0, [r1, #-129]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_off_2, 0
+    DUMP_LINE ldr_i_off_2, 0, 0
 
     /* ldr_i_post_2 */
     ldr   r0, =0x9ADDFAAE
@@ -1891,7 +1913,7 @@ reset_handler:
     ldr r0, [r1], #-129
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_post_2, 0
+    DUMP_LINE ldr_i_post_2, 0, 0
 
     /* ldr_i_pre_2 */
     ldr   r0, =0x3ACC4B12
@@ -1913,7 +1935,7 @@ reset_handler:
     ldr r0, [r1, #-129]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_i_pre_2, 0
+    DUMP_LINE ldr_i_pre_2, 0, 0
 
     /* ldrb_i_off_0 */
     ldr   r0, =0xCFF68D0B
@@ -1935,7 +1957,7 @@ reset_handler:
     ldrb r0, [r1, #-241]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_off_0, 0
+    DUMP_LINE ldrb_i_off_0, 0, 0
 
     /* ldrb_i_post_0 */
     ldr   r0, =0xF2C6B3D7
@@ -1957,7 +1979,7 @@ reset_handler:
     ldrb r0, [r1], #-241
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_post_0, 0
+    DUMP_LINE ldrb_i_post_0, 0, 0
 
     /* ldrb_i_pre_0 */
     ldr   r0, =0x665178A2
@@ -1979,7 +2001,7 @@ reset_handler:
     ldrb r0, [r1, #-241]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_pre_0, 0
+    DUMP_LINE ldrb_i_pre_0, 0, 0
 
     /* ldrb_i_off_1 */
     ldr   r0, =0x4CA66C99
@@ -2001,7 +2023,7 @@ reset_handler:
     ldrb r0, [r1, #-158]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_off_1, 0
+    DUMP_LINE ldrb_i_off_1, 0, 0
 
     /* ldrb_i_post_1 */
     ldr   r0, =0x4FBB8473
@@ -2023,7 +2045,7 @@ reset_handler:
     ldrb r0, [r1], #-158
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_post_1, 0
+    DUMP_LINE ldrb_i_post_1, 0, 0
 
     /* ldrb_i_pre_1 */
     ldr   r0, =0x9881683A
@@ -2045,7 +2067,7 @@ reset_handler:
     ldrb r0, [r1, #-158]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_pre_1, 0
+    DUMP_LINE ldrb_i_pre_1, 0, 0
 
     /* ldrb_i_off_2 */
     ldr   r0, =0x048DC58E
@@ -2067,7 +2089,7 @@ reset_handler:
     ldrb r0, [r1, #-59]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_off_2, 0
+    DUMP_LINE ldrb_i_off_2, 0, 0
 
     /* ldrb_i_post_2 */
     ldr   r0, =0x0D19B58A
@@ -2089,7 +2111,7 @@ reset_handler:
     ldrb r0, [r1], #59
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_post_2, 0
+    DUMP_LINE ldrb_i_post_2, 0, 0
 
     /* ldrb_i_pre_2 */
     ldr   r0, =0x99E6360B
@@ -2111,7 +2133,7 @@ reset_handler:
     ldrb r0, [r1, #59]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_i_pre_2, 0
+    DUMP_LINE ldrb_i_pre_2, 0, 0
 
     /* ldrh_i_off_0 */
     ldr   r0, =0x18EF3842
@@ -2133,7 +2155,7 @@ reset_handler:
     ldrh r0, [r1, #-175]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_off_0, 0
+    DUMP_LINE ldrh_i_off_0, 0, 0
 
     /* ldrh_i_post_0 */
     ldr   r0, =0xE7DD3B5B
@@ -2155,7 +2177,7 @@ reset_handler:
     ldrh r0, [r1], #-175
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_post_0, 0
+    DUMP_LINE ldrh_i_post_0, 0, 0
 
     /* ldrh_i_pre_0 */
     ldr   r0, =0xC71BEC8A
@@ -2177,7 +2199,7 @@ reset_handler:
     ldrh r0, [r1, #-175]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_pre_0, 0
+    DUMP_LINE ldrh_i_pre_0, 0, 0
 
     /* ldrh_i_off_1 */
     ldr   r0, =0xFAF63FE5
@@ -2199,7 +2221,7 @@ reset_handler:
     ldrh r0, [r1, #-253]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_off_1, 0
+    DUMP_LINE ldrh_i_off_1, 0, 0
 
     /* ldrh_i_post_1 */
     ldr   r0, =0x0AD1EC49
@@ -2221,7 +2243,7 @@ reset_handler:
     ldrh r0, [r1], #-253
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_post_1, 0
+    DUMP_LINE ldrh_i_post_1, 0, 0
 
     /* ldrh_i_pre_1 */
     ldr   r0, =0x0CE09A9C
@@ -2243,7 +2265,7 @@ reset_handler:
     ldrh r0, [r1, #-253]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_pre_1, 0
+    DUMP_LINE ldrh_i_pre_1, 0, 0
 
     /* ldrh_i_off_2 */
     ldr   r0, =0x918877C3
@@ -2265,7 +2287,7 @@ reset_handler:
     ldrh r0, [r1, #-255]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_off_2, 0
+    DUMP_LINE ldrh_i_off_2, 0, 0
 
     /* ldrh_i_post_2 */
     ldr   r0, =0xF121A033
@@ -2287,7 +2309,7 @@ reset_handler:
     ldrh r0, [r1], #-255
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_post_2, 0
+    DUMP_LINE ldrh_i_post_2, 0, 0
 
     /* ldrh_i_pre_2 */
     ldr   r0, =0xD672B9D7
@@ -2309,7 +2331,7 @@ reset_handler:
     ldrh r0, [r1, #-255]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_i_pre_2, 0
+    DUMP_LINE ldrh_i_pre_2, 0, 0
 
     /* ldrsb_i_off_0 */
     ldr   r0, =0x55706329
@@ -2331,7 +2353,7 @@ reset_handler:
     ldrsb r0, [r1, #-226]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_off_0, 0
+    DUMP_LINE ldrsb_i_off_0, 0, 0
 
     /* ldrsb_i_post_0 */
     ldr   r0, =0x21CFBA32
@@ -2353,7 +2375,7 @@ reset_handler:
     ldrsb r0, [r1], #226
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_post_0, 0
+    DUMP_LINE ldrsb_i_post_0, 0, 0
 
     /* ldrsb_i_pre_0 */
     ldr   r0, =0xC76E039E
@@ -2375,7 +2397,7 @@ reset_handler:
     ldrsb r0, [r1, #0]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_pre_0, 0
+    DUMP_LINE ldrsb_i_pre_0, 0, 0
 
     /* ldrsb_i_off_1 */
     ldr   r0, =0x7B40137B
@@ -2397,7 +2419,7 @@ reset_handler:
     ldrsb r0, [r1, #-153]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_off_1, 0
+    DUMP_LINE ldrsb_i_off_1, 0, 0
 
     /* ldrsb_i_post_1 */
     ldr   r0, =0xDEBA9FF7
@@ -2419,7 +2441,7 @@ reset_handler:
     ldrsb r0, [r1], #-153
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_post_1, 0
+    DUMP_LINE ldrsb_i_post_1, 0, 0
 
     /* ldrsb_i_pre_1 */
     ldr   r0, =0xA0DB9D1F
@@ -2441,7 +2463,7 @@ reset_handler:
     ldrsb r0, [r1, #-153]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_pre_1, 0
+    DUMP_LINE ldrsb_i_pre_1, 0, 0
 
     /* ldrsb_i_off_2 */
     ldr   r0, =0xF8092AEC
@@ -2463,7 +2485,7 @@ reset_handler:
     ldrsb r0, [r1, #-167]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_off_2, 0
+    DUMP_LINE ldrsb_i_off_2, 0, 0
 
     /* ldrsb_i_post_2 */
     ldr   r0, =0x4EAA757F
@@ -2485,7 +2507,7 @@ reset_handler:
     ldrsb r0, [r1], #167
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_post_2, 0
+    DUMP_LINE ldrsb_i_post_2, 0, 0
 
     /* ldrsb_i_pre_2 */
     ldr   r0, =0x027DA04F
@@ -2507,7 +2529,7 @@ reset_handler:
     ldrsb r0, [r1, #0]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_i_pre_2, 0
+    DUMP_LINE ldrsb_i_pre_2, 0, 0
 
     /* ldrsh_i_off_0 */
     ldr   r0, =0x984874DE
@@ -2529,7 +2551,7 @@ reset_handler:
     ldrsh r0, [r1, #-29]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_off_0, 0
+    DUMP_LINE ldrsh_i_off_0, 0, 0
 
     /* ldrsh_i_post_0 */
     ldr   r0, =0x9AFAB585
@@ -2551,7 +2573,7 @@ reset_handler:
     ldrsh r0, [r1], #29
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_post_0, 0
+    DUMP_LINE ldrsh_i_post_0, 0, 0
 
     /* ldrsh_i_pre_0 */
     ldr   r0, =0x4FABBB42
@@ -2573,7 +2595,7 @@ reset_handler:
     ldrsh r0, [r1, #29]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_pre_0, 0
+    DUMP_LINE ldrsh_i_pre_0, 0, 0
 
     /* ldrsh_i_off_1 */
     ldr   r0, =0x8D0357E0
@@ -2595,7 +2617,7 @@ reset_handler:
     ldrsh r0, [r1, #-132]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_off_1, 0
+    DUMP_LINE ldrsh_i_off_1, 0, 0
 
     /* ldrsh_i_post_1 */
     ldr   r0, =0x837495EA
@@ -2617,7 +2639,7 @@ reset_handler:
     ldrsh r0, [r1], #-132
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_post_1, 0
+    DUMP_LINE ldrsh_i_post_1, 0, 0
 
     /* ldrsh_i_pre_1 */
     ldr   r0, =0x8F08A8F6
@@ -2639,7 +2661,7 @@ reset_handler:
     ldrsh r0, [r1, #-132]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_pre_1, 0
+    DUMP_LINE ldrsh_i_pre_1, 0, 0
 
     /* ldrsh_i_off_2 */
     ldr   r0, =0xED4928F3
@@ -2661,7 +2683,7 @@ reset_handler:
     ldrsh r0, [r1, #-31]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_off_2, 0
+    DUMP_LINE ldrsh_i_off_2, 0, 0
 
     /* ldrsh_i_post_2 */
     ldr   r0, =0x854009A7
@@ -2683,7 +2705,7 @@ reset_handler:
     ldrsh r0, [r1], #31
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_post_2, 0
+    DUMP_LINE ldrsh_i_post_2, 0, 0
 
     /* ldrsh_i_pre_2 */
     ldr   r0, =0xCDFEEBEA
@@ -2705,7 +2727,7 @@ reset_handler:
     ldrsh r0, [r1, #31]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_i_pre_2, 0
+    DUMP_LINE ldrsh_i_pre_2, 0, 0
 
     /* str_i_off_0 */
     ldr   r0, =0x15E8661F
@@ -2727,7 +2749,7 @@ reset_handler:
     str r0, [r1, #-7]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_off_0, 0x200005B0
+    DUMP_LINE str_i_off_0, 0x200005B0, 0
 
     /* str_i_post_0 */
     ldr   r0, =0x933A9189
@@ -2749,7 +2771,7 @@ reset_handler:
     str r0, [r1], #-7
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_post_0, 0x200005C0
+    DUMP_LINE str_i_post_0, 0x200005C0, 0
 
     /* str_i_pre_0 */
     ldr   r0, =0x2606E16F
@@ -2771,7 +2793,7 @@ reset_handler:
     str r0, [r1, #-7]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_pre_0, 0x200005D0
+    DUMP_LINE str_i_pre_0, 0x200005D0, 0
 
     /* str_i_off_1 */
     ldr   r0, =0x62B5D1B1
@@ -2793,7 +2815,7 @@ reset_handler:
     str r0, [r1, #-9]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_off_1, 0x200005E0
+    DUMP_LINE str_i_off_1, 0x200005E0, 0
 
     /* str_i_post_1 */
     ldr   r0, =0x88EEB238
@@ -2815,7 +2837,7 @@ reset_handler:
     str r0, [r1], #9
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_post_1, 0x200005F0
+    DUMP_LINE str_i_post_1, 0x200005F0, 0
 
     /* str_i_pre_1 */
     ldr   r0, =0x7003CB0E
@@ -2837,7 +2859,7 @@ reset_handler:
     str r0, [r1, #9]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_pre_1, 0x20000600
+    DUMP_LINE str_i_pre_1, 0x20000600, 0
 
     /* str_i_off_2 */
     ldr   r0, =0xBBEF1DE6
@@ -2859,7 +2881,7 @@ reset_handler:
     str r0, [r1, #-11]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_off_2, 0x20000610
+    DUMP_LINE str_i_off_2, 0x20000610, 0
 
     /* str_i_post_2 */
     ldr   r0, =0xF4C77BB1
@@ -2881,7 +2903,7 @@ reset_handler:
     str r0, [r1], #11
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_post_2, 0x20000620
+    DUMP_LINE str_i_post_2, 0x20000620, 0
 
     /* str_i_pre_2 */
     ldr   r0, =0xC908D817
@@ -2903,7 +2925,7 @@ reset_handler:
     str r0, [r1, #11]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_i_pre_2, 0x20000630
+    DUMP_LINE str_i_pre_2, 0x20000630, 0
 
     /* strb_i_off_0 */
     ldr   r0, =0xC1F6BF7D
@@ -2925,7 +2947,7 @@ reset_handler:
     strb r0, [r1, #-14]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_off_0, 0x20000640
+    DUMP_LINE strb_i_off_0, 0x20000640, 0
 
     /* strb_i_post_0 */
     ldr   r0, =0xB01C028A
@@ -2947,7 +2969,7 @@ reset_handler:
     strb r0, [r1], #-14
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_post_0, 0x20000650
+    DUMP_LINE strb_i_post_0, 0x20000650, 0
 
     /* strb_i_pre_0 */
     ldr   r0, =0xA2EA5B38
@@ -2969,7 +2991,7 @@ reset_handler:
     strb r0, [r1, #-14]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_pre_0, 0x20000660
+    DUMP_LINE strb_i_pre_0, 0x20000660, 0
 
     /* strb_i_off_1 */
     ldr   r0, =0x7093CD8E
@@ -2991,7 +3013,7 @@ reset_handler:
     strb r0, [r1, #-5]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_off_1, 0x20000670
+    DUMP_LINE strb_i_off_1, 0x20000670, 0
 
     /* strb_i_post_1 */
     ldr   r0, =0x3187CB80
@@ -3013,7 +3035,7 @@ reset_handler:
     strb r0, [r1], #-5
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_post_1, 0x20000680
+    DUMP_LINE strb_i_post_1, 0x20000680, 0
 
     /* strb_i_pre_1 */
     ldr   r0, =0x10EE4D02
@@ -3035,7 +3057,7 @@ reset_handler:
     strb r0, [r1, #-5]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_pre_1, 0x20000690
+    DUMP_LINE strb_i_pre_1, 0x20000690, 0
 
     /* strb_i_off_2 */
     ldr   r0, =0xC111982D
@@ -3057,7 +3079,7 @@ reset_handler:
     strb r0, [r1, #-12]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_off_2, 0x200006A0
+    DUMP_LINE strb_i_off_2, 0x200006A0, 0
 
     /* strb_i_post_2 */
     ldr   r0, =0x9C78B926
@@ -3079,7 +3101,7 @@ reset_handler:
     strb r0, [r1], #12
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_post_2, 0x200006B0
+    DUMP_LINE strb_i_post_2, 0x200006B0, 0
 
     /* strb_i_pre_2 */
     ldr   r0, =0x66308931
@@ -3101,7 +3123,7 @@ reset_handler:
     strb r0, [r1, #12]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_i_pre_2, 0x200006C0
+    DUMP_LINE strb_i_pre_2, 0x200006C0, 0
 
     /* strh_i_off_0 */
     ldr   r0, =0x5A8C5780
@@ -3123,7 +3145,7 @@ reset_handler:
     strh r0, [r1, #-12]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_off_0, 0x200006D0
+    DUMP_LINE strh_i_off_0, 0x200006D0, 0
 
     /* strh_i_post_0 */
     ldr   r0, =0x61768992
@@ -3145,7 +3167,7 @@ reset_handler:
     strh r0, [r1], #12
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_post_0, 0x200006E0
+    DUMP_LINE strh_i_post_0, 0x200006E0, 0
 
     /* strh_i_pre_0 */
     ldr   r0, =0x9608A04F
@@ -3167,7 +3189,7 @@ reset_handler:
     strh r0, [r1, #12]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_pre_0, 0x200006F0
+    DUMP_LINE strh_i_pre_0, 0x200006F0, 0
 
     /* strh_i_off_1 */
     ldr   r0, =0x1372228A
@@ -3189,7 +3211,7 @@ reset_handler:
     strh r0, [r1, #-10]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_off_1, 0x20000700
+    DUMP_LINE strh_i_off_1, 0x20000700, 0
 
     /* strh_i_post_1 */
     ldr   r0, =0x012E4FEF
@@ -3211,7 +3233,7 @@ reset_handler:
     strh r0, [r1], #10
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_post_1, 0x20000710
+    DUMP_LINE strh_i_post_1, 0x20000710, 0
 
     /* strh_i_pre_1 */
     ldr   r0, =0x4AF213F3
@@ -3233,7 +3255,7 @@ reset_handler:
     strh r0, [r1, #10]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_pre_1, 0x20000720
+    DUMP_LINE strh_i_pre_1, 0x20000720, 0
 
     /* strh_i_off_2 */
     ldr   r0, =0xAC578EE6
@@ -3255,7 +3277,7 @@ reset_handler:
     strh r0, [r1, #-10]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_off_2, 0x20000730
+    DUMP_LINE strh_i_off_2, 0x20000730, 0
 
     /* strh_i_post_2 */
     ldr   r0, =0x6386A211
@@ -3277,7 +3299,7 @@ reset_handler:
     strh r0, [r1], #-10
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_post_2, 0x20000740
+    DUMP_LINE strh_i_post_2, 0x20000740, 0
 
     /* strh_i_pre_2 */
     ldr   r0, =0xF162CD53
@@ -3299,7 +3321,7 @@ reset_handler:
     strh r0, [r1, #-10]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_i_pre_2, 0x20000750
+    DUMP_LINE strh_i_pre_2, 0x20000750, 0
 
     /* ldrt_0 */
     ldr   r0, =0xC9F12BB5
@@ -3321,7 +3343,7 @@ reset_handler:
     ldrt r0, [r1, #183]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrt_0, 0
+    DUMP_LINE ldrt_0, 0, 0
 
     /* ldrt_1 */
     ldr   r0, =0x29B4CDC2
@@ -3343,7 +3365,7 @@ reset_handler:
     ldrt r0, [r1, #170]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrt_1, 0
+    DUMP_LINE ldrt_1, 0, 0
 
     /* ldrt_2 */
     ldr   r0, =0xA100FC2B
@@ -3365,7 +3387,7 @@ reset_handler:
     ldrt r0, [r1, #45]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrt_2, 0
+    DUMP_LINE ldrt_2, 0, 0
 
     /* ldrbt_0 */
     ldr   r0, =0x0E1B3519
@@ -3387,7 +3409,7 @@ reset_handler:
     ldrbt r0, [r1, #123]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrbt_0, 0
+    DUMP_LINE ldrbt_0, 0, 0
 
     /* ldrbt_1 */
     ldr   r0, =0x66B886CC
@@ -3409,7 +3431,7 @@ reset_handler:
     ldrbt r0, [r1, #227]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrbt_1, 0
+    DUMP_LINE ldrbt_1, 0, 0
 
     /* ldrbt_2 */
     ldr   r0, =0xE3CE2BF2
@@ -3431,7 +3453,7 @@ reset_handler:
     ldrbt r0, [r1, #9]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrbt_2, 0
+    DUMP_LINE ldrbt_2, 0, 0
 
     /* ldrht_0 */
     ldr   r0, =0x216E6D2A
@@ -3453,7 +3475,7 @@ reset_handler:
     ldrht r0, [r1, #178]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrht_0, 0
+    DUMP_LINE ldrht_0, 0, 0
 
     /* ldrht_1 */
     ldr   r0, =0x45192C38
@@ -3475,7 +3497,7 @@ reset_handler:
     ldrht r0, [r1, #222]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrht_1, 0
+    DUMP_LINE ldrht_1, 0, 0
 
     /* ldrht_2 */
     ldr   r0, =0x83613A96
@@ -3497,7 +3519,7 @@ reset_handler:
     ldrht r0, [r1, #93]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrht_2, 0
+    DUMP_LINE ldrht_2, 0, 0
 
     /* ldrsbt_0 */
     ldr   r0, =0x751498CB
@@ -3519,7 +3541,7 @@ reset_handler:
     ldrsbt r0, [r1, #114]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsbt_0, 0
+    DUMP_LINE ldrsbt_0, 0, 0
 
     /* ldrsbt_1 */
     ldr   r0, =0x3E9C7DC4
@@ -3541,7 +3563,7 @@ reset_handler:
     ldrsbt r0, [r1, #180]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsbt_1, 0
+    DUMP_LINE ldrsbt_1, 0, 0
 
     /* ldrsbt_2 */
     ldr   r0, =0x1FAD98A4
@@ -3563,7 +3585,7 @@ reset_handler:
     ldrsbt r0, [r1, #42]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsbt_2, 0
+    DUMP_LINE ldrsbt_2, 0, 0
 
     /* ldrsht_0 */
     ldr   r0, =0xE8B36BBA
@@ -3585,7 +3607,7 @@ reset_handler:
     ldrsht r0, [r1, #167]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsht_0, 0
+    DUMP_LINE ldrsht_0, 0, 0
 
     /* ldrsht_1 */
     ldr   r0, =0xFB8DAFC2
@@ -3607,7 +3629,7 @@ reset_handler:
     ldrsht r0, [r1, #133]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsht_1, 0
+    DUMP_LINE ldrsht_1, 0, 0
 
     /* ldrsht_2 */
     ldr   r0, =0xD6280D6D
@@ -3629,7 +3651,7 @@ reset_handler:
     ldrsht r0, [r1, #224]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsht_2, 0
+    DUMP_LINE ldrsht_2, 0, 0
 
     /* strt_0 */
     ldr   r0, =0x185AF30D
@@ -3651,7 +3673,7 @@ reset_handler:
     strt r0, [r1, #7]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strt_0, 0x20000760
+    DUMP_LINE strt_0, 0x20000760, 0
 
     /* strt_1 */
     ldr   r0, =0x7C279E75
@@ -3673,7 +3695,7 @@ reset_handler:
     strt r0, [r1, #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strt_1, 0x20000770
+    DUMP_LINE strt_1, 0x20000770, 0
 
     /* strt_2 */
     ldr   r0, =0x30E57BC7
@@ -3695,7 +3717,7 @@ reset_handler:
     strt r0, [r1, #6]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strt_2, 0x20000780
+    DUMP_LINE strt_2, 0x20000780, 0
 
     /* strbt_0 */
     ldr   r0, =0x5E8CC542
@@ -3717,7 +3739,7 @@ reset_handler:
     strbt r0, [r1, #6]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strbt_0, 0x20000790
+    DUMP_LINE strbt_0, 0x20000790, 0
 
     /* strbt_1 */
     ldr   r0, =0x92FA8E83
@@ -3739,7 +3761,7 @@ reset_handler:
     strbt r0, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strbt_1, 0x200007A0
+    DUMP_LINE strbt_1, 0x200007A0, 0
 
     /* strbt_2 */
     ldr   r0, =0x6DECE622
@@ -3761,7 +3783,7 @@ reset_handler:
     strbt r0, [r1, #5]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strbt_2, 0x200007B0
+    DUMP_LINE strbt_2, 0x200007B0, 0
 
     /* strht_0 */
     ldr   r0, =0x442E4F15
@@ -3783,7 +3805,7 @@ reset_handler:
     strht r0, [r1, #4]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strht_0, 0x200007C0
+    DUMP_LINE strht_0, 0x200007C0, 0
 
     /* strht_1 */
     ldr   r0, =0xA01FBF31
@@ -3805,7 +3827,7 @@ reset_handler:
     strht r0, [r1, #7]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strht_1, 0x200007D0
+    DUMP_LINE strht_1, 0x200007D0, 0
 
     /* strht_2 */
     ldr   r0, =0xE5EBEF52
@@ -3827,7 +3849,7 @@ reset_handler:
     strht r0, [r1, #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strht_2, 0x200007E0
+    DUMP_LINE strht_2, 0x200007E0, 0
 
     /* ldr_l_fwd_0 */
     ldr   r0, =0x541601EE
@@ -3853,7 +3875,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_fwd_0, 0
+    DUMP_LINE ldr_l_fwd_0, 0, 0
 
     /* ldr_l_back_0 */
     ldr   r0, =0x596573BA
@@ -3879,7 +3901,7 @@ reset_handler:
     ldr.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_back_0, 0
+    DUMP_LINE ldr_l_back_0, 0, 0
 
     /* ldr_l_fwd_1 */
     ldr   r0, =0xA0F8079D
@@ -3905,7 +3927,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_fwd_1, 0
+    DUMP_LINE ldr_l_fwd_1, 0, 0
 
     /* ldr_l_back_1 */
     ldr   r0, =0x0E8B4534
@@ -3931,7 +3953,7 @@ reset_handler:
     ldr.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_back_1, 0
+    DUMP_LINE ldr_l_back_1, 0, 0
 
     /* ldr_l_fwd_2 */
     ldr   r0, =0xBDFA477F
@@ -3957,7 +3979,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_fwd_2, 0
+    DUMP_LINE ldr_l_fwd_2, 0, 0
 
     /* ldr_l_back_2 */
     ldr   r0, =0x65904521
@@ -3983,7 +4005,7 @@ reset_handler:
     ldr.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_l_back_2, 0
+    DUMP_LINE ldr_l_back_2, 0, 0
 
     /* ldrb_l_fwd_0 */
     ldr   r0, =0x0D4D1638
@@ -4009,7 +4031,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_fwd_0, 0
+    DUMP_LINE ldrb_l_fwd_0, 0, 0
 
     /* ldrb_l_back_0 */
     ldr   r0, =0x93B15CDB
@@ -4035,7 +4057,7 @@ reset_handler:
     ldrb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_back_0, 0
+    DUMP_LINE ldrb_l_back_0, 0, 0
 
     /* ldrb_l_fwd_1 */
     ldr   r0, =0xE5846893
@@ -4061,7 +4083,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_fwd_1, 0
+    DUMP_LINE ldrb_l_fwd_1, 0, 0
 
     /* ldrb_l_back_1 */
     ldr   r0, =0xBD00D189
@@ -4087,7 +4109,7 @@ reset_handler:
     ldrb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_back_1, 0
+    DUMP_LINE ldrb_l_back_1, 0, 0
 
     /* ldrb_l_fwd_2 */
     ldr   r0, =0xCE841396
@@ -4113,7 +4135,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_fwd_2, 0
+    DUMP_LINE ldrb_l_fwd_2, 0, 0
 
     /* ldrb_l_back_2 */
     ldr   r0, =0x5EB87215
@@ -4139,7 +4161,7 @@ reset_handler:
     ldrb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_l_back_2, 0
+    DUMP_LINE ldrb_l_back_2, 0, 0
 
     /* ldrh_l_fwd_0 */
     ldr   r0, =0xFE4AC3C4
@@ -4165,7 +4187,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_fwd_0, 0
+    DUMP_LINE ldrh_l_fwd_0, 0, 0
 
     /* ldrh_l_back_0 */
     ldr   r0, =0x8F67DCB9
@@ -4191,7 +4213,7 @@ reset_handler:
     ldrh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_back_0, 0
+    DUMP_LINE ldrh_l_back_0, 0, 0
 
     /* ldrh_l_fwd_1 */
     ldr   r0, =0x6748C745
@@ -4217,7 +4239,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_fwd_1, 0
+    DUMP_LINE ldrh_l_fwd_1, 0, 0
 
     /* ldrh_l_back_1 */
     ldr   r0, =0x9FF35E94
@@ -4243,7 +4265,7 @@ reset_handler:
     ldrh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_back_1, 0
+    DUMP_LINE ldrh_l_back_1, 0, 0
 
     /* ldrh_l_fwd_2 */
     ldr   r0, =0x5D54266E
@@ -4269,7 +4291,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_fwd_2, 0
+    DUMP_LINE ldrh_l_fwd_2, 0, 0
 
     /* ldrh_l_back_2 */
     ldr   r0, =0xF6E84A6C
@@ -4295,7 +4317,7 @@ reset_handler:
     ldrh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_l_back_2, 0
+    DUMP_LINE ldrh_l_back_2, 0, 0
 
     /* ldrsb_l_fwd_0 */
     ldr   r0, =0x74B6D816
@@ -4321,7 +4343,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_fwd_0, 0
+    DUMP_LINE ldrsb_l_fwd_0, 0, 0
 
     /* ldrsb_l_back_0 */
     ldr   r0, =0x42C1B262
@@ -4347,7 +4369,7 @@ reset_handler:
     ldrsb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_back_0, 0
+    DUMP_LINE ldrsb_l_back_0, 0, 0
 
     /* ldrsb_l_fwd_1 */
     ldr   r0, =0x8A98677C
@@ -4373,7 +4395,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_fwd_1, 0
+    DUMP_LINE ldrsb_l_fwd_1, 0, 0
 
     /* ldrsb_l_back_1 */
     ldr   r0, =0xFD9BFC5B
@@ -4399,7 +4421,7 @@ reset_handler:
     ldrsb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_back_1, 0
+    DUMP_LINE ldrsb_l_back_1, 0, 0
 
     /* ldrsb_l_fwd_2 */
     ldr   r0, =0xB7CC83CA
@@ -4425,7 +4447,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_fwd_2, 0
+    DUMP_LINE ldrsb_l_fwd_2, 0, 0
 
     /* ldrsb_l_back_2 */
     ldr   r0, =0x7E461647
@@ -4451,7 +4473,7 @@ reset_handler:
     ldrsb.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_l_back_2, 0
+    DUMP_LINE ldrsb_l_back_2, 0, 0
 
     /* ldrsh_l_fwd_0 */
     ldr   r0, =0x60C272E2
@@ -4477,7 +4499,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_fwd_0, 0
+    DUMP_LINE ldrsh_l_fwd_0, 0, 0
 
     /* ldrsh_l_back_0 */
     ldr   r0, =0xD0105B72
@@ -4503,7 +4525,7 @@ reset_handler:
     ldrsh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_back_0, 0
+    DUMP_LINE ldrsh_l_back_0, 0, 0
 
     /* ldrsh_l_fwd_1 */
     ldr   r0, =0xDF8FFA78
@@ -4529,7 +4551,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_fwd_1, 0
+    DUMP_LINE ldrsh_l_fwd_1, 0, 0
 
     /* ldrsh_l_back_1 */
     ldr   r0, =0x19C86757
@@ -4555,7 +4577,7 @@ reset_handler:
     ldrsh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_back_1, 0
+    DUMP_LINE ldrsh_l_back_1, 0, 0
 
     /* ldrsh_l_fwd_2 */
     ldr   r0, =0x031D8F94
@@ -4581,7 +4603,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_fwd_2, 0
+    DUMP_LINE ldrsh_l_fwd_2, 0, 0
 
     /* ldrsh_l_back_2 */
     ldr   r0, =0x17A90B4B
@@ -4607,7 +4629,7 @@ reset_handler:
     ldrsh.w r0, 1b
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_l_back_2, 0
+    DUMP_LINE ldrsh_l_back_2, 0, 0
 
     /* ldr_r_w_0 */
     ldr   r0, =0xBB8ED4D4
@@ -4629,7 +4651,7 @@ reset_handler:
     ldr.w r0, [r1, r2, lsl #2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_w_0, 0
+    DUMP_LINE ldr_r_w_0, 0, 0
 
     /* ldr_r_w_1 */
     ldr   r0, =0x94ADBC42
@@ -4651,7 +4673,7 @@ reset_handler:
     ldr.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_w_1, 0
+    DUMP_LINE ldr_r_w_1, 0, 0
 
     /* ldr_r_w_2 */
     ldr   r0, =0x44C333E7
@@ -4673,7 +4695,7 @@ reset_handler:
     ldr.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldr_r_w_2, 0
+    DUMP_LINE ldr_r_w_2, 0, 0
 
     /* ldrb_r_w_0 */
     ldr   r0, =0xE6A6E3DE
@@ -4695,7 +4717,7 @@ reset_handler:
     ldrb.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_w_0, 0
+    DUMP_LINE ldrb_r_w_0, 0, 0
 
     /* ldrb_r_w_1 */
     ldr   r0, =0x69072C13
@@ -4717,7 +4739,7 @@ reset_handler:
     ldrb.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_w_1, 0
+    DUMP_LINE ldrb_r_w_1, 0, 0
 
     /* ldrb_r_w_2 */
     ldr   r0, =0xF9EA9FC3
@@ -4739,7 +4761,7 @@ reset_handler:
     ldrb.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrb_r_w_2, 0
+    DUMP_LINE ldrb_r_w_2, 0, 0
 
     /* ldrh_r_w_0 */
     ldr   r0, =0x0785ED65
@@ -4761,7 +4783,7 @@ reset_handler:
     ldrh.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_w_0, 0
+    DUMP_LINE ldrh_r_w_0, 0, 0
 
     /* ldrh_r_w_1 */
     ldr   r0, =0x7309B607
@@ -4783,7 +4805,7 @@ reset_handler:
     ldrh.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_w_1, 0
+    DUMP_LINE ldrh_r_w_1, 0, 0
 
     /* ldrh_r_w_2 */
     ldr   r0, =0xA46B0D3B
@@ -4805,7 +4827,7 @@ reset_handler:
     ldrh.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrh_r_w_2, 0
+    DUMP_LINE ldrh_r_w_2, 0, 0
 
     /* ldrsb_r_w_0 */
     ldr   r0, =0x7E5010BC
@@ -4827,7 +4849,7 @@ reset_handler:
     ldrsb.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_w_0, 0
+    DUMP_LINE ldrsb_r_w_0, 0, 0
 
     /* ldrsb_r_w_1 */
     ldr   r0, =0x2388FB5F
@@ -4849,7 +4871,7 @@ reset_handler:
     ldrsb.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_w_1, 0
+    DUMP_LINE ldrsb_r_w_1, 0, 0
 
     /* ldrsb_r_w_2 */
     ldr   r0, =0xC8E665ED
@@ -4871,7 +4893,7 @@ reset_handler:
     ldrsb.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsb_r_w_2, 0
+    DUMP_LINE ldrsb_r_w_2, 0, 0
 
     /* ldrsh_r_w_0 */
     ldr   r0, =0xCDE10784
@@ -4893,7 +4915,7 @@ reset_handler:
     ldrsh.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_w_0, 0
+    DUMP_LINE ldrsh_r_w_0, 0, 0
 
     /* ldrsh_r_w_1 */
     ldr   r0, =0x7B9CDB0A
@@ -4915,7 +4937,7 @@ reset_handler:
     ldrsh.w r0, [r1, r2, lsl #2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_w_1, 0
+    DUMP_LINE ldrsh_r_w_1, 0, 0
 
     /* ldrsh_r_w_2 */
     ldr   r0, =0xC04BD993
@@ -4937,7 +4959,7 @@ reset_handler:
     ldrsh.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrsh_r_w_2, 0
+    DUMP_LINE ldrsh_r_w_2, 0, 0
 
     /* str_r_w_0 */
     ldr   r0, =0x25820C6A
@@ -4959,7 +4981,7 @@ reset_handler:
     str.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_w_0, 0x200007F0
+    DUMP_LINE str_r_w_0, 0x200007F0, 0
 
     /* str_r_w_1 */
     ldr   r0, =0xE897F802
@@ -4981,7 +5003,7 @@ reset_handler:
     str.w r0, [r1, r2, lsl #2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_w_1, 0x20000800
+    DUMP_LINE str_r_w_1, 0x20000800, 0
 
     /* str_r_w_2 */
     ldr   r0, =0x93C3F708
@@ -5003,7 +5025,7 @@ reset_handler:
     str.w r0, [r1, r2, lsl #2]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE str_r_w_2, 0x20000810
+    DUMP_LINE str_r_w_2, 0x20000810, 0
 
     /* strb_r_w_0 */
     ldr   r0, =0xC1625CCF
@@ -5025,7 +5047,7 @@ reset_handler:
     strb.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_w_0, 0x20000820
+    DUMP_LINE strb_r_w_0, 0x20000820, 0
 
     /* strb_r_w_1 */
     ldr   r0, =0xF66522DE
@@ -5047,7 +5069,7 @@ reset_handler:
     strb.w r0, [r1, r2, lsl #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_w_1, 0x20000830
+    DUMP_LINE strb_r_w_1, 0x20000830, 0
 
     /* strb_r_w_2 */
     ldr   r0, =0xB686D629
@@ -5069,7 +5091,7 @@ reset_handler:
     strb.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strb_r_w_2, 0x20000840
+    DUMP_LINE strb_r_w_2, 0x20000840, 0
 
     /* strh_r_w_0 */
     ldr   r0, =0x4AE9E458
@@ -5091,7 +5113,7 @@ reset_handler:
     strh.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_w_0, 0x20000850
+    DUMP_LINE strh_r_w_0, 0x20000850, 0
 
     /* strh_r_w_1 */
     ldr   r0, =0xFD856FD7
@@ -5113,7 +5135,7 @@ reset_handler:
     strh.w r0, [r1, r2, lsl #3]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_w_1, 0x20000860
+    DUMP_LINE strh_r_w_1, 0x20000860, 0
 
     /* strh_r_w_2 */
     ldr   r0, =0x212B6AC4
@@ -5135,7 +5157,7 @@ reset_handler:
     strh.w r0, [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strh_r_w_2, 0x20000870
+    DUMP_LINE strh_r_w_2, 0x20000870, 0
 
     /* ldrd_off_0 */
     ldr   r0, =0xF65B524C
@@ -5157,7 +5179,7 @@ reset_handler:
     ldrd r0, r2, [r1, #32]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_off_0, 0
+    DUMP_LINE ldrd_off_0, 0, 0
 
     /* ldrd_pre_0 */
     ldr   r0, =0xD7E7D45D
@@ -5179,7 +5201,7 @@ reset_handler:
     ldrd r0, r2, [r1, #-32]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_pre_0, 0
+    DUMP_LINE ldrd_pre_0, 0, 0
 
     /* ldrd_post_0 */
     ldr   r0, =0xE73A7E65
@@ -5201,7 +5223,7 @@ reset_handler:
     ldrd r0, r2, [r1], #32
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_post_0, 0
+    DUMP_LINE ldrd_post_0, 0, 0
 
     /* strd_off_0 */
     ldr   r0, =0x9843A5CC
@@ -5223,7 +5245,7 @@ reset_handler:
     strd r0, r2, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_off_0, 0x20000880
+    DUMP_LINE strd_off_0, 0x20000880, 0
 
     /* strd_pre_0 */
     ldr   r0, =0x573D90D0
@@ -5245,7 +5267,7 @@ reset_handler:
     strd r0, r2, [r1, #-0]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_pre_0, 0x20000890
+    DUMP_LINE strd_pre_0, 0x20000890, 0
 
     /* strd_post_0 */
     ldr   r0, =0x0E4D719E
@@ -5267,7 +5289,7 @@ reset_handler:
     strd r0, r2, [r1], #0
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_post_0, 0x200008A0
+    DUMP_LINE strd_post_0, 0x200008A0, 0
 
     /* ldrd_l_0 */
     ldr   r0, =0x642D6234
@@ -5293,7 +5315,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_l_0, 0
+    DUMP_LINE ldrd_l_0, 0, 0
 
     /* ldrd_off_1 */
     ldr   r0, =0x56D3E2E0
@@ -5315,7 +5337,7 @@ reset_handler:
     ldrd r0, r2, [r1, #80]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_off_1, 0
+    DUMP_LINE ldrd_off_1, 0, 0
 
     /* ldrd_pre_1 */
     ldr   r0, =0xAECA6C1A
@@ -5337,7 +5359,7 @@ reset_handler:
     ldrd r0, r2, [r1, #-80]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_pre_1, 0
+    DUMP_LINE ldrd_pre_1, 0, 0
 
     /* ldrd_post_1 */
     ldr   r0, =0xDE3C9A00
@@ -5359,7 +5381,7 @@ reset_handler:
     ldrd r0, r2, [r1], #80
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_post_1, 0
+    DUMP_LINE ldrd_post_1, 0, 0
 
     /* strd_off_1 */
     ldr   r0, =0xDE7872AC
@@ -5381,7 +5403,7 @@ reset_handler:
     strd r0, r2, [r1, #0]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_off_1, 0x200008B0
+    DUMP_LINE strd_off_1, 0x200008B0, 0
 
     /* strd_pre_1 */
     ldr   r0, =0xF68A873C
@@ -5403,7 +5425,7 @@ reset_handler:
     strd r0, r2, [r1, #-0]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_pre_1, 0x200008C0
+    DUMP_LINE strd_pre_1, 0x200008C0, 0
 
     /* strd_post_1 */
     ldr   r0, =0x3FE76EBE
@@ -5425,7 +5447,7 @@ reset_handler:
     strd r0, r2, [r1], #0
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_post_1, 0x200008D0
+    DUMP_LINE strd_post_1, 0x200008D0, 0
 
     /* ldrd_l_1 */
     ldr   r0, =0x038A2904
@@ -5451,7 +5473,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_l_1, 0
+    DUMP_LINE ldrd_l_1, 0, 0
 
     /* ldrd_off_2 */
     ldr   r0, =0x68A1DE73
@@ -5473,7 +5495,7 @@ reset_handler:
     ldrd r0, r2, [r1, #12]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_off_2, 0
+    DUMP_LINE ldrd_off_2, 0, 0
 
     /* ldrd_pre_2 */
     ldr   r0, =0x02E7240A
@@ -5495,7 +5517,7 @@ reset_handler:
     ldrd r0, r2, [r1, #-12]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_pre_2, 0
+    DUMP_LINE ldrd_pre_2, 0, 0
 
     /* ldrd_post_2 */
     ldr   r0, =0xED96E47E
@@ -5517,7 +5539,7 @@ reset_handler:
     ldrd r0, r2, [r1], #12
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_post_2, 0
+    DUMP_LINE ldrd_post_2, 0, 0
 
     /* strd_off_2 */
     ldr   r0, =0xBE8D90C0
@@ -5539,7 +5561,7 @@ reset_handler:
     strd r0, r2, [r1, #12]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_off_2, 0x200008E0
+    DUMP_LINE strd_off_2, 0x200008E0, 0
 
     /* strd_pre_2 */
     ldr   r0, =0x33102076
@@ -5561,7 +5583,7 @@ reset_handler:
     strd r0, r2, [r1, #-12]!
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_pre_2, 0x200008F0
+    DUMP_LINE strd_pre_2, 0x200008F0, 0
 
     /* strd_post_2 */
     ldr   r0, =0x524AF910
@@ -5583,7 +5605,7 @@ reset_handler:
     strd r0, r2, [r1], #12
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE strd_post_2, 0x20000900
+    DUMP_LINE strd_post_2, 0x20000900, 0
 
     /* ldrd_l_2 */
     ldr   r0, =0x7BFC27A4
@@ -5609,7 +5631,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrd_l_2, 0
+    DUMP_LINE ldrd_l_2, 0, 0
 
     /* ldm_t1_0 */
     ldr   r0, =0x2E9EA1D3
@@ -5631,7 +5653,7 @@ reset_handler:
     ldm r1!, {r0, r3, r5}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_t1_0, 0
+    DUMP_LINE ldm_t1_0, 0, 0
 
     /* stm_t1_0 */
     ldr   r0, =0x098BB19D
@@ -5653,7 +5675,7 @@ reset_handler:
     stm r1!, {r0, r3, r5}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_t1_0, 0x20000910
+    DUMP_LINE stm_t1_0, 0x20000910, 0
 
     /* push_pop_t1_0 */
     ldr   r0, =0xE994A132
@@ -5676,7 +5698,7 @@ reset_handler:
     pop {r0, r2, r3, r4}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_t1_0, 0
+    DUMP_LINE push_pop_t1_0, 0, 0
 
     /* ldm_w_0 */
     ldr   r0, =0x3F1F58FF
@@ -5698,7 +5720,7 @@ reset_handler:
     ldm.w r1, {r2, r3, r4, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_w_0, 0
+    DUMP_LINE ldm_w_0, 0, 0
 
     /* ldmdb_0 */
     ldr   r0, =0xAD3A488F
@@ -5720,7 +5742,7 @@ reset_handler:
     ldmdb r1!, {r2, r3, r4, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldmdb_0, 0
+    DUMP_LINE ldmdb_0, 0, 0
 
     /* stm_w_0 */
     ldr   r0, =0x66DE6127
@@ -5742,7 +5764,7 @@ reset_handler:
     stm.w r1, {r2, r3, r4}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_w_0, 0x20000920
+    DUMP_LINE stm_w_0, 0x20000920, 0
 
     /* stmdb_0 */
     ldr   r0, =0x8742C218
@@ -5764,7 +5786,7 @@ reset_handler:
     stmdb r1!, {r2, r3, r4}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stmdb_0, 0x20000930
+    DUMP_LINE stmdb_0, 0x20000930, 0
 
     /* push_pop_w_0 */
     ldr   r0, =0x1DB990D3
@@ -5787,7 +5809,7 @@ reset_handler:
     pop.w {r8, r9, r10}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_w_0, 0
+    DUMP_LINE push_pop_w_0, 0, 0
 
     /* ldm_t1_1 */
     ldr   r0, =0x74AB3F0B
@@ -5809,7 +5831,7 @@ reset_handler:
     ldm r1!, {r0, r5, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_t1_1, 0
+    DUMP_LINE ldm_t1_1, 0, 0
 
     /* stm_t1_1 */
     ldr   r0, =0x23A52484
@@ -5831,7 +5853,7 @@ reset_handler:
     stm r1!, {r0, r5, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_t1_1, 0x20000940
+    DUMP_LINE stm_t1_1, 0x20000940, 0
 
     /* push_pop_t1_1 */
     ldr   r0, =0xE8858735
@@ -5854,7 +5876,7 @@ reset_handler:
     pop {r0, r2, r3, r4}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_t1_1, 0
+    DUMP_LINE push_pop_t1_1, 0, 0
 
     /* ldm_w_1 */
     ldr   r0, =0xBC0FD959
@@ -5876,7 +5898,7 @@ reset_handler:
     ldm.w r1!, {r3, r9, r10, r12}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_w_1, 0
+    DUMP_LINE ldm_w_1, 0, 0
 
     /* ldmdb_1 */
     ldr   r0, =0x37E11A83
@@ -5898,7 +5920,7 @@ reset_handler:
     ldmdb r1, {r3, r9, r10, r12}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldmdb_1, 0
+    DUMP_LINE ldmdb_1, 0, 0
 
     /* stm_w_1 */
     ldr   r0, =0x7F7692BE
@@ -5920,7 +5942,7 @@ reset_handler:
     stm.w r1!, {r3, r9, r10}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_w_1, 0x20000950
+    DUMP_LINE stm_w_1, 0x20000950, 0
 
     /* stmdb_1 */
     ldr   r0, =0xCBEFBEDC
@@ -5942,7 +5964,7 @@ reset_handler:
     stmdb r1, {r3, r9, r10}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stmdb_1, 0x20000960
+    DUMP_LINE stmdb_1, 0x20000960, 0
 
     /* push_pop_w_1 */
     ldr   r0, =0xE0190C7E
@@ -5965,7 +5987,7 @@ reset_handler:
     pop.w {r8, r9, r10}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_w_1, 0
+    DUMP_LINE push_pop_w_1, 0, 0
 
     /* ldm_t1_2 */
     ldr   r0, =0x3B3E6E1E
@@ -5987,7 +6009,7 @@ reset_handler:
     ldm r1!, {r0, r5, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_t1_2, 0
+    DUMP_LINE ldm_t1_2, 0, 0
 
     /* stm_t1_2 */
     ldr   r0, =0x06F3434F
@@ -6009,7 +6031,7 @@ reset_handler:
     stm r1!, {r0, r5, r6}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_t1_2, 0x20000970
+    DUMP_LINE stm_t1_2, 0x20000970, 0
 
     /* push_pop_t1_2 */
     ldr   r0, =0xB257C886
@@ -6032,7 +6054,7 @@ reset_handler:
     pop {r0, r2, r3, r4}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_t1_2, 0
+    DUMP_LINE push_pop_t1_2, 0, 0
 
     /* ldm_w_2 */
     ldr   r0, =0x8363066C
@@ -6054,7 +6076,7 @@ reset_handler:
     ldm.w r1, {r4, r6, r9, r12}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldm_w_2, 0
+    DUMP_LINE ldm_w_2, 0, 0
 
     /* ldmdb_2 */
     ldr   r0, =0xC2BB0BFD
@@ -6076,7 +6098,7 @@ reset_handler:
     ldmdb r1!, {r4, r6, r9, r12}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldmdb_2, 0
+    DUMP_LINE ldmdb_2, 0, 0
 
     /* stm_w_2 */
     ldr   r0, =0xFEC5CF65
@@ -6098,7 +6120,7 @@ reset_handler:
     stm.w r1, {r4, r6, r9}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stm_w_2, 0x20000980
+    DUMP_LINE stm_w_2, 0x20000980, 0
 
     /* stmdb_2 */
     ldr   r0, =0xABE43C75
@@ -6120,7 +6142,7 @@ reset_handler:
     stmdb r1!, {r4, r6, r9}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE stmdb_2, 0x20000990
+    DUMP_LINE stmdb_2, 0x20000990, 0
 
     /* push_pop_w_2 */
     ldr   r0, =0xC0E1FB52
@@ -6143,7 +6165,7 @@ reset_handler:
     pop.w {r8, r9, r10}
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE push_pop_w_2, 0
+    DUMP_LINE push_pop_w_2, 0, 0
 
     /* ldrex_strex_0 */
     ldr   r0, =0x9BC03372
@@ -6167,7 +6189,7 @@ reset_handler:
     strex r4, r6, [r1, #4]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrex_strex_0, 0x200009A0
+    DUMP_LINE ldrex_strex_0, 0x200009A0, 0
 
     /* ldrexb_strexb_0 */
     ldr   r0, =0x0B957A64
@@ -6190,7 +6212,7 @@ reset_handler:
     strexb r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexb_strexb_0, 0x200009B0
+    DUMP_LINE ldrexb_strexb_0, 0x200009B0, 0
 
     /* ldrexh_strexh_0 */
     ldr   r0, =0x199B650E
@@ -6213,7 +6235,7 @@ reset_handler:
     strexh r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexh_strexh_0, 0x200009C0
+    DUMP_LINE ldrexh_strexh_0, 0x200009C0, 0
 
     /* clrex_0 */
     ldr   r0, =0x7D64D1A4
@@ -6237,7 +6259,7 @@ reset_handler:
     strex r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE clrex_0, 0x200009D0
+    DUMP_LINE clrex_0, 0x200009D0, 0
 
     /* ldrex_strex_1 */
     ldr   r0, =0x2AC4D579
@@ -6261,7 +6283,7 @@ reset_handler:
     strex r4, r6, [r1, #4]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrex_strex_1, 0x200009E0
+    DUMP_LINE ldrex_strex_1, 0x200009E0, 0
 
     /* ldrexb_strexb_1 */
     ldr   r0, =0x5398D59D
@@ -6284,7 +6306,7 @@ reset_handler:
     strexb r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexb_strexb_1, 0x200009F0
+    DUMP_LINE ldrexb_strexb_1, 0x200009F0, 0
 
     /* ldrexh_strexh_1 */
     ldr   r0, =0x486B6D7C
@@ -6307,7 +6329,7 @@ reset_handler:
     strexh r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexh_strexh_1, 0x20000A00
+    DUMP_LINE ldrexh_strexh_1, 0x20000A00, 0
 
     /* clrex_1 */
     ldr   r0, =0x569B5BB2
@@ -6331,7 +6353,7 @@ reset_handler:
     strex r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE clrex_1, 0x20000A10
+    DUMP_LINE clrex_1, 0x20000A10, 0
 
     /* ldrex_strex_2 */
     ldr   r0, =0x1692A213
@@ -6355,7 +6377,7 @@ reset_handler:
     strex r4, r6, [r1, #4]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrex_strex_2, 0x20000A20
+    DUMP_LINE ldrex_strex_2, 0x20000A20, 0
 
     /* ldrexb_strexb_2 */
     ldr   r0, =0x297CCE37
@@ -6378,7 +6400,7 @@ reset_handler:
     strexb r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexb_strexb_2, 0x20000A30
+    DUMP_LINE ldrexb_strexb_2, 0x20000A30, 0
 
     /* ldrexh_strexh_2 */
     ldr   r0, =0x67B7F304
@@ -6401,7 +6423,7 @@ reset_handler:
     strexh r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE ldrexh_strexh_2, 0x20000A40
+    DUMP_LINE ldrexh_strexh_2, 0x20000A40, 0
 
     /* clrex_2 */
     ldr   r0, =0x11933F6D
@@ -6425,7 +6447,7 @@ reset_handler:
     strex r2, r3, [r1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE clrex_2, 0x20000A50
+    DUMP_LINE clrex_2, 0x20000A50, 0
 
     /* tbb_0 */
     ldr   r0, =0x9CFCA74C
@@ -6455,7 +6477,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbb_0, 0
+    DUMP_LINE tbb_0, 0, 0
 
     /* tbh_0 */
     ldr   r0, =0xB6C1E0AD
@@ -6484,7 +6506,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbh_0, 0
+    DUMP_LINE tbh_0, 0, 0
 
     /* tbb_1 */
     ldr   r0, =0xF60D191E
@@ -6514,7 +6536,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbb_1, 0
+    DUMP_LINE tbb_1, 0, 0
 
     /* tbh_1 */
     ldr   r0, =0xD0EA3DED
@@ -6543,7 +6565,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbh_1, 0
+    DUMP_LINE tbh_1, 0, 0
 
     /* tbb_2 */
     ldr   r0, =0xADD7AC29
@@ -6573,7 +6595,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbb_2, 0
+    DUMP_LINE tbb_2, 0, 0
 
     /* tbh_2 */
     ldr   r0, =0x0C52CDCF
@@ -6602,7 +6624,7 @@ reset_handler:
     5:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE tbh_2, 0
+    DUMP_LINE tbh_2, 0, 0
 
     /* adr_t1_0 */
     ldr   r0, =0xCA8C1AEB
@@ -6628,7 +6650,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE adr_t1_0, 0
+    DUMP_LINE adr_t1_0, 0, 0
 
     /* adr_t1_1 */
     ldr   r0, =0x5D28B8E2
@@ -6654,7 +6676,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE adr_t1_1, 0
+    DUMP_LINE adr_t1_1, 0, 0
 
     /* adr_t1_2 */
     ldr   r0, =0xA7188254
@@ -6680,7 +6702,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE adr_t1_2, 0
+    DUMP_LINE adr_t1_2, 0, 0
 
     /* hint_pld_0 */
     ldr   r0, =0xCB476937
@@ -6702,7 +6724,7 @@ reset_handler:
     pld [r1, #100]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pld_0, 0
+    DUMP_LINE hint_pld_0, 0, 0
 
     /* hint_pld_1 */
     ldr   r0, =0x35DED455
@@ -6724,7 +6746,7 @@ reset_handler:
     pld [r1, #-10]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pld_1, 0
+    DUMP_LINE hint_pld_1, 0, 0
 
     /* hint_pld_2 */
     ldr   r0, =0xB3AAE38D
@@ -6750,7 +6772,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pld_2, 0
+    DUMP_LINE hint_pld_2, 0, 0
 
     /* hint_pld_3 */
     ldr   r0, =0x9673ECDD
@@ -6772,7 +6794,7 @@ reset_handler:
     pld [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pld_3, 0
+    DUMP_LINE hint_pld_3, 0, 0
 
     /* hint_pli_4 */
     ldr   r0, =0xE60253B2
@@ -6794,7 +6816,7 @@ reset_handler:
     pli [r1, #100]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pli_4, 0
+    DUMP_LINE hint_pli_4, 0, 0
 
     /* hint_pli_5 */
     ldr   r0, =0x11897C29
@@ -6816,7 +6838,7 @@ reset_handler:
     pli [r1, #-10]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pli_5, 0
+    DUMP_LINE hint_pli_5, 0, 0
 
     /* hint_pli_6 */
     ldr   r0, =0x7756FE8F
@@ -6842,7 +6864,7 @@ reset_handler:
     2:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pli_6, 0
+    DUMP_LINE hint_pli_6, 0, 0
 
     /* hint_pli_7 */
     ldr   r0, =0xA707C20E
@@ -6864,7 +6886,7 @@ reset_handler:
     pli [r1, r2, lsl #1]
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE hint_pli_7, 0
+    DUMP_LINE hint_pli_7, 0, 0
 
     PUTS  end
     PUTC  '\n'

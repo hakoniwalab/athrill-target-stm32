@@ -103,4 +103,24 @@ static inline uint32 thumb_imm5(uint32 imm3, uint32 imm2)
 	return (imm3 << 2) | imm2;
 }
 
+/* (shift_t, shift_n) = DecodeImmShift(type, imm5): its shift_t ... */
+static inline SRType thumb_shift_t(uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	return shift_t;
+}
+
+/* ... and its shift_n. */
+static inline uint32 thumb_shift_n(uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	return shift_n;
+}
+
 #endif /* ATHRILL_STM32_THUMB_GLUE_H */

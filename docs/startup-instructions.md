@@ -90,3 +90,4 @@ Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 | 2026-11-03 | 134 encodings (all data processing) | 50 of 93 encodings, 71.1% / 71.1% of uses | 77 of 184 encodings, 68.8% / 68.8% of uses |
 | 2026-11-03 | 226 encodings (and loads and stores) | 73 of 93 encodings, 86.5% / 86.5% of uses | 120 of 184 encodings, 80.8% / 80.8% of uses |
 | 2026-11-04 | 230 encodings (and BL, BLX, CBZ, CBNZ) | 76 of 93 encodings, 92.2% / 92.2% of uses | 124 of 184 encodings, 91.1% / 91.1% of uses |
+| 2026-11-04 | 290 encodings (and SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, REV/RBIT/CLZ, multiply, divide) | 87 of 93 encodings, 95.0% / 95.0% of uses | 150 of 184 encodings, 94.9% / 94.9% of uses |

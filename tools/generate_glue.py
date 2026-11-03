@@ -32,11 +32,21 @@ KINDS = {
     "bl": ("arm_b_input_type", "arm_b_output_type", (), None),
     "blx": ("arm_blx_reg_input_type", "arm_b_output_type", ("Rm",), None),
     "cb": ("arm_cb_input_type", "arm_b_output_type", ("Rn",), None),
+    "dp_imm": ("arm_dp_imm_input_type", "arm_dp_output_type", ("Rd", "Rn"), None),
+    "dp_reg": ("arm_dp_reg_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm"), None),
+    "adr": ("arm_adr_input_type", "arm_dp_output_type", ("Rd",), None),
+    "extend": ("arm_extend_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm"), None),
+    "bfx": ("arm_bfx_input_type", "arm_dp_output_type", ("Rd", "Rn"), None),
+    "bfi": ("arm_bfi_input_type", "arm_dp_output_type", ("Rd", "Rn"), None),
+    "unary": ("arm_unary_input_type", "arm_dp_output_type", ("Rd", "Rm"), None),
+    "mul": ("arm_mul_input_type", "arm_dp_output_type", ("Rd", "Rn", "Rm", "Ra"), None),
+    "mul_long": ("arm_mul_long_input_type", "arm_mul_long_output_type", ("RdLo", "RdHi", "Rn", "Rm"), None),
 }
 # Kinds whose instructions are not conditional (no ConditionPassed()).
 NO_COND = {"cb"}
 HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm_common/arm_pseudo_multiple.h",
-           "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h"]
+           "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h", "arm_common/arm_pseudo_extend.h",
+           "arm_common/arm_pseudo_bitfield.h", "arm_common/arm_pseudo_multiply.h"]
 
 
 def decoder_ids(width):
@@ -71,7 +81,8 @@ def comment(e):
     lines += e.see
     lines.append(e.ops)
     if e.unpred:
-        lines.append("if %s then UNPREDICTABLE;" % e.unpred)
+        # "a; b": two conditions, one line each as in the manual
+        lines += ["if %s then UNPREDICTABLE;" % u for u in e.unpred.split("; ")]
     if e.unpred and e.unpred_c is None:
         lines.append("(InITBlock() is FALSE while IT is not executed: nothing to check here.)")
     if e.note:

@@ -193,6 +193,23 @@ static inline Std_ReturnType ArmMemU_unpriv_W(TargetCoreType *core, uint32 addre
 }
 
 /*
+ * IntegerZeroDivideTrappingEnabled(): CCR.DIV_0_TRP, which is not modelled
+ * yet: 0, its reset value (SDIV and UDIV by zero give 0).
+ */
+static inline bool ArmIntegerZeroDivideTrappingEnabled(const TargetCoreType *core)
+{
+	(void)core;
+	return FALSE;
+}
+
+/* GenerateIntegerZeroDivide(): a UsageFault (DIVBYZERO); it stops the run. */
+static inline Std_ReturnType ArmGenerateIntegerZeroDivide(TargetCoreType *core)
+{
+	(void)core;
+	return STD_E_EXEC;
+}
+
+/*
  * The local exclusive monitor (one core): LDREX marks an address, STREX to
  * it passes once, CLREX clears it. Exception entry and return will clear it
  * too when exceptions are modelled.

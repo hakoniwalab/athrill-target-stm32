@@ -11,6 +11,9 @@
 #include "arm_common/arm_pseudo_multiple.h"
 #include "arm_common/arm_pseudo_exclusive.h"
 #include "arm_common/arm_pseudo_branch.h"
+#include "arm_common/arm_pseudo_extend.h"
+#include "arm_common/arm_pseudo_bitfield.h"
+#include "arm_common/arm_pseudo_multiply.h"
 
 /* LDR_i_T3: LDR<c>.W <Rt>, [<Rn>{, #<imm12>}]
  *     if Rn == '1111' then SEE LDR (literal);
@@ -1974,6 +1977,1094 @@ static Std_ReturnType exec_bl_i_t1(TargetCoreType *core, uint32 insn)
 	return arm_pseudo_bl(core, &in, &out);
 }
 
+/* ADD_SP_r_T3: ADD<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_add_sp_r_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADD_SP_r_T3_Rd(insn);
+	uint32 m = t32w_ADD_SP_r_T3_Rm(insn);
+	uint32 type = t32w_ADD_SP_r_T3_stype(insn);
+	uint32 imm5 = thumb_imm5(t32w_ADD_SP_r_T3_imm3(insn), t32w_ADD_SP_r_T3_imm2(insn));
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (((d == 13U) && ((type != 0U) || (imm5 > 3U))) || (d == 15U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = thumb_shift_t(type, imm5);
+	in.shift_n = thumb_shift_n(type, imm5);
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* ADD_SP_r_T3_RRX: ADD<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_add_sp_r_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADD_SP_r_T3_RRX_Rd(insn);
+	uint32 m = t32w_ADD_SP_r_T3_RRX_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if ((d == 13U) || (d == 15U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_RRX;
+	in.shift_n = 1U;
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* ADDS_SP_r_T3: ADDS<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_adds_sp_r_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADDS_SP_r_T3_Rd(insn);
+	uint32 m = t32w_ADDS_SP_r_T3_Rm(insn);
+	uint32 type = t32w_ADDS_SP_r_T3_stype(insn);
+	uint32 imm5 = thumb_imm5(t32w_ADDS_SP_r_T3_imm3(insn), t32w_ADDS_SP_r_T3_imm2(insn));
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (((d == 13U) && ((type != 0U) || (imm5 > 3U))) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = thumb_shift_t(type, imm5);
+	in.shift_n = thumb_shift_n(type, imm5);
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* ADDS_SP_r_T3_RRX: ADDS<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_adds_sp_r_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADDS_SP_r_T3_RRX_Rd(insn);
+	uint32 m = t32w_ADDS_SP_r_T3_RRX_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if ((d == 13U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_RRX;
+	in.shift_n = 1U;
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* SUB_SP_r_T1: SUB<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sub_sp_r_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUB_SP_r_T1_Rd(insn);
+	uint32 m = t32w_SUB_SP_r_T1_Rm(insn);
+	uint32 type = t32w_SUB_SP_r_T1_stype(insn);
+	uint32 imm5 = thumb_imm5(t32w_SUB_SP_r_T1_imm3(insn), t32w_SUB_SP_r_T1_imm2(insn));
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (((d == 13U) && ((type != 0U) || (imm5 > 3U))) || (d == 15U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = thumb_shift_t(type, imm5);
+	in.shift_n = thumb_shift_n(type, imm5);
+	return arm_pseudo_sub_reg(core, &in, &out);
+}
+
+/* SUB_SP_r_T1_RRX: SUB<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sub_sp_r_t1_rrx(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUB_SP_r_T1_RRX_Rd(insn);
+	uint32 m = t32w_SUB_SP_r_T1_RRX_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if ((d == 13U) || (d == 15U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_RRX;
+	in.shift_n = 1U;
+	return arm_pseudo_sub_reg(core, &in, &out);
+}
+
+/* SUBS_SP_r_T1: SUBS<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_subs_sp_r_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUBS_SP_r_T1_Rd(insn);
+	uint32 m = t32w_SUBS_SP_r_T1_Rm(insn);
+	uint32 type = t32w_SUBS_SP_r_T1_stype(insn);
+	uint32 imm5 = thumb_imm5(t32w_SUBS_SP_r_T1_imm3(insn), t32w_SUBS_SP_r_T1_imm2(insn));
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if (((d == 13U) && ((type != 0U) || (imm5 > 3U))) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = thumb_shift_t(type, imm5);
+	in.shift_n = thumb_shift_n(type, imm5);
+	return arm_pseudo_sub_reg(core, &in, &out);
+}
+
+/* SUBS_SP_r_T1_RRX: SUBS<c>.W <Rd>, SP, <Rm>{, <shift>}
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1'); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 && (shift_t != SRType_LSL || shift_n > 3) then UNPREDICTABLE;
+ *     if (d == 15 && !setflags) || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_subs_sp_r_t1_rrx(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUBS_SP_r_T1_RRX_Rd(insn);
+	uint32 m = t32w_SUBS_SP_r_T1_RRX_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	if ((d == 13U) || (m == 13U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_RRX;
+	in.shift_n = 1U;
+	return arm_pseudo_sub_reg(core, &in, &out);
+}
+
+/* ADD_SP_i_T3: ADD<c>.W <Rd>, SP, #<const>
+ *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if d == 15 && !setflags then UNPREDICTABLE; */
+static Std_ReturnType exec_add_sp_i_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADD_SP_i_T3_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	if (d == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = ThumbExpandImm(thumb_imm12(t32w_ADD_SP_i_T3_i(insn), t32w_ADD_SP_i_T3_imm3(insn), t32w_ADD_SP_i_T3_imm8(insn)));
+	in.carry = FALSE;
+	return arm_pseudo_add_imm(core, &in, &out);
+}
+
+/* ADDS_SP_i_T3: ADDS<c>.W <Rd>, SP, #<const>
+ *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if d == 15 && !setflags then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.)
+ *     (ADDS/SUBS with Rd == '1111' is CMN/CMP: another id in the generated decoder.) */
+static Std_ReturnType exec_adds_sp_i_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADDS_SP_i_T3_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = ThumbExpandImm(thumb_imm12(t32w_ADDS_SP_i_T3_i(insn), t32w_ADDS_SP_i_T3_imm3(insn), t32w_ADDS_SP_i_T3_imm8(insn)));
+	in.carry = FALSE;
+	return arm_pseudo_add_imm(core, &in, &out);
+}
+
+/* SUB_SP_i_T2: SUB<c>.W <Rd>, SP, #<const>
+ *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if d == 15 && !setflags then UNPREDICTABLE; */
+static Std_ReturnType exec_sub_sp_i_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUB_SP_i_T2_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	if (d == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = ThumbExpandImm(thumb_imm12(t32w_SUB_SP_i_T2_i(insn), t32w_SUB_SP_i_T2_imm3(insn), t32w_SUB_SP_i_T2_imm8(insn)));
+	in.carry = FALSE;
+	return arm_pseudo_sub_imm(core, &in, &out);
+}
+
+/* SUBS_SP_i_T2: SUBS<c>.W <Rd>, SP, #<const>
+ *     d = UInt(Rd); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if d == 15 && !setflags then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.)
+ *     (ADDS/SUBS with Rd == '1111' is CMN/CMP: another id in the generated decoder.) */
+static Std_ReturnType exec_subs_sp_i_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUBS_SP_i_T2_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = TRUE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = ThumbExpandImm(thumb_imm12(t32w_SUBS_SP_i_T2_i(insn), t32w_SUBS_SP_i_T2_imm3(insn), t32w_SUBS_SP_i_T2_imm8(insn)));
+	in.carry = FALSE;
+	return arm_pseudo_sub_imm(core, &in, &out);
+}
+
+/* ADD_SP_i_T4: ADDW<c> <Rd>, SP, #<imm12>
+ *     d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(i:imm3:imm8, 32);
+ *     if d == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_add_sp_i_t4(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADD_SP_i_T4_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	if (d == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADDW";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = thumb_imm12(t32w_ADD_SP_i_T4_i(insn), t32w_ADD_SP_i_T4_imm3(insn), t32w_ADD_SP_i_T4_imm8(insn));
+	in.carry = FALSE;
+	return arm_pseudo_add_imm(core, &in, &out);
+}
+
+/* SUB_SP_i_T3: SUBW<c> <Rd>, SP, #<imm12>
+ *     d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(i:imm3:imm8, 32);
+ *     if d == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_sub_sp_i_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUB_SP_i_T3_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	if (d == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SUBW";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = thumb_imm12(t32w_SUB_SP_i_T3_i(insn), t32w_SUB_SP_i_T3_imm3(insn), t32w_SUB_SP_i_T3_imm8(insn));
+	in.carry = FALSE;
+	return arm_pseudo_sub_imm(core, &in, &out);
+}
+
+/* ADR_T2: ADR<c>.W <Rd>, <label>
+ *     d = UInt(Rd); imm32 = ZeroExtend(i:imm3:imm8, 32); add = FALSE;
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_adr_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADR_T2_Rd(insn);
+	arm_adr_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	in.imm32 = thumb_imm12(t32w_ADR_T2_i(insn), t32w_ADR_T2_imm3(insn), t32w_ADR_T2_imm8(insn));
+	in.add = FALSE;
+	return arm_pseudo_adr(core, &in, &out);
+}
+
+/* ADR_T3: ADR<c>.W <Rd>, <label>
+ *     d = UInt(Rd); imm32 = ZeroExtend(i:imm3:imm8, 32); add = TRUE;
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_adr_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_ADR_T3_Rd(insn);
+	arm_adr_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "ADR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	in.imm32 = thumb_imm12(t32w_ADR_T3_i(insn), t32w_ADR_T3_imm3(insn), t32w_ADR_T3_imm8(insn));
+	in.add = TRUE;
+	return arm_pseudo_adr(core, &in, &out);
+}
+
+/* MOVT_T1: MOVT<c> <Rd>, #<imm16>
+ *     d = UInt(Rd); imm16 = imm4:i:imm3:imm8;
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_movt_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MOVT_T1_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "MOVT";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	in.imm32 = (t32w_MOVT_T1_imm4(insn) << 12) | (t32w_MOVT_T1_i(insn) << 11) | (t32w_MOVT_T1_imm3(insn) << 8) | t32w_MOVT_T1_imm8(insn);
+	in.carry = FALSE;
+	return arm_pseudo_movt(core, &in, &out);
+}
+
+/* SXTB_T2: SXTB<c>.W <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxtb_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTB_T2_Rd(insn);
+	uint32 m = t32w_SXTB_T2_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTB_T2_rotate(insn) << 3;
+	return arm_pseudo_sxtb(core, &in, &out);
+}
+
+/* SXTH_T2: SXTH<c>.W <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxth_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTH_T2_Rd(insn);
+	uint32 m = t32w_SXTH_T2_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTH_T2_rotate(insn) << 3;
+	return arm_pseudo_sxth(core, &in, &out);
+}
+
+/* UXTB_T2: UXTB<c>.W <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxtb_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTB_T2_Rd(insn);
+	uint32 m = t32w_UXTB_T2_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTB_T2_rotate(insn) << 3;
+	return arm_pseudo_uxtb(core, &in, &out);
+}
+
+/* UXTH_T2: UXTH<c>.W <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxth_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTH_T2_Rd(insn);
+	uint32 m = t32w_UXTH_T2_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTH_T2_rotate(insn) << 3;
+	return arm_pseudo_uxth(core, &in, &out);
+}
+
+/* SXTB16_T1: SXTB16<c> <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxtb16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTB16_T1_Rd(insn);
+	uint32 m = t32w_SXTB16_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTB16_T1_rotate(insn) << 3;
+	return arm_pseudo_sxtb16(core, &in, &out);
+}
+
+/* UXTB16_T1: UXTB16<c> <Rd>, <Rm>{, <rotation>}
+ *     d = UInt(Rd); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxtb16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTB16_T1_Rd(insn);
+	uint32 m = t32w_UXTB16_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTB16_T1_rotate(insn) << 3;
+	return arm_pseudo_uxtb16(core, &in, &out);
+}
+
+/* SXTAB_T1: SXTAB<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE SXTB; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxtab_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTAB_T1_Rd(insn);
+	uint32 n = t32w_SXTAB_T1_Rn(insn);
+	uint32 m = t32w_SXTAB_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTAB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTAB_T1_rotate(insn) << 3;
+	return arm_pseudo_sxtab(core, &in, &out);
+}
+
+/* SXTAH_T1: SXTAH<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE SXTH; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxtah_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTAH_T1_Rd(insn);
+	uint32 n = t32w_SXTAH_T1_Rn(insn);
+	uint32 m = t32w_SXTAH_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTAH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTAH_T1_rotate(insn) << 3;
+	return arm_pseudo_sxtah(core, &in, &out);
+}
+
+/* UXTAB_T1: UXTAB<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE UXTB; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxtab_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTAB_T1_Rd(insn);
+	uint32 n = t32w_UXTAB_T1_Rn(insn);
+	uint32 m = t32w_UXTAB_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTAB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTAB_T1_rotate(insn) << 3;
+	return arm_pseudo_uxtab(core, &in, &out);
+}
+
+/* UXTAH_T1: UXTAH<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE UXTH; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxtah_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTAH_T1_Rd(insn);
+	uint32 n = t32w_UXTAH_T1_Rn(insn);
+	uint32 m = t32w_UXTAH_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTAH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTAH_T1_rotate(insn) << 3;
+	return arm_pseudo_uxtah(core, &in, &out);
+}
+
+/* SXTAB16_T1: SXTAB16<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE SXTB16; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sxtab16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SXTAB16_T1_Rd(insn);
+	uint32 n = t32w_SXTAB16_T1_Rn(insn);
+	uint32 m = t32w_SXTAB16_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SXTAB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_SXTAB16_T1_rotate(insn) << 3;
+	return arm_pseudo_sxtab16(core, &in, &out);
+}
+
+/* UXTAB16_T1: UXTAB16<c> <Rd>, <Rn>, <Rm>{, <rotation>}
+ *     if Rn == '1111' then SEE UXTB16; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); rotation = UInt(rotate:'000');
+ *     if d IN {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_uxtab16_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UXTAB16_T1_Rd(insn);
+	uint32 n = t32w_UXTAB16_T1_Rn(insn);
+	uint32 m = t32w_UXTAB16_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UXTAB16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = t32w_UXTAB16_T1_rotate(insn) << 3;
+	return arm_pseudo_uxtab16(core, &in, &out);
+}
+
+/* SBFX_T1: SBFX<c> <Rd>, <Rn>, #<lsb>, #<width>
+ *     d = UInt(Rd); n = UInt(Rn); lsbit = UInt(imm3:imm2); widthminus1 = UInt(widthm1);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sbfx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SBFX_T1_Rd(insn);
+	uint32 n = t32w_SBFX_T1_Rn(insn);
+	arm_bfx_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SBFX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.lsbit = thumb_imm5(t32w_SBFX_T1_imm3(insn), t32w_SBFX_T1_imm2(insn));
+	in.widthminus1 = t32w_SBFX_T1_widthm1(insn);
+	return arm_pseudo_sbfx(core, &in, &out);
+}
+
+/* UBFX_T1: UBFX<c> <Rd>, <Rn>, #<lsb>, #<width>
+ *     d = UInt(Rd); n = UInt(Rn); lsbit = UInt(imm3:imm2); widthminus1 = UInt(widthm1);
+ *     if d IN {13,15} || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_ubfx_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UBFX_T1_Rd(insn);
+	uint32 n = t32w_UBFX_T1_Rn(insn);
+	arm_bfx_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UBFX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.lsbit = thumb_imm5(t32w_UBFX_T1_imm3(insn), t32w_UBFX_T1_imm2(insn));
+	in.widthminus1 = t32w_UBFX_T1_widthm1(insn);
+	return arm_pseudo_ubfx(core, &in, &out);
+}
+
+/* BFI_T1: BFI<c> <Rd>, <Rn>, #<lsb>, #<width>
+ *     if Rn == '1111' then SEE BFC; d = UInt(Rd); n = UInt(Rn); msbit = UInt(msb); lsbit = UInt(imm3:imm2);
+ *     if d IN {13,15} || n == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_bfi_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_BFI_T1_Rd(insn);
+	uint32 n = t32w_BFI_T1_Rn(insn);
+	arm_bfi_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || (n == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "BFI";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	in.lsbit = thumb_imm5(t32w_BFI_T1_imm3(insn), t32w_BFI_T1_imm2(insn));
+	in.msbit = t32w_BFI_T1_msb(insn);
+	return arm_pseudo_bfi(core, &in, &out);
+}
+
+/* BFC_T1: BFC<c> <Rd>, #<lsb>, #<width>
+ *     d = UInt(Rd); msbit = UInt(msb); lsbit = UInt(imm3:imm2);
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_bfc_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_BFC_T1_Rd(insn);
+	arm_bfi_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "BFC";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	in.lsbit = thumb_imm5(t32w_BFC_T1_imm3(insn), t32w_BFC_T1_imm2(insn));
+	in.msbit = t32w_BFC_T1_msb(insn);
+	return arm_pseudo_bfc(core, &in, &out);
+}
+
+/* REV_T2: REV<c>.W <Rd>, <Rm>
+ *     if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     (Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.) */
+static Std_ReturnType exec_rev_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_REV_T2_Rd(insn);
+	uint32 m = t32w_REV_T2_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	if ((t32w_REV_T2_Rn(insn) != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "REV";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_rev(core, &in, &out);
+}
+
+/* REV16_T2: REV16<c>.W <Rd>, <Rm>
+ *     if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     (Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.) */
+static Std_ReturnType exec_rev16_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_REV16_T2_Rd(insn);
+	uint32 m = t32w_REV16_T2_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	if ((t32w_REV16_T2_Rn(insn) != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "REV16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_rev16(core, &in, &out);
+}
+
+/* REVSH_T2: REVSH<c>.W <Rd>, <Rm>
+ *     if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     (Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.) */
+static Std_ReturnType exec_revsh_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_REVSH_T2_Rd(insn);
+	uint32 m = t32w_REVSH_T2_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	if ((t32w_REVSH_T2_Rn(insn) != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "REVSH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_revsh(core, &in, &out);
+}
+
+/* RBIT_T1: RBIT<c> <Rd>, <Rm>
+ *     if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     (Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.) */
+static Std_ReturnType exec_rbit_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_RBIT_T1_Rd(insn);
+	uint32 m = t32w_RBIT_T1_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	if ((t32w_RBIT_T1_Rn(insn) != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "RBIT";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_rbit(core, &in, &out);
+}
+
+/* CLZ_T1: CLZ<c> <Rd>, <Rm>
+ *     if !Consistent(Rm) then UNPREDICTABLE; d = UInt(Rd); m = UInt(Rm);
+ *     if d IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     (Consistent(Rm): the second copy of Rm, the decoder's Rn field, is the same.) */
+static Std_ReturnType exec_clz_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_CLZ_T1_Rd(insn);
+	uint32 m = t32w_CLZ_T1_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	if ((t32w_CLZ_T1_Rn(insn) != m) || thumb_sp_or_pc(d) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "CLZ";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_clz(core, &in, &out);
+}
+
+/* MUL_T2: MUL<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_mul_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MUL_T2_Rd(insn);
+	uint32 n = t32w_MUL_T2_Rn(insn);
+	uint32 m = t32w_MUL_T2_Rm(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "MUL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	return arm_pseudo_mul(core, &in, &out);
+}
+
+/* MLA_T1: MLA<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     if Ra == '1111' then SEE MUL; d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra); setflags = FALSE;
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a == 13 then UNPREDICTABLE; */
+static Std_ReturnType exec_mla_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MLA_T1_Rd(insn);
+	uint32 n = t32w_MLA_T1_Rn(insn);
+	uint32 m = t32w_MLA_T1_Rm(insn);
+	uint32 a = t32w_MLA_T1_Ra(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (a == 13U)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "MLA";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	return arm_pseudo_mla(core, &in, &out);
+}
+
+/* MLS_T1: MLS<c> <Rd>, <Rn>, <Rm>, <Ra>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); a = UInt(Ra);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} || a IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_mls_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MLS_T1_Rd(insn);
+	uint32 n = t32w_MLS_T1_Rn(insn);
+	uint32 m = t32w_MLS_T1_Rm(insn);
+	uint32 a = t32w_MLS_T1_Ra(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || thumb_sp_or_pc(a)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "MLS";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_SET_REG(core, &in, Ra, a);
+	return arm_pseudo_mls(core, &in, &out);
+}
+
+/* SDIV_T1: SDIV<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sdiv_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SDIV_T1_Rd(insn);
+	uint32 n = t32w_SDIV_T1_Rn(insn);
+	uint32 m = t32w_SDIV_T1_Rm(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SDIV";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	return arm_pseudo_sdiv(core, &in, &out);
+}
+
+/* UDIV_T1: UDIV<c> <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm);
+ *     if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_udiv_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_UDIV_T1_Rd(insn);
+	uint32 n = t32w_UDIV_T1_Rn(insn);
+	uint32 m = t32w_UDIV_T1_Rm(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UDIV";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	ARM_NO_REG(&in, Ra);
+	return arm_pseudo_udiv(core, &in, &out);
+}
+
+/* SMULL_T1: SMULL<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smull_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMULL_T1_RdLo(insn);
+	uint32 dhi = t32w_SMULL_T1_RdHi(insn);
+	uint32 n = t32w_SMULL_T1_Rn(insn);
+	uint32 m = t32w_SMULL_T1_Rm(insn);
+	arm_mul_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMULL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_smull(core, &in, &out);
+}
+
+/* UMULL_T1: UMULL<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_umull_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_UMULL_T1_RdLo(insn);
+	uint32 dhi = t32w_UMULL_T1_RdHi(insn);
+	uint32 n = t32w_UMULL_T1_Rn(insn);
+	uint32 m = t32w_UMULL_T1_Rm(insn);
+	arm_mul_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UMULL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_umull(core, &in, &out);
+}
+
+/* SMLAL_T1: SMLAL<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_smlal_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_SMLAL_T1_RdLo(insn);
+	uint32 dhi = t32w_SMLAL_T1_RdHi(insn);
+	uint32 n = t32w_SMLAL_T1_Rn(insn);
+	uint32 m = t32w_SMLAL_T1_Rm(insn);
+	arm_mul_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "SMLAL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_smlal(core, &in, &out);
+}
+
+/* UMLAL_T1: UMLAL<c> <RdLo>, <RdHi>, <Rn>, <Rm>
+ *     dLo = UInt(RdLo); dHi = UInt(RdHi); n = UInt(Rn); m = UInt(Rm); setflags = FALSE;
+ *     if dLo IN {13,15} || dHi IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE;
+ *     if dHi == dLo then UNPREDICTABLE; */
+static Std_ReturnType exec_umlal_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 dlo = t32w_UMLAL_T1_RdLo(insn);
+	uint32 dhi = t32w_UMLAL_T1_RdHi(insn);
+	uint32 n = t32w_UMLAL_T1_Rn(insn);
+	uint32 m = t32w_UMLAL_T1_Rm(insn);
+	arm_mul_long_input_type in;
+	arm_mul_long_output_type out;
+
+	if (thumb_sp_or_pc(dlo) || thumb_sp_or_pc(dhi) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m) || (dhi == dlo)) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "UMLAL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, RdLo, dlo);
+	ARM_SET_REG(core, &in, RdHi, dhi);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_umlal(core, &in, &out);
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -2057,4 +3148,51 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_PLI_i_T3] = exec_pli_i_t3,
 	[T32_32_PLI_r_T1] = exec_pli_r_t1,
 	[T32_32_BL_i_T1] = exec_bl_i_t1,
+	[T32_32_ADD_SP_r_T3] = exec_add_sp_r_t3,
+	[T32_32_ADD_SP_r_T3_RRX] = exec_add_sp_r_t3_rrx,
+	[T32_32_ADDS_SP_r_T3] = exec_adds_sp_r_t3,
+	[T32_32_ADDS_SP_r_T3_RRX] = exec_adds_sp_r_t3_rrx,
+	[T32_32_SUB_SP_r_T1] = exec_sub_sp_r_t1,
+	[T32_32_SUB_SP_r_T1_RRX] = exec_sub_sp_r_t1_rrx,
+	[T32_32_SUBS_SP_r_T1] = exec_subs_sp_r_t1,
+	[T32_32_SUBS_SP_r_T1_RRX] = exec_subs_sp_r_t1_rrx,
+	[T32_32_ADD_SP_i_T3] = exec_add_sp_i_t3,
+	[T32_32_ADDS_SP_i_T3] = exec_adds_sp_i_t3,
+	[T32_32_SUB_SP_i_T2] = exec_sub_sp_i_t2,
+	[T32_32_SUBS_SP_i_T2] = exec_subs_sp_i_t2,
+	[T32_32_ADD_SP_i_T4] = exec_add_sp_i_t4,
+	[T32_32_SUB_SP_i_T3] = exec_sub_sp_i_t3,
+	[T32_32_ADR_T2] = exec_adr_t2,
+	[T32_32_ADR_T3] = exec_adr_t3,
+	[T32_32_MOVT_T1] = exec_movt_t1,
+	[T32_32_SXTB_T2] = exec_sxtb_t2,
+	[T32_32_SXTH_T2] = exec_sxth_t2,
+	[T32_32_UXTB_T2] = exec_uxtb_t2,
+	[T32_32_UXTH_T2] = exec_uxth_t2,
+	[T32_32_SXTB16_T1] = exec_sxtb16_t1,
+	[T32_32_UXTB16_T1] = exec_uxtb16_t1,
+	[T32_32_SXTAB_T1] = exec_sxtab_t1,
+	[T32_32_SXTAH_T1] = exec_sxtah_t1,
+	[T32_32_UXTAB_T1] = exec_uxtab_t1,
+	[T32_32_UXTAH_T1] = exec_uxtah_t1,
+	[T32_32_SXTAB16_T1] = exec_sxtab16_t1,
+	[T32_32_UXTAB16_T1] = exec_uxtab16_t1,
+	[T32_32_SBFX_T1] = exec_sbfx_t1,
+	[T32_32_UBFX_T1] = exec_ubfx_t1,
+	[T32_32_BFI_T1] = exec_bfi_t1,
+	[T32_32_BFC_T1] = exec_bfc_t1,
+	[T32_32_REV_T2] = exec_rev_t2,
+	[T32_32_REV16_T2] = exec_rev16_t2,
+	[T32_32_REVSH_T2] = exec_revsh_t2,
+	[T32_32_RBIT_T1] = exec_rbit_t1,
+	[T32_32_CLZ_T1] = exec_clz_t1,
+	[T32_32_MUL_T2] = exec_mul_t2,
+	[T32_32_MLA_T1] = exec_mla_t1,
+	[T32_32_MLS_T1] = exec_mls_t1,
+	[T32_32_SDIV_T1] = exec_sdiv_t1,
+	[T32_32_UDIV_T1] = exec_udiv_t1,
+	[T32_32_SMULL_T1] = exec_smull_t1,
+	[T32_32_UMULL_T1] = exec_umull_t1,
+	[T32_32_SMLAL_T1] = exec_smlal_t1,
+	[T32_32_UMLAL_T1] = exec_umlal_t1,
 };

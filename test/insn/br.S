@@ -14,8 +14,26 @@
     .equ SLOTS, 0x20000400
     .equ DUMP,  0x20000800
 
-/* Prints the 13 registers saved at DUMP and, with \slot, the 4 words at \slot. */
-.macro DUMP_LINE name, slot=0
+/* r7 = NZCV (bits 3..0), without changing the flags. */
+.macro CAPTURE_FLAGS
+    mov.w r7, #0
+    bpl   4f
+    orr.w r7, r7, #8
+4:
+    bne   5f
+    orr.w r7, r7, #4
+5:
+    bcc   6f
+    orr.w r7, r7, #2
+6:
+    bvc   7f
+    orr.w r7, r7, #1
+7:
+.endm
+
+/* Prints the 13 registers saved at DUMP, with \flags the NZCV saved after
+ * them, and with \slot the 4 words at \slot. */
+.macro DUMP_LINE name, slot=0, flags=0
     ldr   r7, =USART3_BASE
     PUTS  \name
     ldr   r0, =DUMP
@@ -23,6 +41,10 @@
     ldr   r2, [r0, #\k]
     PRINT_HEX r2
     .endr
+    .if \flags
+    ldr   r2, [r0, #52]
+    PRINT_HEX r2
+    .endif
     .if \slot
     ldr   r0, =\slot
     .irp k, 0, 4, 8, 12
@@ -77,7 +99,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_0, 0
+    DUMP_LINE bl_fwd_0, 0, 0
 
     /* bl_fwd_far_0 */
     ldr   r0, =0x7C27E2DC
@@ -102,7 +124,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_far_0, 0
+    DUMP_LINE bl_fwd_far_0, 0, 0
 
     /* bl_back_0 */
     ldr   r0, =0x35E1AF12
@@ -130,7 +152,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_0, 0
+    DUMP_LINE bl_back_0, 0, 0
 
     /* bl_back_far_0 */
     ldr   r0, =0x97A9D725
@@ -159,7 +181,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_far_0, 0
+    DUMP_LINE bl_back_far_0, 0, 0
 
     /* blx_r3_0 */
     ldr   r0, =0xB44790E5
@@ -187,7 +209,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r3_0, 0
+    DUMP_LINE blx_r3_0, 0, 0
 
     /* blx_r9_0 */
     ldr   r0, =0x54724692
@@ -215,7 +237,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r9_0, 0
+    DUMP_LINE blx_r9_0, 0, 0
 
     /* blx_lr_0 */
     ldr   r0, =0x400F2ACD
@@ -243,7 +265,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_lr_0, 0
+    DUMP_LINE blx_lr_0, 0, 0
 
     /* cbz_zero_0 */
     ldr   r0, =0x72710353
@@ -269,7 +291,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_zero_0, 0
+    DUMP_LINE cbz_zero_0, 0, 0
 
     /* cbz_nonzero_0 */
     ldr   r0, =0x89666D16
@@ -295,7 +317,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_nonzero_0, 0
+    DUMP_LINE cbz_nonzero_0, 0, 0
 
     /* cbnz_zero_0 */
     ldr   r0, =0xF8E144E2
@@ -321,7 +343,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_zero_0, 0
+    DUMP_LINE cbnz_zero_0, 0, 0
 
     /* cbnz_nonzero_0 */
     ldr   r0, =0xF4B4DB71
@@ -347,7 +369,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_nonzero_0, 0
+    DUMP_LINE cbnz_nonzero_0, 0, 0
 
     /* bl_fwd_1 */
     ldr   r0, =0xB0906A70
@@ -371,7 +393,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_1, 0
+    DUMP_LINE bl_fwd_1, 0, 0
 
     /* bl_fwd_far_1 */
     ldr   r0, =0xD234605A
@@ -396,7 +418,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_far_1, 0
+    DUMP_LINE bl_fwd_far_1, 0, 0
 
     /* bl_back_1 */
     ldr   r0, =0x715DCD9E
@@ -424,7 +446,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_1, 0
+    DUMP_LINE bl_back_1, 0, 0
 
     /* bl_back_far_1 */
     ldr   r0, =0xAEE1B460
@@ -453,7 +475,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_far_1, 0
+    DUMP_LINE bl_back_far_1, 0, 0
 
     /* blx_r3_1 */
     ldr   r0, =0xE1013EF3
@@ -481,7 +503,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r3_1, 0
+    DUMP_LINE blx_r3_1, 0, 0
 
     /* blx_r9_1 */
     ldr   r0, =0x10B7C5A9
@@ -509,7 +531,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r9_1, 0
+    DUMP_LINE blx_r9_1, 0, 0
 
     /* blx_lr_1 */
     ldr   r0, =0x861EA3EA
@@ -537,7 +559,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_lr_1, 0
+    DUMP_LINE blx_lr_1, 0, 0
 
     /* cbz_zero_1 */
     ldr   r0, =0xD8D179CE
@@ -563,7 +585,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_zero_1, 0
+    DUMP_LINE cbz_zero_1, 0, 0
 
     /* cbz_nonzero_1 */
     ldr   r0, =0x0F0D9138
@@ -589,7 +611,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_nonzero_1, 0
+    DUMP_LINE cbz_nonzero_1, 0, 0
 
     /* cbnz_zero_1 */
     ldr   r0, =0xC5C76B44
@@ -615,7 +637,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_zero_1, 0
+    DUMP_LINE cbnz_zero_1, 0, 0
 
     /* cbnz_nonzero_1 */
     ldr   r0, =0x5955AB46
@@ -641,7 +663,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_nonzero_1, 0
+    DUMP_LINE cbnz_nonzero_1, 0, 0
 
     /* bl_fwd_2 */
     ldr   r0, =0xA0ADE579
@@ -665,7 +687,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_2, 0
+    DUMP_LINE bl_fwd_2, 0, 0
 
     /* bl_fwd_far_2 */
     ldr   r0, =0x5F3CA4EF
@@ -690,7 +712,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_fwd_far_2, 0
+    DUMP_LINE bl_fwd_far_2, 0, 0
 
     /* bl_back_2 */
     ldr   r0, =0x7EE7B766
@@ -718,7 +740,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_2, 0
+    DUMP_LINE bl_back_2, 0, 0
 
     /* bl_back_far_2 */
     ldr   r0, =0x904B4766
@@ -747,7 +769,7 @@ reset_handler:
     3:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE bl_back_far_2, 0
+    DUMP_LINE bl_back_far_2, 0, 0
 
     /* blx_r3_2 */
     ldr   r0, =0x76970A9A
@@ -775,7 +797,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r3_2, 0
+    DUMP_LINE blx_r3_2, 0, 0
 
     /* blx_r9_2 */
     ldr   r0, =0x14557B3C
@@ -803,7 +825,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_r9_2, 0
+    DUMP_LINE blx_r9_2, 0, 0
 
     /* blx_lr_2 */
     ldr   r0, =0x68BCB3F7
@@ -831,7 +853,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE blx_lr_2, 0
+    DUMP_LINE blx_lr_2, 0, 0
 
     /* cbz_zero_2 */
     ldr   r0, =0xEC23BB32
@@ -857,7 +879,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_zero_2, 0
+    DUMP_LINE cbz_zero_2, 0, 0
 
     /* cbz_nonzero_2 */
     ldr   r0, =0xF38123A2
@@ -883,7 +905,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbz_nonzero_2, 0
+    DUMP_LINE cbz_nonzero_2, 0, 0
 
     /* cbnz_zero_2 */
     ldr   r0, =0x87FB9745
@@ -909,7 +931,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_zero_2, 0
+    DUMP_LINE cbnz_zero_2, 0, 0
 
     /* cbnz_nonzero_2 */
     ldr   r0, =0xAC879EBE
@@ -935,7 +957,7 @@ reset_handler:
     1:
     ldr.w r7, =DUMP
     stm.w r7, {r0-r6, r8-r12, lr}
-    DUMP_LINE cbnz_nonzero_2, 0
+    DUMP_LINE cbnz_nonzero_2, 0, 0
 
     PUTS  end
     PUTC  '\n'

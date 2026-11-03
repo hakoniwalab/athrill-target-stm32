@@ -11,6 +11,9 @@
 #include "arm_common/arm_pseudo_multiple.h"
 #include "arm_common/arm_pseudo_exclusive.h"
 #include "arm_common/arm_pseudo_branch.h"
+#include "arm_common/arm_pseudo_extend.h"
+#include "arm_common/arm_pseudo_bitfield.h"
+#include "arm_common/arm_pseudo_multiply.h"
 
 /* LDR_i_T1: LDR <Rt>, [<Rn>{, #<imm5:'00'>}]
  *     imm32 = ZeroExtend(imm5:'00', 32); t = UInt(Rt); n = UInt(Rn); index = TRUE; add = TRUE; wback = FALSE; */
@@ -506,6 +509,258 @@ static Std_ReturnType exec_cbnz_t1(TargetCoreType *core, uint16 insn)
 	return arm_pseudo_cb(core, &in, &out);
 }
 
+/* ADD_SP_r_T1: ADD<c> <Rdm>, SP, <Rdm>
+ *     d = UInt(DM:Rdm); m = UInt(DM:Rdm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);
+ *     if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+static Std_ReturnType exec_add_sp_r_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = (t32_ADD_SP_r_T1_DM(insn) << 3) | t32_ADD_SP_r_T1_Rdm(insn);
+	uint32 m = d;
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_LSL;
+	in.shift_n = 0U;
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* ADD_SP_r_T2: ADD<c> SP, <Rm>
+ *     if Rm == '1101' then SEE encoding T1; d = 13; m = UInt(Rm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);
+ *     (Rm == '1101' is ADD SP, SP, SP either way.) */
+static Std_ReturnType exec_add_sp_r_t2(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = 13U;
+	uint32 m = t32_ADD_SP_r_T2_Rm(insn);
+	arm_dp_reg_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.shift_t = SRType_LSL;
+	in.shift_n = 0U;
+	return arm_pseudo_add_reg(core, &in, &out);
+}
+
+/* ADD_SP_i_T1: ADD<c> <Rd>, SP, #<imm32>
+ *     d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(imm8:'00', 32); */
+static Std_ReturnType exec_add_sp_i_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_ADD_SP_i_T1_Rd(insn);
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = t32_ADD_SP_i_T1_imm8(insn) << 2;
+	in.carry = FALSE;
+	return arm_pseudo_add_imm(core, &in, &out);
+}
+
+/* ADD_SP_i_T2: ADD<c> SP, SP, #<imm32>
+ *     d = 13; setflags = FALSE; imm32 = ZeroExtend(imm7:'00', 32); */
+static Std_ReturnType exec_add_sp_i_t2(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = 13U;
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADD";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = t32_ADD_SP_i_T2_imm7(insn) << 2;
+	in.carry = FALSE;
+	return arm_pseudo_add_imm(core, &in, &out);
+}
+
+/* SUB_SP_i_T1: SUB<c> SP, SP, #<imm32>
+ *     d = 13; setflags = FALSE; imm32 = ZeroExtend(imm7:'00', 32); */
+static Std_ReturnType exec_sub_sp_i_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = 13U;
+	arm_dp_imm_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "SUB";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = FALSE;
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, 13U);
+	in.imm32 = t32_SUB_SP_i_T1_imm7(insn) << 2;
+	in.carry = FALSE;
+	return arm_pseudo_sub_imm(core, &in, &out);
+}
+
+/* ADR_T1: ADR<c> <Rd>, <label>
+ *     d = UInt(Rd); imm32 = ZeroExtend(imm8:'00', 32); add = TRUE; */
+static Std_ReturnType exec_adr_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_ADR_T1_Rd(insn);
+	arm_adr_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "ADR";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	in.imm32 = t32_ADR_T1_imm8(insn) << 2;
+	in.add = TRUE;
+	return arm_pseudo_adr(core, &in, &out);
+}
+
+/* SXTB_T1: SXTB<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); rotation = 0; */
+static Std_ReturnType exec_sxtb_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_SXTB_T1_Rd(insn);
+	uint32 m = t32_SXTB_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "SXTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = 0U;
+	return arm_pseudo_sxtb(core, &in, &out);
+}
+
+/* SXTH_T1: SXTH<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); rotation = 0; */
+static Std_ReturnType exec_sxth_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_SXTH_T1_Rd(insn);
+	uint32 m = t32_SXTH_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "SXTH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = 0U;
+	return arm_pseudo_sxth(core, &in, &out);
+}
+
+/* UXTB_T1: UXTB<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); rotation = 0; */
+static Std_ReturnType exec_uxtb_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_UXTB_T1_Rd(insn);
+	uint32 m = t32_UXTB_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "UXTB";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = 0U;
+	return arm_pseudo_uxtb(core, &in, &out);
+}
+
+/* UXTH_T1: UXTH<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); rotation = 0; */
+static Std_ReturnType exec_uxth_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_UXTH_T1_Rd(insn);
+	uint32 m = t32_UXTH_T1_Rm(insn);
+	arm_extend_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "UXTH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_NO_REG(&in, Rn);
+	ARM_SET_REG(core, &in, Rm, m);
+	in.rotation = 0U;
+	return arm_pseudo_uxth(core, &in, &out);
+}
+
+/* REV_T1: REV<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); */
+static Std_ReturnType exec_rev_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_REV_T1_Rd(insn);
+	uint32 m = t32_REV_T1_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "REV";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_rev(core, &in, &out);
+}
+
+/* REV16_T1: REV16<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); */
+static Std_ReturnType exec_rev16_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_REV16_T1_Rd(insn);
+	uint32 m = t32_REV16_T1_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "REV16";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_rev16(core, &in, &out);
+}
+
+/* REVSH_T1: REVSH<c> <Rd>, <Rm>
+ *     d = UInt(Rd); m = UInt(Rm); */
+static Std_ReturnType exec_revsh_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_REVSH_T1_Rd(insn);
+	uint32 m = t32_REVSH_T1_Rm(insn);
+	arm_unary_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "REVSH";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_revsh(core, &in, &out);
+}
+
+/* MUL_T1: MULS <Rdm>, <Rn>, <Rdm>
+ *     d = UInt(Rdm); n = UInt(Rn); m = UInt(Rdm); setflags = !InITBlock(); */
+static Std_ReturnType exec_mul_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = t32_MUL_T1_Rdm(insn);
+	uint32 n = t32_MUL_T1_Rn(insn);
+	arm_mul_input_type in;
+	arm_dp_output_type out;
+
+	in.instrName = "MUL";
+	in.cond = Stm32CurrentCond(core);
+	in.setflags = !Stm32InITBlock(core);
+	ARM_SET_REG(core, &in, Rd, d);
+	ARM_SET_REG(core, &in, Rn, n);
+	ARM_SET_REG(core, &in, Rm, d);
+	ARM_NO_REG(&in, Ra);
+	return arm_pseudo_mul(core, &in, &out);
+}
+
 const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_LDR_i_T1] = exec_ldr_i_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_i_t2,
@@ -531,4 +786,18 @@ const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_BLX_r_T1] = exec_blx_r_t1,
 	[T32_16_CBZ_T1] = exec_cbz_t1,
 	[T32_16_CBNZ_T1] = exec_cbnz_t1,
+	[T32_16_ADD_SP_r_T1] = exec_add_sp_r_t1,
+	[T32_16_ADD_SP_r_T2] = exec_add_sp_r_t2,
+	[T32_16_ADD_SP_i_T1] = exec_add_sp_i_t1,
+	[T32_16_ADD_SP_i_T2] = exec_add_sp_i_t2,
+	[T32_16_SUB_SP_i_T1] = exec_sub_sp_i_t1,
+	[T32_16_ADR_T1] = exec_adr_t1,
+	[T32_16_SXTB_T1] = exec_sxtb_t1,
+	[T32_16_SXTH_T1] = exec_sxth_t1,
+	[T32_16_UXTB_T1] = exec_uxtb_t1,
+	[T32_16_UXTH_T1] = exec_uxth_t1,
+	[T32_16_REV_T1] = exec_rev_t1,
+	[T32_16_REV16_T1] = exec_rev16_t1,
+	[T32_16_REVSH_T1] = exec_revsh_t1,
+	[T32_16_MUL_T1] = exec_mul_t1,
 };
