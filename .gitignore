@@ -67,3 +67,4 @@ vcpkg_installed/
 Testing/
 .cache/
 test/hello/hello.lst
+log.txt
