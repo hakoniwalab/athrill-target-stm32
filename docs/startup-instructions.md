@@ -78,3 +78,12 @@ The start-up also needs, before any instruction is reached:
   does once enabled;
 - the system control space it writes: SCB (VTOR, CPACR, CCR, caches), MPU,
   SysTick, NVIC.
+
+## Progress
+
+Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
+(share of the start-up's instructions, counted by use):
+
+| Date | Executors | Before the OS: with an executor / tested | With the OS start: with an executor / tested |
+|---|---|---|---|
+| 2026-11-03 | 63 encodings (ADD, SUB, CMP, AND, MOV, LDR, B, ...) | 37 of 93 encodings, 60.9% / 58.5% of uses | 50 of 184 encodings, 63.8% / 61.6% of uses |

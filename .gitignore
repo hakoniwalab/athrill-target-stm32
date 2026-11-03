@@ -68,3 +68,9 @@ Testing/
 .cache/
 test/hello/hello.lst
 log.txt
+
+# Athrill run log, coverage output
+log.txt
+*.profraw
+*.profdata
+build-coverage/

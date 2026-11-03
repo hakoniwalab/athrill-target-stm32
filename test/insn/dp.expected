@@ -1,0 +1,41 @@
+sub_t1 00000002 2
+sub_t2 FFFFFFFF 8
+cmp_t1 6
+mov_t1 00000080 2
+add_reg_t1 80000000 9
+add_reg_t2 00000033
+and_reg_t1 00F000F0 2
+cmp_reg_t1 8
+cmp_reg_t2 6
+mov_reg_t2 00000001 2
+lsl_reg_t1 80000000 A
+lsr_reg_t1 00000000 6
+asr_reg_t1 C0000000 8
+ror_reg_t1 80000000 A
+sub_t3 11355579
+subs_t3 00000000 6
+sub_t4 00000001
+cmp_t2 8
+and_t1 12005600
+ands_t1 80000000 A
+ands_t1_rep 00340078 0
+mov_t2 AB00AB00
+movs_t2 40000000 0
+mov_t3 0000BEEF
+add_reg_t3 00001201
+adds_reg_t3 00000000 6
+add_reg_t3_rrx 80000002
+adds_reg_t3_rrx 00000000 6
+cmp_reg_t3 6
+cmp_reg_t3_rrx 9
+and_reg_t2 0ABCD000
+ands_reg_t2 00000000 6
+and_reg_t2_rrx 80000000
+ands_reg_t2_rrx 00000000 6
+mov_reg_t3 12345678
+movs_reg_t3 00000010 2
+mov_reg_t3_rrx 80000001
+movs_reg_t3_rrx 00000000 6
+mov_rsr_t2 00000000
+movs_rsr_t2 FFFFFFFF 8
+end

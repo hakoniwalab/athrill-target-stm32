@@ -5,46 +5,181 @@
  * its encoding into the pseudo-code's inputs (the encoding's "Encoding
  * specific operations" in the Armv7-M Architecture Reference Manual).
  */
-#include "thumb_exec.h"
+#include "thumb_glue.h"
 #include "t32_decode16.h"
-#include "arm_common/arm_pseudo_arith.h"
 #include "arm_common/arm_pseudo_load.h"
 #include "arm_common/arm_pseudo_branch.h"
 
 /*
- * ADD (immediate)
+ * Data processing, immediate
  */
 
-/* T1: ADDS <Rd>, <Rn>, #<imm3>
+/* ADD T1: ADDS <Rd>, <Rn>, #<imm3>
  *     d = UInt(Rd); n = UInt(Rn); setflags = !InITBlock(); imm32 = ZeroExtend(imm3, 32); */
 static Std_ReturnType exec_add_imm_t1(TargetCoreType *core, uint16 insn)
 {
-	arm_add_imm_input_type in;
-	arm_add_imm_output_type out;
-
-	in.instrName = "ADD";
-	in.cond = Stm32CurrentCond(core);
-	in.setflags = !Stm32InITBlock(core);
-	ARM_SET_REG(core, &in, Rd, t32_ADD_i_T1_Rd(insn));
-	ARM_SET_REG(core, &in, Rn, t32_ADD_i_T1_Rn(insn));
-	in.imm32 = t32_ADD_i_T1_imm3(insn);
-	return arm_pseudo_add_imm(core, &in, &out);
+	return thumb_dp_imm(core, arm_pseudo_add_imm, "ADD", !Stm32InITBlock(core),
+		t32_ADD_i_T1_Rd(insn), t32_ADD_i_T1_Rn(insn), t32_ADD_i_T1_imm3(insn), FALSE);
 }
 
-/* T2: ADDS <Rdn>, #<imm8>
+/* ADD T2: ADDS <Rdn>, #<imm8>
  *     d = UInt(Rdn); n = UInt(Rdn); setflags = !InITBlock(); imm32 = ZeroExtend(imm8, 32); */
 static Std_ReturnType exec_add_imm_t2(TargetCoreType *core, uint16 insn)
 {
-	arm_add_imm_input_type in;
-	arm_add_imm_output_type out;
+	return thumb_dp_imm(core, arm_pseudo_add_imm, "ADD", !Stm32InITBlock(core),
+		t32_ADD_i_T2_Rdn(insn), t32_ADD_i_T2_Rdn(insn), t32_ADD_i_T2_imm8(insn), FALSE);
+}
 
-	in.instrName = "ADD";
-	in.cond = Stm32CurrentCond(core);
-	in.setflags = !Stm32InITBlock(core);
-	ARM_SET_REG(core, &in, Rd, t32_ADD_i_T2_Rdn(insn));
-	ARM_SET_REG(core, &in, Rn, t32_ADD_i_T2_Rdn(insn));
-	in.imm32 = t32_ADD_i_T2_imm8(insn);
-	return arm_pseudo_add_imm(core, &in, &out);
+/* SUB T1: SUBS <Rd>, <Rn>, #<imm3>
+ *     d = UInt(Rd); n = UInt(Rn); setflags = !InITBlock(); imm32 = ZeroExtend(imm3, 32); */
+static Std_ReturnType exec_sub_imm_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_imm(core, arm_pseudo_sub_imm, "SUB", !Stm32InITBlock(core),
+		t32_SUB_i_T1_Rd(insn), t32_SUB_i_T1_Rn(insn), t32_SUB_i_T1_imm3(insn), FALSE);
+}
+
+/* SUB T2: SUBS <Rdn>, #<imm8>
+ *     d = UInt(Rdn); n = UInt(Rdn); setflags = !InITBlock(); imm32 = ZeroExtend(imm8, 32); */
+static Std_ReturnType exec_sub_imm_t2(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_imm(core, arm_pseudo_sub_imm, "SUB", !Stm32InITBlock(core),
+		t32_SUB_i_T2_Rdn(insn), t32_SUB_i_T2_Rdn(insn), t32_SUB_i_T2_imm8(insn), FALSE);
+}
+
+/* CMP T1: CMP <Rn>, #<imm8>
+ *     n = UInt(Rn); imm32 = ZeroExtend(imm8, 32); */
+static Std_ReturnType exec_cmp_imm_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_imm(core, arm_pseudo_cmp_imm, "CMP", TRUE,
+		THUMB_NO_REG, t32_CMP_i_T1_Rn(insn), t32_CMP_i_T1_imm8(insn), FALSE);
+}
+
+/* MOV T1: MOVS <Rd>, #<imm8>
+ *     d = UInt(Rd); setflags = !InITBlock(); imm32 = ZeroExtend(imm8, 32); carry = APSR.C; */
+static Std_ReturnType exec_mov_imm_t1(TargetCoreType *core, uint16 insn)
+{
+	bool carry = ApsrFlags(ArmAPSR(core)).carry;
+
+	return thumb_dp_imm(core, arm_pseudo_mov_imm, "MOV", !Stm32InITBlock(core),
+		t32_MOV_i_T1_Rd(insn), THUMB_NO_REG, t32_MOV_i_T1_imm8(insn), carry);
+}
+
+/*
+ * Data processing, register
+ */
+
+/* ADD T1: ADDS <Rd>, <Rn>, <Rm>
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = !InITBlock();
+ *     (shift_t, shift_n) = (SRType_LSL, 0); */
+static Std_ReturnType exec_add_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_add_reg, "ADD", !Stm32InITBlock(core),
+		t32_ADD_r_T1_Rd(insn), t32_ADD_r_T1_Rn(insn), t32_ADD_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* ADD T2: ADD <Rdn>, <Rm>
+ *     if (DN:Rdn) == '1101' || Rm == '1101' then SEE ADD (SP plus register);
+ *     d = UInt(DN:Rdn); n = d; m = UInt(Rm); setflags = FALSE; (shift_t, shift_n) = (SRType_LSL, 0);
+ *     if n == 15 && m == 15 then UNPREDICTABLE;
+ *     if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
+static Std_ReturnType exec_add_reg_t2(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = (t32_ADD_r_T2_DN(insn) << 3) | t32_ADD_r_T2_Rdn(insn);
+	uint32 m = t32_ADD_r_T2_Rm(insn);
+
+	if ((d == 15U) && (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_reg(core, arm_pseudo_add_reg, "ADD", FALSE, d, d, m, SRType_LSL, 0U);
+}
+
+/* AND T1: ANDS <Rdn>, <Rm>
+ *     d = UInt(Rdn); n = UInt(Rdn); m = UInt(Rm); setflags = !InITBlock();
+ *     (shift_t, shift_n) = (SRType_LSL, 0); */
+static Std_ReturnType exec_and_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_and_reg, "AND", !Stm32InITBlock(core),
+		t32_AND_r_T1_Rdn(insn), t32_AND_r_T1_Rdn(insn), t32_AND_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* CMP T1: CMP <Rn>, <Rm>
+ *     n = UInt(Rn); m = UInt(Rm); (shift_t, shift_n) = (SRType_LSL, 0); */
+static Std_ReturnType exec_cmp_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return thumb_dp_reg(core, arm_pseudo_cmp_reg, "CMP", TRUE,
+		THUMB_NO_REG, t32_CMP_r_T1_Rn(insn), t32_CMP_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* CMP T2: CMP <Rn>, <Rm> (high registers)
+ *     n = UInt(N:Rn); m = UInt(Rm); (shift_t, shift_n) = (SRType_LSL, 0);
+ *     if n < 8 && m < 8 then UNPREDICTABLE;
+ *     if n == 15 || m == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_cmp_reg_t2(TargetCoreType *core, uint16 insn)
+{
+	uint32 n = (t32_CMP_r_T2_N(insn) << 3) | t32_CMP_r_T2_Rn(insn);
+	uint32 m = t32_CMP_r_T2_Rm(insn);
+
+	if (((n < 8U) && (m < 8U)) || (n == 15U) || (m == 15U)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_reg(core, arm_pseudo_cmp_reg, "CMP", TRUE, THUMB_NO_REG, n, m, SRType_LSL, 0U);
+}
+
+/* MOV T1: MOV <Rd>, <Rm>
+ *     d = UInt(D:Rd); m = UInt(Rm); setflags = FALSE;
+ *     if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE; */
+static Std_ReturnType exec_mov_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 d = (t32_MOV_r_T1_D(insn) << 3) | t32_MOV_r_T1_Rd(insn);
+
+	return thumb_dp_reg(core, arm_pseudo_mov_reg, "MOV", FALSE,
+		d, THUMB_NO_REG, t32_MOV_r_T1_Rm(insn), SRType_LSL, 0U);
+}
+
+/* MOV T2: MOVS <Rd>, <Rm> and LSLS/LSRS/ASRS <Rd>, <Rm>, #<imm5>
+ *     d = UInt(Rd); m = UInt(Rm); setflags = !InITBlock();
+ *     (shift_t, shift_n) = DecodeImmShift(op, imm5);
+ *     MOVS <Rd>, <Rm> (op = '00', imm5 = '00000'): if InITBlock() then UNPREDICTABLE;
+ * (op = '11' is another instruction in the generated decoder.) */
+static Std_ReturnType exec_mov_reg_t2(TargetCoreType *core, uint16 insn)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	DecodeImmShift(t32_MOV_r_T2_op(insn), t32_MOV_r_T2_imm5(insn), &shift_t, &shift_n);
+	if ((shift_t == SRType_LSL) && (shift_n == 0U) && Stm32InITBlock(core)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_reg(core, arm_pseudo_mov_reg, "MOV", !Stm32InITBlock(core),
+		t32_MOV_r_T2_Rd(insn), THUMB_NO_REG, t32_MOV_r_T2_Rm(insn), shift_t, shift_n);
+}
+
+/* MOV (register-shifted register) T1: LSLS/LSRS/ASRS/RORS <Rdm>, <Rs>
+ *     d = UInt(Rdm); m = UInt(Rdm); s = UInt(Rs); setflags = !InITBlock();
+ *     shift_t by the instruction (one generated id each). */
+static Std_ReturnType mov_rsr_t1(TargetCoreType *core, uint32 rdm, uint32 rs, SRType shift_t)
+{
+	return thumb_mov_rsr(core, "MOV", !Stm32InITBlock(core), rdm, rdm, rs, shift_t);
+}
+
+static Std_ReturnType exec_lsl_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return mov_rsr_t1(core, t32_MOV_rr_T1_LSL_Rdm(insn), t32_MOV_rr_T1_LSL_Rs(insn), SRType_LSL);
+}
+
+static Std_ReturnType exec_lsr_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return mov_rsr_t1(core, t32_MOV_rr_T1_LSR_Rdm(insn), t32_MOV_rr_T1_LSR_Rs(insn), SRType_LSR);
+}
+
+static Std_ReturnType exec_asr_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return mov_rsr_t1(core, t32_MOV_rr_T1_ASR_Rdm(insn), t32_MOV_rr_T1_ASR_Rs(insn), SRType_ASR);
+}
+
+static Std_ReturnType exec_ror_reg_t1(TargetCoreType *core, uint16 insn)
+{
+	return mov_rsr_t1(core, t32_MOV_rr_T1_ROR_Rdm(insn), t32_MOV_rr_T1_ROR_Rs(insn), SRType_ROR);
 }
 
 /*
@@ -130,13 +265,6 @@ static Std_ReturnType exec_b_t2(TargetCoreType *core, uint16 insn)
  * Instructions not yet in athrill-arm-common.
  */
 
-static void set_nz(TargetCoreType *core, uint32 result)
-{
-	PseudoCodeStatusFlagType flags = ApsrFlags(ArmAPSR(core));
-
-	ArmAPSRWrite(core, ApsrUpdateNZCV(ArmAPSR(core), result, &flags));
-}
-
 static Std_ReturnType load(TargetCoreType *core, uint32 address, uint32 size, uint32 *value)
 {
 	return ArmMemU_R(core, address, size, value);
@@ -177,54 +305,6 @@ static Std_ReturnType exec_strb_imm(TargetCoreType *core, uint16 insn)
 		core->reg.r[t32_STRB_i_T1_Rt(insn)]);
 }
 
-/* MOVS Rd, #imm8: C is unchanged. */
-static Std_ReturnType exec_movs_imm(TargetCoreType *core, uint16 insn)
-{
-	uint32 value = t32_MOV_i_T1_imm8(insn);
-
-	core->reg.r[t32_MOV_i_T1_Rd(insn)] = value;
-	set_nz(core, value);
-	return STD_E_OK;
-}
-
-static Std_ReturnType exec_cmp_imm(TargetCoreType *core, uint16 insn)
-{
-	PseudoCodeStatusFlagType flags;
-	uint32 result = AddWithCarry(core->reg.r[t32_CMP_i_T1_Rn(insn)], ~t32_CMP_i_T1_imm8(insn), TRUE, &flags);
-
-	ArmAPSRWrite(core, ApsrUpdateNZCV(ArmAPSR(core), result, &flags));
-	return STD_E_OK;
-}
-
-static Std_ReturnType exec_subs_imm8(TargetCoreType *core, uint16 insn)
-{
-	uint32 rdn = t32_SUB_i_T2_Rdn(insn);
-	PseudoCodeStatusFlagType flags;
-	uint32 result = AddWithCarry(core->reg.r[rdn], ~t32_SUB_i_T2_imm8(insn), TRUE, &flags);
-
-	core->reg.r[rdn] = result;
-	ArmAPSRWrite(core, ApsrUpdateNZCV(ArmAPSR(core), result, &flags));
-	return STD_E_OK;
-}
-
-/*
- * MOVS Rd, Rm, <shift> #imm (LSLS, LSRS, ASRS immediate; op 0b11 is not this
- * instruction): (result, carry) = Shift_C(R[m], shift_t, shift_n, APSR.C).
- */
-static Std_ReturnType exec_movs_shift_imm(TargetCoreType *core, uint16 insn)
-{
-	SRType shift_t;
-	uint32 shift_n;
-	PseudoCodeStatusFlagType flags = ApsrFlags(ArmAPSR(core));
-	uint32 result;
-
-	DecodeImmShift(t32_MOV_r_T2_op(insn), t32_MOV_r_T2_imm5(insn), &shift_t, &shift_n);
-	result = Shift_C(core->reg.r[t32_MOV_r_T2_Rm(insn)], shift_t, shift_n, flags.carry, &flags.carry);
-	core->reg.r[t32_MOV_r_T2_Rd(insn)] = result;
-	ArmAPSRWrite(core, ApsrUpdateNZCV(ArmAPSR(core), result, &flags));
-	return STD_E_OK;
-}
-
 /* BX Rm: BXWritePC(R[m]). */
 static Std_ReturnType exec_bx(TargetCoreType *core, uint16 insn)
 {
@@ -251,6 +331,21 @@ typedef Std_ReturnType (*ThumbExec16)(TargetCoreType *core, uint16 insn);
 static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_ADD_i_T1] = exec_add_imm_t1,
 	[T32_16_ADD_i_T2] = exec_add_imm_t2,
+	[T32_16_SUB_i_T1] = exec_sub_imm_t1,
+	[T32_16_SUB_i_T2] = exec_sub_imm_t2,
+	[T32_16_CMP_i_T1] = exec_cmp_imm_t1,
+	[T32_16_MOV_i_T1] = exec_mov_imm_t1,
+	[T32_16_ADD_r_T1] = exec_add_reg_t1,
+	[T32_16_ADD_r_T2] = exec_add_reg_t2,
+	[T32_16_AND_r_T1] = exec_and_reg_t1,
+	[T32_16_CMP_r_T1] = exec_cmp_reg_t1,
+	[T32_16_CMP_r_T2] = exec_cmp_reg_t2,
+	[T32_16_MOV_r_T1] = exec_mov_reg_t1,
+	[T32_16_MOV_r_T2] = exec_mov_reg_t2,
+	[T32_16_MOV_rr_T1_LSL] = exec_lsl_reg_t1,
+	[T32_16_MOV_rr_T1_LSR] = exec_lsr_reg_t1,
+	[T32_16_MOV_rr_T1_ASR] = exec_asr_reg_t1,
+	[T32_16_MOV_rr_T1_ROR] = exec_ror_reg_t1,
 	[T32_16_LDR_i_T1] = exec_ldr_imm_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_imm_t2,
 	[T32_16_B_T1] = exec_b_t1,
@@ -260,10 +355,6 @@ static const ThumbExec16 executors[T32_16_ID_NUM] = {
 	[T32_16_STR_i_T1] = exec_str_imm,
 	[T32_16_LDRB_i_T1] = exec_ldrb_imm,
 	[T32_16_STRB_i_T1] = exec_strb_imm,
-	[T32_16_MOV_i_T1] = exec_movs_imm,
-	[T32_16_CMP_i_T1] = exec_cmp_imm,
-	[T32_16_SUB_i_T2] = exec_subs_imm8,
-	[T32_16_MOV_r_T2] = exec_movs_shift_imm,
 	[T32_16_BX_T1] = exec_bx,
 	[T32_16_NOP_T1] = exec_nop,
 	[T32_16_WFI_T1] = exec_wfi,

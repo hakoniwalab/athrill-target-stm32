@@ -47,6 +47,9 @@ add_library(athrill_cui STATIC ${ATHRILL_CUI_SOURCES})
 target_include_directories(athrill_cui PRIVATE "${ATHRILL_SRC_DIR}/debugger/executor/concrete_executor/target")
 stm32_target(athrill_cui)
 
+# Source-based code coverage of the CPU (clang), see tools/coverage.sh.
+option(ATHRILL_STM32_COVERAGE "Build the CPU with code coverage" OFF)
+
 add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
   src/cpu/thumb_exec.c
@@ -56,6 +59,9 @@ add_library(athrill_stm32_cpu STATIC
   src/cpu/decoder/t32_decode32.c
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
 stm32_target(athrill_stm32_cpu)
+if(ATHRILL_STM32_COVERAGE)
+  target_compile_options(athrill_stm32_cpu PRIVATE -fprofile-instr-generate -fcoverage-mapping -O0)
+endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
   src/device/device.c src/device/peripheral/stm32_usart.c
@@ -91,6 +97,9 @@ target_link_libraries(athrill3 PRIVATE athrill_main athrill_cui athrill_stm32_cp
 if(ATHRILL_HAKONIWA_RPATH)
   set_target_properties(athrill3 PROPERTIES BUILD_RPATH "${ATHRILL_HAKONIWA_RPATH}" INSTALL_RPATH "${ATHRILL_HAKONIWA_RPATH}")
 endif()
+if(ATHRILL_STM32_COVERAGE)
+  target_link_options(athrill3 PRIVATE -fprofile-instr-generate)
+endif()
 install(TARGETS athrill3 RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if(BUILD_TESTING)
@@ -108,13 +117,10 @@ if(BUILD_TESTING)
             -d "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/device_config.txt"
             -t 100000 "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/hello.elf")
   set_tests_properties(hello-usart3 PROPERTIES PASS_REGULAR_EXPRESSION "Hello, Athrill STM32!")
-  # ADD (immediate), LDR (immediate) and B in all their encodings (test/insn,
-  # prebuilt ELF); the expected output is worked out by hand from the pseudo-code.
-  add_test(NAME insn-add-ldr-b
-    COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/memory.txt"
-            -d "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/device_config.txt"
-            -t 2000000 "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/insn.elf")
-  set_tests_properties(insn-add-ldr-b PROPERTIES
-    PASS_REGULAR_EXPRESSION "add_t1 00000000 6\nadd_t2 80000000 9\nadd_t3 12DF5723\nadds_t3 00000000 6\nadd_t4 12346677\nldr_t1 22222222\nldr_t2 55555555\nldr_t3 44444444\nldr_t4_off 22222222\nldr_t4_pre 22222222 33333333\nldr_t4_post 11111111 33333333\nldr_t4_sub 22222222 22222222\nb_t1 ok\nb_t2 ok\nb_t3 ok\nb_t4 ok\nend"
-    FAIL_REGULAR_EXPRESSION " NG|ERROR:")
+  # Instruction tests (test/insn): every encoding of the instructions run
+  # through athrill-arm-common, compared with the output of the same
+  # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
+  foreach(t insn dp)
+    add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
+  endforeach()
 endif()

@@ -31,13 +31,46 @@ is a licensed product), so three kinds of tests are combined:
 | Random instruction sequences | Random Thumb-2 sequences run from the same initial state on Athrill and on the reference; registers and memory compared after each instruction | QEMU `mps2-an500` (Cortex-M7), used as an external tool |
 | Decoder cross-check | Every 16-bit encoding and sampled 32-bit encodings disassembled and compared (design decision 10) | GNU objdump, llvm-objdump |
 
-## 3. Exceptions and interrupts
+### Instruction tests in use
+
+`test/insn` has one program per group of instructions (`insn.S`: ADD, LDR,
+B; `dp.S`: data processing). Each runs every encoding of its instructions
+with chosen operands and flags and prints one line per case (result and
+NZCV). `test/insn/build.sh` builds it twice: for this target (Cortex-M7,
+STM32F7 USART) and for QEMU's `netduinoplus2` (Cortex-M4, STM32F4 USART),
+whose Armv7-M integer instructions mean the same; the QEMU run's output is
+kept as `<test>.expected`. CTest (`insn-<test>`, `test/insn/run.sh`) runs the
+program on Athrill and compares its output with that file line by line. The
+expected values thus come from an implementation independent of Athrill and
+of whoever writes the test; spot checks by hand against the pseudo-code agree
+with them.
+
+Every new encoding gets a case in a program of `test/insn`; a test passes only
+when its output equals QEMU's.
+
+## 3. Coverage
+
+`tools/coverage.sh` builds the target with clang's source-based coverage,
+runs the CTest tests and reports:
+
+- code coverage (regions, functions, lines, branches) of the executors, the
+  glue, the M-profile implementation and athrill-arm-common's pseudo-code;
+- encoding coverage: of the encodings with an executor, which the tests run
+  (`tools/encoding_coverage.py`); with `--usage` and the output of
+  `tools/insn_usage.py`, also the share of a firmware's start-up that has an
+  executor and that is tested.
+
+The aim is every encoding with an executor run by a test. Branches that only
+an UNPREDICTABLE encoding takes are not counted against it. athrill-arm-common
+measures its pseudo-code by its own unit tests (`tools/coverage.sh` there).
+
+## 4. Exceptions and interrupts
 
 Self-checking programs for the stacked frame on exception entry, priorities
 and preemption, tail-chaining, lazy floating-point stacking, SysTick, PendSV,
 SVCall and exception return (EXC_RETURN), compared with QEMU and Renode.
 
-## 4. The whole chip: Renode
+## 5. The whole chip: Renode
 
 Renode models the STM32F7 with its peripherals. The same firmware runs on
 Athrill and on Renode, and their behaviour is compared: peripheral register
@@ -46,21 +79,21 @@ instruction stream up to the first difference. Renode is used as an external
 tool only (design decision 8). The same runs also compare the speed of the
 two.
 
-## 5. Operating systems
+## 6. Operating systems
 
 - NuttX ostest on an STM32F7 board configuration of NuttX (for example
   Nucleo-F767ZI), with the NuttX version PX4 uses: runs to the end and passes.
 - PX4 `px4_fmu-v5_default`, as built, boots to the NSH prompt (stage 1).
 - ChibiOS tests with ArduPilot (stage 3).
 
-## 6. Peripherals and sensor chips
+## 7. Peripherals and sensor chips
 
 Unit tests per peripheral against the STM32F7 reference manual: register
 reads and writes, status bits, interrupts, DMA transfers. Sensor chips: the
 registers their PX4 drivers use (identification, setup, data-ready, data).
 The same form as the RISC-V target's UART and timer unit tests.
 
-## 7. Rules carried over from the RISC-V target
+## 8. Rules carried over from the RISC-V target
 
 - Every speed-up gives byte-identical output to one-instruction-at-a-time
   execution.

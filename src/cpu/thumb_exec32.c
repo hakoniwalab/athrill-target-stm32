@@ -5,73 +5,368 @@
  * "Encoding specific operations" in the Armv7-M Architecture Reference
  * Manual.
  */
-#include "thumb_exec.h"
+#include "thumb_glue.h"
 #include "t32_decode32.h"
-#include "arm_common/arm_pseudo_arith.h"
 #include "arm_common/arm_pseudo_load.h"
 #include "arm_common/arm_pseudo_branch.h"
 
 /*
- * ADD (immediate)
+ * Data processing, immediate
  */
 
-/* T3: ADD{S}<c>.W <Rd>, <Rn>, #<const>
+/* ADD T3: ADD{S}<c>.W <Rd>, <Rn>, #<const>
  *     if Rd == '1111' && S == '1' then SEE CMN (immediate);
  *     if Rn == '1101' then SEE ADD (SP plus immediate);
  *     d = UInt(Rd); n = UInt(Rn); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
  *     if d == 13 || (d == 15 && S == '0') || n == 15 then UNPREDICTABLE;
  * (CMN and ADD (SP plus immediate) are other ids in the generated decoder.) */
-static Std_ReturnType add_imm_t3(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 i, uint32 imm3, uint32 imm8)
+static Std_ReturnType add_imm_t3(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 imm12)
 {
-	arm_add_imm_input_type in;
-	arm_add_imm_output_type out;
-	uint32 imm12 = (i << 11) | (imm3 << 8) | imm8;
-
 	if ((d == 13U) || (d == 15U) || (n == 15U)) {
 		return STD_E_INVALID;
 	}
-	in.instrName = "ADD";
-	in.cond = Stm32CurrentCond(core);
-	in.setflags = setflags;
-	ARM_SET_REG(core, &in, Rd, d);
-	ARM_SET_REG(core, &in, Rn, n);
-	in.imm32 = ThumbExpandImm(imm12);
-	return arm_pseudo_add_imm(core, &in, &out);
+	return thumb_dp_imm(core, arm_pseudo_add_imm, "ADD", setflags, d, n, ThumbExpandImm(imm12), FALSE);
 }
 
 static Std_ReturnType exec_add_imm_t3(TargetCoreType *core, uint32 insn)
 {
 	return add_imm_t3(core, FALSE, t32w_ADD_i_T3_Rd(insn), t32w_ADD_i_T3_Rn(insn),
-		t32w_ADD_i_T3_i(insn), t32w_ADD_i_T3_imm3(insn), t32w_ADD_i_T3_imm8(insn));
+		thumb_imm12(t32w_ADD_i_T3_i(insn), t32w_ADD_i_T3_imm3(insn), t32w_ADD_i_T3_imm8(insn)));
 }
 
 static Std_ReturnType exec_adds_imm_t3(TargetCoreType *core, uint32 insn)
 {
 	return add_imm_t3(core, TRUE, t32w_ADDS_i_T3_Rd(insn), t32w_ADDS_i_T3_Rn(insn),
-		t32w_ADDS_i_T3_i(insn), t32w_ADDS_i_T3_imm3(insn), t32w_ADDS_i_T3_imm8(insn));
+		thumb_imm12(t32w_ADDS_i_T3_i(insn), t32w_ADDS_i_T3_imm3(insn), t32w_ADDS_i_T3_imm8(insn)));
 }
 
-/* T4: ADDW<c> <Rd>, <Rn>, #<imm12>
+/* ADD T4: ADDW<c> <Rd>, <Rn>, #<imm12>
  *     if Rn == '1111' then SEE ADR;
  *     if Rn == '1101' then SEE ADD (SP plus immediate);
  *     d = UInt(Rd); n = UInt(Rn); setflags = FALSE; imm32 = ZeroExtend(i:imm3:imm8, 32);
  *     if d IN {13,15} then UNPREDICTABLE; */
 static Std_ReturnType exec_add_imm_t4(TargetCoreType *core, uint32 insn)
 {
-	arm_add_imm_input_type in;
-	arm_add_imm_output_type out;
 	uint32 d = t32w_ADD_i_T4_Rd(insn);
 
-	if ((d == 13U) || (d == 15U)) {
+	if (thumb_sp_or_pc(d)) {
 		return STD_E_INVALID;
 	}
-	in.instrName = "ADDW";
-	in.cond = Stm32CurrentCond(core);
-	in.setflags = FALSE;
-	ARM_SET_REG(core, &in, Rd, d);
-	ARM_SET_REG(core, &in, Rn, t32w_ADD_i_T4_Rn(insn));
-	in.imm32 = (t32w_ADD_i_T4_i(insn) << 11) | (t32w_ADD_i_T4_imm3(insn) << 8) | t32w_ADD_i_T4_imm8(insn);
-	return arm_pseudo_add_imm(core, &in, &out);
+	return thumb_dp_imm(core, arm_pseudo_add_imm, "ADDW", FALSE, d, t32w_ADD_i_T4_Rn(insn),
+		thumb_imm12(t32w_ADD_i_T4_i(insn), t32w_ADD_i_T4_imm3(insn), t32w_ADD_i_T4_imm8(insn)), FALSE);
+}
+
+/* SUB T3: SUB{S}<c>.W <Rd>, <Rn>, #<const>
+ *     if Rd == '1111' && S == '1' then SEE CMP (immediate);
+ *     if Rn == '1101' then SEE SUB (SP minus immediate);
+ *     d = UInt(Rd); n = UInt(Rn); setflags = (S == '1'); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if d == 13 || (d == 15 && S == '0') || n == 15 then UNPREDICTABLE; */
+static Std_ReturnType sub_imm_t3(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 imm12)
+{
+	if ((d == 13U) || (d == 15U) || (n == 15U)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_imm(core, arm_pseudo_sub_imm, "SUB", setflags, d, n, ThumbExpandImm(imm12), FALSE);
+}
+
+static Std_ReturnType exec_sub_imm_t3(TargetCoreType *core, uint32 insn)
+{
+	return sub_imm_t3(core, FALSE, t32w_SUB_i_T3_Rd(insn), t32w_SUB_i_T3_Rn(insn),
+		thumb_imm12(t32w_SUB_i_T3_i(insn), t32w_SUB_i_T3_imm3(insn), t32w_SUB_i_T3_imm8(insn)));
+}
+
+static Std_ReturnType exec_subs_imm_t3(TargetCoreType *core, uint32 insn)
+{
+	return sub_imm_t3(core, TRUE, t32w_SUBS_i_T3_Rd(insn), t32w_SUBS_i_T3_Rn(insn),
+		thumb_imm12(t32w_SUBS_i_T3_i(insn), t32w_SUBS_i_T3_imm3(insn), t32w_SUBS_i_T3_imm8(insn)));
+}
+
+/* SUB T4: SUBW<c> <Rd>, <Rn>, #<imm12>
+ *     if Rn == '1111' then SEE ADR;
+ *     if Rn == '1101' then SEE SUB (SP minus immediate);
+ *     d = UInt(Rd); n = UInt(Rn); setflags = FALSE; imm32 = ZeroExtend(i:imm3:imm8, 32);
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_sub_imm_t4(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_SUB_i_T4_Rd(insn);
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_imm(core, arm_pseudo_sub_imm, "SUBW", FALSE, d, t32w_SUB_i_T4_Rn(insn),
+		thumb_imm12(t32w_SUB_i_T4_i(insn), t32w_SUB_i_T4_imm3(insn), t32w_SUB_i_T4_imm8(insn)), FALSE);
+}
+
+/* CMP T2: CMP<c>.W <Rn>, #<const>
+ *     n = UInt(Rn); imm32 = ThumbExpandImm(i:imm3:imm8);
+ *     if n == 15 then UNPREDICTABLE; */
+static Std_ReturnType exec_cmp_imm_t2(TargetCoreType *core, uint32 insn)
+{
+	uint32 n = t32w_CMP_i_T2_Rn(insn);
+
+	if (n == 15U) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_imm(core, arm_pseudo_cmp_imm, "CMP", TRUE, THUMB_NO_REG, n,
+		ThumbExpandImm(thumb_imm12(t32w_CMP_i_T2_i(insn), t32w_CMP_i_T2_imm3(insn), t32w_CMP_i_T2_imm8(insn))), FALSE);
+}
+
+/* AND T1: AND{S}<c> <Rd>, <Rn>, #<const>
+ *     if Rd == '1111' && S == '1' then SEE TST (immediate);
+ *     d = UInt(Rd); n = UInt(Rn); setflags = (S == '1');
+ *     (imm32, carry) = ThumbExpandImm_C(i:imm3:imm8, APSR.C);
+ *     if d == 13 || (d == 15 && S == '0') || n IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType and_imm_t1(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 imm12)
+{
+	bool carry;
+	uint32 imm32;
+
+	if ((d == 13U) || (d == 15U) || thumb_sp_or_pc(n)) {
+		return STD_E_INVALID;
+	}
+	imm32 = ThumbExpandImm_C(imm12, ApsrFlags(ArmAPSR(core)).carry, &carry);
+	return thumb_dp_imm(core, arm_pseudo_and_imm, "AND", setflags, d, n, imm32, carry);
+}
+
+static Std_ReturnType exec_and_imm_t1(TargetCoreType *core, uint32 insn)
+{
+	return and_imm_t1(core, FALSE, t32w_AND_i_T1_Rd(insn), t32w_AND_i_T1_Rn(insn),
+		thumb_imm12(t32w_AND_i_T1_i(insn), t32w_AND_i_T1_imm3(insn), t32w_AND_i_T1_imm8(insn)));
+}
+
+static Std_ReturnType exec_ands_imm_t1(TargetCoreType *core, uint32 insn)
+{
+	return and_imm_t1(core, TRUE, t32w_ANDS_i_T1_Rd(insn), t32w_ANDS_i_T1_Rn(insn),
+		thumb_imm12(t32w_ANDS_i_T1_i(insn), t32w_ANDS_i_T1_imm3(insn), t32w_ANDS_i_T1_imm8(insn)));
+}
+
+/* MOV T2: MOV{S}<c>.W <Rd>, #<const>
+ *     d = UInt(Rd); setflags = (S == '1');
+ *     (imm32, carry) = ThumbExpandImm_C(i:imm3:imm8, APSR.C);
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType mov_imm_t2(TargetCoreType *core, bool setflags, uint32 d, uint32 imm12)
+{
+	bool carry;
+	uint32 imm32;
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	imm32 = ThumbExpandImm_C(imm12, ApsrFlags(ArmAPSR(core)).carry, &carry);
+	return thumb_dp_imm(core, arm_pseudo_mov_imm, "MOV", setflags, d, THUMB_NO_REG, imm32, carry);
+}
+
+static Std_ReturnType exec_mov_imm_t2(TargetCoreType *core, uint32 insn)
+{
+	return mov_imm_t2(core, FALSE, t32w_MOV_i_T2_Rd(insn),
+		thumb_imm12(t32w_MOV_i_T2_i(insn), t32w_MOV_i_T2_imm3(insn), t32w_MOV_i_T2_imm8(insn)));
+}
+
+static Std_ReturnType exec_movs_imm_t2(TargetCoreType *core, uint32 insn)
+{
+	return mov_imm_t2(core, TRUE, t32w_MOVS_i_T2_Rd(insn),
+		thumb_imm12(t32w_MOVS_i_T2_i(insn), t32w_MOVS_i_T2_imm3(insn), t32w_MOVS_i_T2_imm8(insn)));
+}
+
+/* MOV T3: MOVW<c> <Rd>, #<imm16>
+ *     d = UInt(Rd); setflags = FALSE; imm32 = ZeroExtend(imm4:i:imm3:imm8, 32);
+ *     if d IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType exec_mov_imm_t3(TargetCoreType *core, uint32 insn)
+{
+	uint32 d = t32w_MOV_i_T3_Rd(insn);
+	uint32 imm16 = (t32w_MOV_i_T3_imm4(insn) << 12)
+		| thumb_imm12(t32w_MOV_i_T3_i(insn), t32w_MOV_i_T3_imm3(insn), t32w_MOV_i_T3_imm8(insn));
+
+	if (thumb_sp_or_pc(d)) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_imm(core, arm_pseudo_mov_imm, "MOVW", FALSE, d, THUMB_NO_REG, imm16, FALSE);
+}
+
+/*
+ * Data processing, register
+ *
+ * The generated decoder gives the RRX form of each 32-bit register encoding
+ * its own id (stype = '11', imm3:imm2 = '00000'); DecodeImmShift gives the
+ * same (SRType_RRX, 1) for it.
+ */
+
+/* ADD T3: ADD{S}<c>.W <Rd>, <Rn>, <Rm>{, <shift>}
+ *     if Rd == '1111' && S == '1' then SEE CMN (register);
+ *     if Rn == '1101' then SEE ADD (SP plus register);
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = (S == '1');
+ *     (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 || (d == 15 && S == '0') || n == 15 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType add_reg_t3(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 m, uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	if ((d == 13U) || (d == 15U) || (n == 15U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	return thumb_dp_reg(core, arm_pseudo_add_reg, "ADD", setflags, d, n, m, shift_t, shift_n);
+}
+
+static Std_ReturnType exec_add_reg_t3(TargetCoreType *core, uint32 insn)
+{
+	return add_reg_t3(core, FALSE, t32w_ADD_r_T3_Rd(insn), t32w_ADD_r_T3_Rn(insn), t32w_ADD_r_T3_Rm(insn),
+		t32w_ADD_r_T3_stype(insn), thumb_imm5(t32w_ADD_r_T3_imm3(insn), t32w_ADD_r_T3_imm2(insn)));
+}
+
+static Std_ReturnType exec_adds_reg_t3(TargetCoreType *core, uint32 insn)
+{
+	return add_reg_t3(core, TRUE, t32w_ADDS_r_T3_Rd(insn), t32w_ADDS_r_T3_Rn(insn), t32w_ADDS_r_T3_Rm(insn),
+		t32w_ADDS_r_T3_stype(insn), thumb_imm5(t32w_ADDS_r_T3_imm3(insn), t32w_ADDS_r_T3_imm2(insn)));
+}
+
+static Std_ReturnType exec_add_reg_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	return add_reg_t3(core, FALSE, t32w_ADD_r_T3_RRX_Rd(insn), t32w_ADD_r_T3_RRX_Rn(insn), t32w_ADD_r_T3_RRX_Rm(insn), 3U, 0U);
+}
+
+static Std_ReturnType exec_adds_reg_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	return add_reg_t3(core, TRUE, t32w_ADDS_r_T3_RRX_Rd(insn), t32w_ADDS_r_T3_RRX_Rn(insn), t32w_ADDS_r_T3_RRX_Rm(insn), 3U, 0U);
+}
+
+/* CMP T3: CMP<c>.W <Rn>, <Rm>{, <shift>}
+ *     n = UInt(Rn); m = UInt(Rm); (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if n == 15 || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType cmp_reg_t3(TargetCoreType *core, uint32 n, uint32 m, uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	if ((n == 15U) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	return thumb_dp_reg(core, arm_pseudo_cmp_reg, "CMP", TRUE, THUMB_NO_REG, n, m, shift_t, shift_n);
+}
+
+static Std_ReturnType exec_cmp_reg_t3(TargetCoreType *core, uint32 insn)
+{
+	return cmp_reg_t3(core, t32w_CMP_r_T3_Rn(insn), t32w_CMP_r_T3_Rm(insn),
+		t32w_CMP_r_T3_stype(insn), thumb_imm5(t32w_CMP_r_T3_imm3(insn), t32w_CMP_r_T3_imm2(insn)));
+}
+
+static Std_ReturnType exec_cmp_reg_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	return cmp_reg_t3(core, t32w_CMP_r_T3_RRX_Rn(insn), t32w_CMP_r_T3_RRX_Rm(insn), 3U, 0U);
+}
+
+/* AND T2: AND{S}<c>.W <Rd>, <Rn>, <Rm>{, <shift>}
+ *     if Rd == '1111' && S == '1' then SEE TST (register);
+ *     d = UInt(Rd); n = UInt(Rn); m = UInt(Rm); setflags = (S == '1');
+ *     (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     if d == 13 || (d == 15 && S == '0') || n IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType and_reg_t2(TargetCoreType *core, bool setflags, uint32 d, uint32 n, uint32 m, uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+
+	if ((d == 13U) || (d == 15U) || thumb_sp_or_pc(n) || thumb_sp_or_pc(m)) {
+		return STD_E_INVALID;
+	}
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	return thumb_dp_reg(core, arm_pseudo_and_reg, "AND", setflags, d, n, m, shift_t, shift_n);
+}
+
+static Std_ReturnType exec_and_reg_t2(TargetCoreType *core, uint32 insn)
+{
+	return and_reg_t2(core, FALSE, t32w_AND_r_T2_Rd(insn), t32w_AND_r_T2_Rn(insn), t32w_AND_r_T2_Rm(insn),
+		t32w_AND_r_T2_stype(insn), thumb_imm5(t32w_AND_r_T2_imm3(insn), t32w_AND_r_T2_imm2(insn)));
+}
+
+static Std_ReturnType exec_ands_reg_t2(TargetCoreType *core, uint32 insn)
+{
+	return and_reg_t2(core, TRUE, t32w_ANDS_r_T2_Rd(insn), t32w_ANDS_r_T2_Rn(insn), t32w_ANDS_r_T2_Rm(insn),
+		t32w_ANDS_r_T2_stype(insn), thumb_imm5(t32w_ANDS_r_T2_imm3(insn), t32w_ANDS_r_T2_imm2(insn)));
+}
+
+static Std_ReturnType exec_and_reg_t2_rrx(TargetCoreType *core, uint32 insn)
+{
+	return and_reg_t2(core, FALSE, t32w_AND_r_T2_RRX_Rd(insn), t32w_AND_r_T2_RRX_Rn(insn), t32w_AND_r_T2_RRX_Rm(insn), 3U, 0U);
+}
+
+static Std_ReturnType exec_ands_reg_t2_rrx(TargetCoreType *core, uint32 insn)
+{
+	return and_reg_t2(core, TRUE, t32w_ANDS_r_T2_RRX_Rd(insn), t32w_ANDS_r_T2_RRX_Rn(insn), t32w_ANDS_r_T2_RRX_Rm(insn), 3U, 0U);
+}
+
+/* MOV T3: MOV{S}<c>.W <Rd>, <Rm>{, <shift>} (with a shift: LSL/LSR/ASR/ROR/RRX immediate)
+ *     d = UInt(Rd); m = UInt(Rm); setflags = (S == '1');
+ *     (shift_t, shift_n) = DecodeImmShift(type, imm3:imm2);
+ *     without a shift: if setflags && (d IN {13,15} || m IN {13,15}) then UNPREDICTABLE;
+ *                      if !setflags && (d == 15 || m == 15 || (d == 13 && m == 13)) then UNPREDICTABLE;
+ *     with a shift:    if d IN {13,15} || m IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType mov_reg_t3(TargetCoreType *core, bool setflags, uint32 d, uint32 m, uint32 type, uint32 imm5)
+{
+	SRType shift_t;
+	uint32 shift_n;
+	bool unpredictable;
+
+	DecodeImmShift(type, imm5, &shift_t, &shift_n);
+	if ((shift_t == SRType_LSL) && (shift_n == 0U)) {
+		if (setflags) {
+			unpredictable = thumb_sp_or_pc(d) || thumb_sp_or_pc(m);
+		}
+		else {
+			unpredictable = (d == 15U) || (m == 15U) || ((d == 13U) && (m == 13U));
+		}
+	}
+	else {
+		unpredictable = thumb_sp_or_pc(d) || thumb_sp_or_pc(m);
+	}
+	if (unpredictable) {
+		return STD_E_INVALID;
+	}
+	return thumb_dp_reg(core, arm_pseudo_mov_reg, "MOV", setflags, d, THUMB_NO_REG, m, shift_t, shift_n);
+}
+
+static Std_ReturnType exec_mov_reg_t3(TargetCoreType *core, uint32 insn)
+{
+	return mov_reg_t3(core, FALSE, t32w_MOV_r_T3_Rd(insn), t32w_MOV_r_T3_Rm(insn),
+		t32w_MOV_r_T3_stype(insn), thumb_imm5(t32w_MOV_r_T3_imm3(insn), t32w_MOV_r_T3_imm2(insn)));
+}
+
+static Std_ReturnType exec_movs_reg_t3(TargetCoreType *core, uint32 insn)
+{
+	return mov_reg_t3(core, TRUE, t32w_MOVS_r_T3_Rd(insn), t32w_MOVS_r_T3_Rm(insn),
+		t32w_MOVS_r_T3_stype(insn), thumb_imm5(t32w_MOVS_r_T3_imm3(insn), t32w_MOVS_r_T3_imm2(insn)));
+}
+
+static Std_ReturnType exec_mov_reg_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	return mov_reg_t3(core, FALSE, t32w_MOV_r_T3_RRX_Rd(insn), t32w_MOV_r_T3_RRX_Rm(insn), 3U, 0U);
+}
+
+static Std_ReturnType exec_movs_reg_t3_rrx(TargetCoreType *core, uint32 insn)
+{
+	return mov_reg_t3(core, TRUE, t32w_MOVS_r_T3_RRX_Rd(insn), t32w_MOVS_r_T3_RRX_Rm(insn), 3U, 0U);
+}
+
+/* MOV (register-shifted register) T2: LSL/LSR/ASR/ROR{S}<c>.W <Rd>, <Rm>, <Rs>
+ *     d = UInt(Rd); m = UInt(Rm); s = UInt(Rs); setflags = (S == '1'); shift_t = DecodeRegShift(type);
+ *     if d IN {13,15} || m IN {13,15} || s IN {13,15} then UNPREDICTABLE; */
+static Std_ReturnType mov_rsr_t2(TargetCoreType *core, bool setflags, uint32 d, uint32 m, uint32 s, uint32 type)
+{
+	if (thumb_sp_or_pc(d) || thumb_sp_or_pc(m) || thumb_sp_or_pc(s)) {
+		return STD_E_INVALID;
+	}
+	return thumb_mov_rsr(core, "MOV", setflags, d, m, s, DecodeRegShift(type));
+}
+
+static Std_ReturnType exec_mov_rsr_t2(TargetCoreType *core, uint32 insn)
+{
+	return mov_rsr_t2(core, FALSE, t32w_MOV_rr_T2_Rd(insn), t32w_MOV_rr_T2_Rm(insn), t32w_MOV_rr_T2_Rs(insn), t32w_MOV_rr_T2_stype(insn));
+}
+
+static Std_ReturnType exec_movs_rsr_t2(TargetCoreType *core, uint32 insn)
+{
+	return mov_rsr_t2(core, TRUE, t32w_MOVS_rr_T2_Rd(insn), t32w_MOVS_rr_T2_Rm(insn), t32w_MOVS_rr_T2_Rs(insn), t32w_MOVS_rr_T2_stype(insn));
 }
 
 /*
@@ -201,6 +496,31 @@ static const ThumbExec32 executors[T32_32_ID_NUM] = {
 	[T32_32_ADD_i_T3] = exec_add_imm_t3,
 	[T32_32_ADDS_i_T3] = exec_adds_imm_t3,
 	[T32_32_ADD_i_T4] = exec_add_imm_t4,
+	[T32_32_SUB_i_T3] = exec_sub_imm_t3,
+	[T32_32_SUBS_i_T3] = exec_subs_imm_t3,
+	[T32_32_SUB_i_T4] = exec_sub_imm_t4,
+	[T32_32_CMP_i_T2] = exec_cmp_imm_t2,
+	[T32_32_AND_i_T1] = exec_and_imm_t1,
+	[T32_32_ANDS_i_T1] = exec_ands_imm_t1,
+	[T32_32_MOV_i_T2] = exec_mov_imm_t2,
+	[T32_32_MOVS_i_T2] = exec_movs_imm_t2,
+	[T32_32_MOV_i_T3] = exec_mov_imm_t3,
+	[T32_32_ADD_r_T3] = exec_add_reg_t3,
+	[T32_32_ADDS_r_T3] = exec_adds_reg_t3,
+	[T32_32_ADD_r_T3_RRX] = exec_add_reg_t3_rrx,
+	[T32_32_ADDS_r_T3_RRX] = exec_adds_reg_t3_rrx,
+	[T32_32_CMP_r_T3] = exec_cmp_reg_t3,
+	[T32_32_CMP_r_T3_RRX] = exec_cmp_reg_t3_rrx,
+	[T32_32_AND_r_T2] = exec_and_reg_t2,
+	[T32_32_ANDS_r_T2] = exec_ands_reg_t2,
+	[T32_32_AND_r_T2_RRX] = exec_and_reg_t2_rrx,
+	[T32_32_ANDS_r_T2_RRX] = exec_ands_reg_t2_rrx,
+	[T32_32_MOV_r_T3] = exec_mov_reg_t3,
+	[T32_32_MOVS_r_T3] = exec_movs_reg_t3,
+	[T32_32_MOV_r_T3_RRX] = exec_mov_reg_t3_rrx,
+	[T32_32_MOVS_r_T3_RRX] = exec_movs_reg_t3_rrx,
+	[T32_32_MOV_rr_T2] = exec_mov_rsr_t2,
+	[T32_32_MOVS_rr_T2] = exec_movs_rsr_t2,
 	[T32_32_LDR_i_T3] = exec_ldr_imm_t3,
 	[T32_32_LDR_i_T4_off] = exec_ldr_imm_t4_off,
 	[T32_32_LDR_i_T4_post] = exec_ldr_imm_t4_post,
