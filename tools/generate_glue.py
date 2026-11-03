@@ -29,7 +29,12 @@ KINDS = {
     "ls_multiple": ("arm_ls_multiple_input_type", "arm_ls_output_type", ("Rn",), None),
     "ls_exclusive": ("arm_ls_exclusive_input_type", "arm_ls_output_type", ("Rd", "Rt", "Rn"), None),
     "tb": ("arm_tb_input_type", "arm_b_output_type", ("Rn", "Rm"), None),
+    "bl": ("arm_b_input_type", "arm_b_output_type", (), None),
+    "blx": ("arm_blx_reg_input_type", "arm_b_output_type", ("Rm",), None),
+    "cb": ("arm_cb_input_type", "arm_b_output_type", ("Rn",), None),
 }
+# Kinds whose instructions are not conditional (no ConditionPassed()).
+NO_COND = {"cb"}
 HEADERS = ["arm_common/arm_pseudo_load.h", "arm_common/arm_pseudo_store.h", "arm_common/arm_pseudo_multiple.h",
            "arm_common/arm_pseudo_exclusive.h", "arm_common/arm_pseudo_branch.h"]
 
@@ -95,7 +100,9 @@ def executor(e, width):
         body.append("\treturn arm_pseudo_clrex(core, Stm32CurrentCond(core));\n")
     else:
         _, _, reg_members, _ = KINDS[e.kind]
-        body.append('\tin.instrName = "%s";\n\tin.cond = Stm32CurrentCond(core);\n' % e.instr)
+        body.append('\tin.instrName = "%s";\n' % e.instr)
+        if e.kind not in NO_COND:
+            body.append("\tin.cond = Stm32CurrentCond(core);\n")
         for member, expr in e.members.items():
             if member in reg_members:
                 if expr is None:

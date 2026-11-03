@@ -122,7 +122,7 @@ if(BUILD_TESTING)
   # Instruction tests (test/insn): every encoding of the instructions run
   # through athrill-arm-common, compared with the output of the same
   # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
-  foreach(t insn dp dp2 ls)
+  foreach(t insn dp dp2 ls br)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
   endforeach()
 endif()

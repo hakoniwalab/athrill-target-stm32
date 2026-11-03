@@ -1956,6 +1956,24 @@ static Std_ReturnType exec_pli_r_t1(TargetCoreType *core, uint32 insn)
 	return STD_E_OK;
 }
 
+/* BL_i_T1: BL<c> <label>
+ *     I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32);
+ *     if InITBlock() && !LastInITBlock() then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+static Std_ReturnType exec_bl_i_t1(TargetCoreType *core, uint32 insn)
+{
+	uint32 s = t32w_BL_i_T1_S(insn);
+	uint32 i1 = (t32w_BL_i_T1_J1(insn) ^ s) ^ 1U;
+	uint32 i2 = (t32w_BL_i_T1_J2(insn) ^ s) ^ 1U;
+	arm_b_input_type in;
+	arm_b_output_type out;
+
+	in.instrName = "BL";
+	in.cond = Stm32CurrentCond(core);
+	in.imm32 = SignExtend((s << 24) | (i1 << 23) | (i2 << 22) | (t32w_BL_i_T1_imm10(insn) << 12) | (t32w_BL_i_T1_imm11(insn) << 1), 25U);
+	return arm_pseudo_bl(core, &in, &out);
+}
+
 const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_LDR_i_T3] = exec_ldr_i_t3,
 	[T32_32_LDRB_i_T2] = exec_ldrb_i_t2,
@@ -2038,4 +2056,5 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_PLI_i_T2] = exec_pli_i_t2,
 	[T32_32_PLI_i_T3] = exec_pli_i_t3,
 	[T32_32_PLI_r_T1] = exec_pli_r_t1,
+	[T32_32_BL_i_T1] = exec_bl_i_t1,
 };

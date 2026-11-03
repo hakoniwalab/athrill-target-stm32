@@ -31,6 +31,13 @@ static inline uint32 ArmPC(const TargetCoreType *core)
 	return core->reg.pc + 4U;
 }
 
+/* Armv7-M executes Thumb instructions only. */
+static inline ArmInstrSet ArmCurrentInstrSet(const TargetCoreType *core)
+{
+	(void)core;
+	return InstrSet_Thumb;
+}
+
 static inline uint32 ArmAPSR(const TargetCoreType *core)
 {
 	return core->reg.apsr;
@@ -65,6 +72,21 @@ static inline Std_ReturnType ArmBranchWritePC(TargetCoreType *core, uint32 addre
  * would be taken.
  */
 static inline Std_ReturnType ArmBXWritePC(TargetCoreType *core, uint32 address)
+{
+	if ((address & 1U) == 0U) {
+		return STD_E_EXEC;
+	}
+	core->reg.next_pc = address & ~1U;
+	return STD_E_OK;
+}
+
+/*
+ * BLXWritePC(bits(32) address)
+ *     EPSR.T = address<0>;   // if EPSR.T == 0, a UsageFault('Invalid State')
+ *                            // is taken on the next instruction
+ *     BranchTo(address<31:1>:'0');
+ */
+static inline Std_ReturnType ArmBLXWritePC(TargetCoreType *core, uint32 address)
 {
 	if ((address & 1U) == 0U) {
 		return STD_E_EXEC;

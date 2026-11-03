@@ -341,3 +341,21 @@ for id, instr, syntax, ops, unpred, unpred_c, regs in (
          "m IN {13,15}", "thumb_sp_or_pc(m)", [("m", "{Rm}")])):
     entry(id, instr, syntax, ops, "hint", None, regs, {}, unpred=unpred, unpred_c=unpred_c,
           note="A memory hint: no effect here (no caches modelled).")
+
+
+# ---------------------------------------------------------------------------
+# Branches with link, compare and branch
+# ---------------------------------------------------------------------------
+
+entry("BL_i_T1", "BL", "BL<c> <label>",
+      "I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32);", "bl", "bl",
+      [("s", "{S}"), ("i1", "({J1} ^ s) ^ 1U"), ("i2", "({J2} ^ s) ^ 1U")],
+      {"imm32": "SignExtend((s << 24) | (i1 << 23) | (i2 << 22) | ({imm10} << 12) | ({imm11} << 1), 25U)"},
+      unpred=IN_IT_LAST)
+entry("BLX_r_T1", "BLX", "BLX<c> <Rm>", "m = UInt(Rm);", "blx", "blx_reg", [("m", "{Rm}")], {"Rm": "m"},
+      unpred="m == 15 || (%s)" % IN_IT_LAST, unpred_c="m == 15U")
+for instr, nonzero in (("CBZ", "FALSE"), ("CBNZ", "TRUE")):
+    entry(instr + "_T1", instr, "%s <Rn>, <label>" % instr,
+          "n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');", "cb", "cb",
+          [("n", "{Rn}")], {"Rn": "n", "imm32": "({i} << 6) | ({imm5} << 1)", "nonzero": nonzero},
+          unpred="InITBlock()")

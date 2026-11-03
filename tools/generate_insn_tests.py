@@ -238,7 +238,40 @@ def ls_cases(rng):
     return cases
 
 
-GROUPS = {"ls": ("loads and stores", ls_cases)}
+# ---------------------------------------------------------------------------
+# Branch cases: a taken branch skips "movs r0, #1" (or r6), so r0 keeps its
+# random value; LR shows the return address of BL and BLX.
+# ---------------------------------------------------------------------------
+
+def br_cases(rng):
+    cases = []
+    for i in range(CASES):
+        # BL forward and backward, near and over a gap (larger imm10)
+        gap = 2 * rng.randrange(0x400, 0x4000)
+        cases.append(Case("bl_fwd_%d" % i, "bl 1f", post=["movs r0, #1", "1:"]))
+        cases.append(Case("bl_fwd_far_%d" % i, "bl 1f", post=["movs r0, #1", ".space 0x%X" % gap, "1:"]))
+        cases.append(Case("bl_back_%d" % i, "bl 1b", pre=["b 2f", "1: movs r1, #7", "b 3f", "2:"],
+                          post=["movs r1, #9", "3:"]))
+        cases.append(Case("bl_back_far_%d" % i, "bl 1b",
+                          pre=["b.w 2f", "1: movs r1, #7", "b.w 3f", ".space 0x%X" % gap, "2:"],
+                          post=["movs r1, #9", "3:"]))
+        # BLX <Rm>: the target is a Thumb address (bit 0 set); Rm = LR is read before LR is written
+        for reg in ("r3", "r9", "lr"):
+            pre = ["adr r5, 1f", "adds r5, #1"] + ([] if reg == "r5" else ["mov %s, r5" % reg])
+            cases.append(Case("blx_%s_%d" % (reg, i), "blx %s" % reg, pre=pre,
+                              post=["movs r0, #1", ".align 2", "1:"]))
+        # CBZ / CBNZ, taken and not taken, forward by up to 126 bytes
+        for mnem in ("cbz", "cbnz"):
+            for zero in (True, False):
+                reg = rng.choice(["r1", "r2", "r3", "r4", "r5"])
+                gap = 2 * rng.randrange(0, 61)
+                cases.append(Case("%s_%s_%d" % (mnem, "zero" if zero else "nonzero", i), "%s %s, 1f" % (mnem, reg),
+                                  [(reg, "0" if zero else "0x%08X" % (rnd(rng) | 1))],
+                                  post=["movs r6, #1", "b 1f", ".space %d" % gap, "1:"]))
+    return cases
+
+
+GROUPS = {"ls": ("loads and stores", ls_cases), "br": ("branches", br_cases)}
 
 
 def program(group, title, cases, rng):

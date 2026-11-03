@@ -454,6 +454,58 @@ static Std_ReturnType exec_ldm_t1(TargetCoreType *core, uint16 insn)
 	return arm_pseudo_ldm(core, &in, &out);
 }
 
+/* BLX_r_T1: BLX<c> <Rm>
+ *     m = UInt(Rm);
+ *     if m == 15 || (InITBlock() && !LastInITBlock()) then UNPREDICTABLE; */
+static Std_ReturnType exec_blx_r_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 m = t32_BLX_r_T1_Rm(insn);
+	arm_blx_reg_input_type in;
+	arm_b_output_type out;
+
+	if (m == 15U) {
+		return STD_E_INVALID;
+	}
+	in.instrName = "BLX";
+	in.cond = Stm32CurrentCond(core);
+	ARM_SET_REG(core, &in, Rm, m);
+	return arm_pseudo_blx_reg(core, &in, &out);
+}
+
+/* CBZ_T1: CBZ <Rn>, <label>
+ *     n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+static Std_ReturnType exec_cbz_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 n = t32_CBZ_T1_Rn(insn);
+	arm_cb_input_type in;
+	arm_b_output_type out;
+
+	in.instrName = "CBZ";
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = (t32_CBZ_T1_i(insn) << 6) | (t32_CBZ_T1_imm5(insn) << 1);
+	in.nonzero = FALSE;
+	return arm_pseudo_cb(core, &in, &out);
+}
+
+/* CBNZ_T1: CBNZ <Rn>, <label>
+ *     n = UInt(Rn); imm32 = ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1');
+ *     if InITBlock() then UNPREDICTABLE;
+ *     (InITBlock() is FALSE while IT is not executed: nothing to check here.) */
+static Std_ReturnType exec_cbnz_t1(TargetCoreType *core, uint16 insn)
+{
+	uint32 n = t32_CBNZ_T1_Rn(insn);
+	arm_cb_input_type in;
+	arm_b_output_type out;
+
+	in.instrName = "CBNZ";
+	ARM_SET_REG(core, &in, Rn, n);
+	in.imm32 = (t32_CBNZ_T1_i(insn) << 6) | (t32_CBNZ_T1_imm5(insn) << 1);
+	in.nonzero = TRUE;
+	return arm_pseudo_cb(core, &in, &out);
+}
+
 const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_LDR_i_T1] = exec_ldr_i_t1,
 	[T32_16_LDR_i_T2] = exec_ldr_i_t2,
@@ -476,4 +528,7 @@ const ThumbExec16 thumb_gen_executors16[T32_16_ID_NUM] = {
 	[T32_16_POP_T1] = exec_pop_t1,
 	[T32_16_STM_T1] = exec_stm_t1,
 	[T32_16_LDM_T1] = exec_ldm_t1,
+	[T32_16_BLX_r_T1] = exec_blx_r_t1,
+	[T32_16_CBZ_T1] = exec_cbz_t1,
+	[T32_16_CBNZ_T1] = exec_cbnz_t1,
 };
