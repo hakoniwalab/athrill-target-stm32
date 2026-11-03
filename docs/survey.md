@@ -103,3 +103,25 @@ source, with an independent decoder as the oracle.
   (after reading the package's licence notice) restricted to Armv7-M, unless
   a current Armv8-M package is available on usable terms; cross-check with GNU
   objdump and llvm-objdump.
+
+## 8. Next: Renode's execution engine (JIT)
+
+Renode's CPU emulation translates guest code to host code (tlib, derived
+from QEMU's translator), while Athrill interprets with a decode cache and
+straight-line blocks. Using Renode as the reference (testing, 4) also gives:
+
+- Speed: the same STM32F7 firmware on both, to see what dynamic translation
+  gains over Athrill's interpreter for this kind of firmware.
+- Where time goes: ArduPilot publishes its Renode performance patches and
+  analysis (`Tools/renode/README.md` in ArduPilot, the performance branch of
+  [ArduPilot/renode](https://github.com/ArduPilot/renode)). Whether device
+  accesses, interrupts and time synchronisation dominate there too, as
+  device accesses ending a batch do in Athrill's RISC-V target.
+- Determinism: how Renode keeps virtual time and the points where interrupts
+  are taken with translated blocks, as input for a JIT in Athrill that keeps
+  the rule of byte-identical output to one-instruction-at-a-time execution
+  (design decision 7).
+
+Only published documents, performance analyses and observed behaviour are
+used; no code is taken from Renode or QEMU (design decision 8).
+
