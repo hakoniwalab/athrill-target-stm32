@@ -21,24 +21,17 @@ not a cycle-accurate or electrically accurate substitute for real hardware.
 
 ## What works today
 
-Two different flight paths have been demonstrated. They exercise different
-parts of PX4 and should not be confused:
+The stock PX4 `px4_fmu-v5_default` firmware boots on the emulated Pixhawk 4,
+runs PX4's **SIH** (simulation-in-hardware) quadcopter, talks MAVLink to
+QGroundControl over TCP, takes off to the default **2.5 m** and holds
+**2.49–2.51 m**, and writes its ULog to the emulated microSD card, which can
+be mounted on the host afterwards. Everything used is public: Athrill, this
+target, PX4 itself and QGroundControl.
 
-| Demonstration | Where physics runs | What is exercised | Observed result |
-| --- | --- | --- | --- |
-| **PX4 SIH on emulated Pixhawk 4** | Inside PX4 (`simulator_sih`; `SYS_HITL=2`) | Board-target PX4 firmware, NuttX, virtual MCU, MAVLink, persistent storage | QGroundControl takeoff and hover at **2.49–2.51 m**; ULog saved on emulated microSD |
-| **PX4 + Hakoniwa Drone PRO** | Outside PX4, in MuJoCo through Hakoniwa | The same board-target firmware **and PX4's own sensor drivers**, communicating with emulated chips; AUX PWM motor outputs | x500 takeoff and hover at **2.31–2.33 m** relative altitude (2.5 m target; not yet investigated) |
-
-For the first experiment, SIH generates sensor data internally in PX4;
-**the emulated physical sensor chips are not in the SIH data path**. The
-Hakoniwa experiment separately tests those chip models and the PX4 drivers.
-
-**Reproduction guides:**
-- [PX4 SIH on Athrill: QGroundControl, configuration, and microSD logging](docs/sih.md)
-- [PX4 with Hakoniwa Drone PRO: emulated sensors, AUX PWM, and x500](docs/hakoniwa.md)
-
-Hakoniwa Drone PRO is a separate simulation component; **it is not needed for
-the SIH demonstration**.
+In SIH, PX4 computes the vehicle and its sensor data internally
+(`SYS_HITL=2`); **the emulated sensor chips are not in the SIH data path**.
+Flying with PX4's own sensor drivers on those chips is a second, separate
+experiment (see [Beyond SIH](#beyond-sih-px4s-sensor-drivers-and-external-physics)).
 
 ## Why PIL in addition to SITL and HITL?
 
@@ -47,7 +40,6 @@ the SIH demonstration**.
 | **SITL** | Host-built PX4 with simulation interfaces | Not required |
 | **HITL / SIH on hardware** | Board-target PX4 on a real flight controller | Required |
 | **Athrill PIL + SIH** | Board-target PX4 and NuttX on an emulated MCU; PX4's internal SIH physics | **Not required** |
-| **Athrill PIL + external physics** | Board-target PX4 and NuttX, with emulated device interfaces and external dynamics | **Not required** |
 
 The intended use is to explore firmware bring-up, board-specific integration,
 driver behavior, and reproducible regression scenarios without having a Pixhawk
@@ -102,34 +94,46 @@ As a small smoke test, run the included bare-metal example:
 
 Expected console output includes `Hello, Athrill STM32!`.
 
-### 2. Run PX4 SIH
+### 2. Build the PX4 firmware
 
-Build (or provide) the upstream PX4 **`px4_fmu-v5_default` ELF** for Pixhawk 4.
-This is the firmware target used in the experiments; `px4_sitl` is not a
-substitute. Follow [docs/sih.md](docs/sih.md) for the memory map, device
-configuration, persistent F-RAM, optional FAT32 microSD image, and the
-`SYS_AUTOSTART=1100` / `SYS_HITL=2` SIH setup.
-
-The documented run command, with those files and the firmware ELF prepared,
-is:
+The stock Pixhawk 4 target of PX4 `main`, unmodified, at the commit the
+demonstrations used, with PX4's build image (Docker):
 
 ```sh
-./build/athrill3 -c1 -m memory.txt -d device_config.txt -t 60000000000 px4_fmu-v5_default.elf
+git clone https://github.com/PX4/PX4-Autopilot.git PX4
+git -C PX4 checkout 216039a12bab5a86769128f7be3e5f63dc7b4952
+git -C PX4 submodule update --init --recursive
+docker run --rm -v "$PWD/PX4:/src" -w /src px4io/px4-dev:v1.17.0-beta1 make px4_fmu-v5_default
+ls -l PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
-The sample configuration exposes PX4 TELEM1 over TCP at
-`127.0.0.1:5760`. Connect **QGroundControl** using a TCP communication link
-(or pymavlink using `tcp:127.0.0.1:5760`), then use the normal arm/takeoff
-flow. The emulated SD card can be mounted after the run to inspect the ULog.
+Athrill loads the **ELF** (it needs the symbols), not the `.px4` upload
+file, and starts PX4 itself at `0x08008000`, after the place of the
+bootloader, which is not run. `px4_sitl` is not a substitute: the point is
+the board-target build.
 
-The command above assumes you have created the configuration files and
-supplied the ELF; it is **not yet a one-command installer**.
+### 3. Run PX4 SIH
 
-### 3. Run with external physics (optional)
+[examples/px4-sih](examples/px4-sih) has the memory map, the device
+configuration and a script. Its first run makes the microSD card image
+(1 GB FAT32) and selects the SIH airframe (`SYS_AUTOSTART 1100`, kept in the
+emulated F-RAM, `fram.bin`); every run then boots PX4 with its console on
+the terminal:
 
-[docs/hakoniwa.md](docs/hakoniwa.md) describes the separate setup using
-Hakoniwa Drone PRO / MuJoCo. The emulated IMU, barometer, magnetometer, and
-GPS feed PX4's normal drivers; PX4's FMU PWM signals drive Hakoniwa's x500.
+```sh
+examples/px4-sih/run.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+```
+
+PX4's TELEM1 is on TCP `127.0.0.1:5760`: add a TCP link to it in
+**QGroundControl** (Application Settings, Comm Links), or use pymavlink with
+`tcp:127.0.0.1:5760`, then arm and take off as usual. The vehicle starts at
+PX4's SIH home (Zurich). Stop with Ctrl+C. The ULog files are in the SD
+card image (`examples/px4-sih/sd.img`, `log/`), which macOS mounts with
+`hdiutil attach -imagekey diskimage-class=CRawDiskImage sd.img` and Linux
+with `mount -o loop`. [docs/sih.md](docs/sih.md) explains each setting.
+
+QGroundControl warns that HITL is enabled (`SYS_HITL=2` is how SIH runs)
+and asks for radio and flight-mode setup (no RC): both are expected.
 
 The documented flight tests were run on an **Apple Silicon Mac**. We would
 also like to provide a verified **Windows/WSL2** walkthrough; this has not
@@ -143,7 +147,6 @@ clock at 216 MHz:
 | Workload | Real-time factor (RTF) |
 | --- | ---: |
 | PX4 SIH hover, QGroundControl/MAVLink and SD logging, after optimization | **1.94** |
-| PX4 with Hakoniwa Drone PRO / MuJoCo, emulated chip drivers, x500 hover, no viewer | **1.48** |
 
 An RTF above 1 means virtual simulation time advances faster than elapsed
 wall-clock time for the measured workload. These are *workload- and
@@ -153,8 +156,12 @@ benchmark against other emulators. See [performance notes](docs/performance.md).
 Athrill's instruction decoders are generated from Arm machine-readable
 architecture data. The Arm instruction execution path uses shared
 [athrill-arm-common](https://github.com/hakoniwalab/athrill-arm-common)
-pseudo-code; optional fast executors are compared against that reference
-path. Instruction, FP, and exception tests are compared with QEMU on suitable
+pseudo-code. By default the most frequent instructions use fast executors,
+and floating-point arithmetic uses the host FPU wherever IEEE 754 gives the
+pseudo-code's exact bits (other cases fall back to the pseudo-code); both are
+checked against the reference path bit for bit on millions of random cases,
+and `DEVICE_CONFIG_ARM_EXEC_MODE strict` / `DEVICE_CONFIG_ARM_FP_MODE strict`
+run the pseudo-code only. Instruction, FP, and exception tests are compared with QEMU on suitable
 Arm targets. See [testing](docs/testing.md) and [decoder details](docs/decoder.md).
 
 A virtual-clock-based event model and Hakoniwa lockstep integration are
@@ -162,6 +169,17 @@ central design choices. However, **complete deterministic replay across all
 external inputs and all configurations has not been established**. The
 emulation is neither instruction-cycle accurate nor suitable as a substitute
 for board-level electrical, safety, or flight validation.
+
+## Beyond SIH: PX4's sensor drivers and external physics
+
+A second, separate experiment exercises the parts SIH bypasses. PX4's own
+drivers read the emulated ICM-20689, MS5611, IST8310 and u-blox chips, whose
+samples come from **Hakoniwa Drone PRO** (the x500 in MuJoCo), and PX4's
+PWM pulses on the FMU AUX outputs go back to it as motor commands, in
+lockstep. The x500 takes off and hovers at about 2.5 m; the whole system
+runs at RTF 1.48. Hakoniwa Drone PRO is a separate component that is **not
+publicly available**; [docs/hakoniwa.md](docs/hakoniwa.md) records the setup
+for those who have it. The SIH demonstration does not need it.
 
 ## Related work and motivation
 
