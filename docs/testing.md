@@ -4,6 +4,28 @@ How the STM32 target is checked. The layers follow the RISC-V target, which
 was checked with riscv-tests, NuttX ostest, trace comparison with another
 implementation, and a decoder cross-check.
 
+## Status
+
+What is in place on 2026-11-04 and what is planned. "CTest" means it runs
+with `(cd build && ctest)` (36 tests, all passing on macOS and WSL2);
+there is no CI workflow in this repository yet.
+
+| Check | Status |
+| --- | --- |
+| Decoder cross-check against GNU objdump and llvm-objdump | done ([decoder](decoder.md)) |
+| Instruction tests compared with QEMU (`test/insn`, 12 groups incl. floating point and exceptions) | in CTest, in the default and the strict mode |
+| Fast executors against the pseudo-code on random encodings and states (`test/cpu`) | in CTest |
+| Host-FPU fast path against the pseudo-code on random operands | in athrill-arm-common's tests |
+| Peripheral and sensor-chip unit tests (`test/device`, 8 programs) | in CTest |
+| Coverage report (`tools/coverage.sh`) | available, run by hand |
+| PX4 `px4_fmu-v5_default` boots to NSH | done |
+| PX4 SIH flight: determinism, EKF2, control, MAVLink | done, by hand: [examples/px4-sih/verify](../examples/px4-sih/verify) ([verification](verification.md)) |
+| Step-by-step comparison of random instruction sequences with QEMU | planned |
+| Comparison with Renode (whole chip, boot logs, traces, speed) | planned; Renode is not in the toolchain image yet |
+| NuttX ostest on an STM32F7 board configuration | planned |
+| ChibiOS / ArduPilot | planned (stage 3) |
+| CI | planned |
+
 ## 1. Toolchain (Docker)
 
 All test programs and firmware are built in one Docker image,
@@ -28,7 +50,8 @@ is a licensed product), so three kinds of tests are combined:
 | Kind | Content | Reference |
 |---|---|---|
 | Self-checking programs | Per instruction class: results, flags (N, Z, C, V, Q, GE), exceptions; floating point with rounding modes and exception flags. The same form as the RISC-V target's self-tests | Arm's architecture reference manual |
-| Random instruction sequences | Random Thumb-2 sequences run from the same initial state on Athrill and on the reference; registers and memory compared after each instruction | QEMU `mps2-an500` (Cortex-M7), used as an external tool |
+| Generated instruction tests (in use) | One instruction per case with random operands from a fixed seed; all registers (and the memory a store wrote) printed after it and compared with the same program's output on QEMU (below) | QEMU `netduinoplus2` / `mps2-an500`, used as an external tool |
+| Random instruction sequences (planned) | Random Thumb-2 sequences run from the same initial state on Athrill and on the reference; registers and memory compared after each instruction | QEMU `mps2-an500` (Cortex-M7), used as an external tool |
 | Decoder cross-check | Every 16-bit encoding and sampled 32-bit encodings disassembled and compared (design decision 10) | GNU objdump, llvm-objdump |
 
 ### Instruction tests in use
@@ -76,11 +99,12 @@ measures its pseudo-code by its own unit tests (`tools/coverage.sh` there).
 
 ## 4. Exceptions and interrupts
 
-Self-checking programs for the stacked frame on exception entry, priorities
-and preemption, tail-chaining, lazy floating-point stacking, SysTick, PendSV,
-SVCall and exception return (EXC_RETURN), compared with QEMU and Renode.
+The stacked frame on exception entry, priorities and preemption,
+tail-chaining, lazy floating-point stacking, SysTick, PendSV, SVCall and
+exception return (EXC_RETURN): `exc.S` ("Exception test" below), compared
+with QEMU. A comparison with Renode is planned.
 
-## 5. The whole chip: Renode
+## 5. The whole chip: Renode (planned)
 
 Renode models the STM32F7 with its peripherals. The same firmware runs on
 Athrill and on Renode, and their behaviour is compared: peripheral register
@@ -91,14 +115,18 @@ two.
 
 ## 6. Operating systems
 
+- PX4 `px4_fmu-v5_default`, as built, boots to the NSH prompt and flies
+  SIH (done; [verification](verification.md)).
 - NuttX ostest on an STM32F7 board configuration of NuttX (for example
-  Nucleo-F767ZI), with the NuttX version PX4 uses: runs to the end and passes.
-- PX4 `px4_fmu-v5_default`, as built, boots to the NSH prompt (stage 1).
-- ChibiOS tests with ArduPilot (stage 3).
+  Nucleo-F767ZI), with the NuttX version PX4 uses, to run to the end and
+  pass (planned).
+- ChibiOS tests with ArduPilot (planned, stage 3).
 
 ## 7. Peripherals and sensor chips
 
-Unit tests per peripheral against the STM32F7 reference manual: register
+In CTest (`test/device`): the timers, the UARTs (with receive DMA), SPI with
+the MS5611, DMA with the ICM-20689, I2C with the IST8310, the u-blox GPS,
+the F-RAM and the SDMMC with the SD card. Unit tests per peripheral against the STM32F7 reference manual: register
 reads and writes, status bits, interrupts, DMA transfers. Sensor chips: the
 registers their PX4 drivers use (identification, setup, data-ready, data).
 The same form as the RISC-V target's UART and timer unit tests.
@@ -109,7 +137,7 @@ The same form as the RISC-V target's UART and timer unit tests.
   execution.
 - Athrill can write an execution trace (with the virtual clock) for
   comparisons with other implementations.
-- All tests run automatically and in CI.
+- All tests run automatically (CTest); running them in CI is planned.
 
 ### Floating-point tests
 

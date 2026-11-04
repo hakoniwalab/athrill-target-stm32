@@ -27,8 +27,10 @@ It prints the ELF's SHA-256 (the results belong to that firmware), then:
    into the NSH console, which Athrill delivers at fixed virtual times, so
    nothing depends on the host's clock. It runs three times at once from
    copies of the golden images, for 16 G clocks (74 s of virtual time):
-   twice in the default mode, once in strict mode. The console output, the
-   F-RAM and the whole SD card image must be byte for byte the same.
+   twice in the default mode, once in strict mode. The F-RAM and the whole
+   SD card image must be byte for byte the same, and so must the console
+   output, apart from the two `DEVICE_CONFIG_ARM_*` lines that Athrill
+   echoes at start in the strict run (its configuration has them).
    Agreement with strict mode also shows that the fast paths (fast
    executors, host FPU) compute exactly what the Arm pseudo-code does.
 3. **B. Checks of A's flight log.** The ULog is read from the SD card
@@ -44,8 +46,9 @@ It prints the ELF's SHA-256 (the results belong to that firmware), then:
    With matplotlib, [plot_ulog.py](../examples/px4-sih/verify/plot_ulog.py)
    draws the charts of this page from it.
 
-The script ends with `ALL PASS` and exit status 0, or `SOME CHECKS FAILED`
-and 1. Its files stay in `examples/px4-sih/verify/work/`: `golden/`,
+The script ends with `ALL PASS` (exit status 0), `SOME CHECKS FAILED` (1),
+or `PARTIAL PASS` (2) when pymavlink is missing and C was skipped; install
+the Python packages with `pip install numpy pyulog pymavlink matplotlib`. Its files stay in `examples/px4-sih/verify/work/`: `golden/`,
 `fast1/`, `fast2/`, `strict/` and `mavlink/` (each with its console output,
 F-RAM and SD card image), `a.ulg`, `mavlink/c.ulg` and `charts/`.
 
@@ -133,7 +136,7 @@ twice in the default mode, once in strict mode (`DEVICE_CONFIG_ARM_FP_MODE`
 and `DEVICE_CONFIG_ARM_EXEC_MODE strict`: Arm pseudo-code only, no fast
 executors, no host FPU).
 
-| Run (Mac) | Instructions | SD card image after the run, SHA-256 | F-RAM, SHA-256 | Console, SHA-256 |
+| Run (Mac) | Instructions | SD card image after the run, SHA-256 | F-RAM, SHA-256 | Console without the mode lines, SHA-256 |
 | --- | ---: | --- | --- | --- |
 | fast 1 | 3,507,861,181 | `95ce250e9d41b178…` | `8972ebd62a8ca8e2…` | `82900639c8396631…` |
 | fast 2 | 3,507,861,181 | `95ce250e9d41b178…` | `8972ebd62a8ca8e2…` | `82900639c8396631…` |

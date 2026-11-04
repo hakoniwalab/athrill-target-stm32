@@ -194,8 +194,8 @@ end to end with one command (about 2 minutes). From one starting state
 
 - flies take off, hover, land three times from the NSH console at fixed
   virtual times, twice in the default mode and once in strict mode, and
-  requires the console, the F-RAM and the whole SD card image to be
-  identical;
+  requires the F-RAM, the whole SD card image and the console output (but
+  the strict run's two mode lines) to be identical;
 - checks that flight's ULog: EKF2 against SIH's ground truth, attitude
   tracking, altitude and position hold, the arm-to-disarm sequence;
 - flies arm, take off, "go to" 5 m north, land over MAVLink as
@@ -209,7 +209,9 @@ examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_def
 ```
 
 It needs python3 with numpy, pyulog and pymavlink (matplotlib for the
-charts), and on Linux mtools to read the SD card image. Results on
+charts: `pip install numpy pyulog pymavlink matplotlib`), and on Linux mtools
+to read the SD card image; without pymavlink it skips the MAVLink flight and
+reports `PARTIAL PASS`. Results on
 2026-11-04, all PASS on the Mac and on WSL2; charts, hashes and both hosts'
 numbers are in [docs/verification.md](docs/verification.md):
 
@@ -221,7 +223,7 @@ numbers are in [docs/verification.md](docs/verification.md):
 
 | Check | Result |
 | --- | --- |
-| **Determinism**: take off, hover, land, typed into the NSH console at fixed virtual times, three runs from the same F-RAM and SD card images | Two runs in the default mode and one in strict mode (Arm pseudo-code only, no fast executors, no host FPU): identical console output, F-RAM, and **whole SD card image including the ULog**, 3,507,861,181 instructions each |
+| **Determinism**: take off, hover, land, typed into the NSH console at fixed virtual times, three runs from the same F-RAM and SD card images | Two runs in the default mode and one in strict mode (Arm pseudo-code only, no fast executors, no host FPU): identical F-RAM, **whole SD card image including the ULog**, and console output apart from the strict run's two mode lines; 3,507,861,181 instructions each |
 | **EKF2** (estimate vs SIH ground truth, from the ULog) | no filter faults; innovation test ratios at most 0.26 (gate 1); position error RMS 4 cm horizontal, 2 cm vertical; tilt 0.12°, heading 1.8° |
 | **Attitude and position control** | hover at 2.489 m mean (2.451–2.504 m) for a 2.5 m takeoff; horizontal drift at most 7 cm |
 | **QGroundControl-style MAVLink**: arm, take off, "go to" 5 m north, hover, land | all commands acknowledged; up to 21° tilt with tilt tracking RMS 1.2°; holds the target within 18 cm; lands and disarms; ULog checks as above pass |

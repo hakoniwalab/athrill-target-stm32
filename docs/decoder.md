@@ -158,6 +158,8 @@ differences are instructions Cortex-M7 does not have. The classes:
 | Executed as another instruction | 82 | 68 | NOP, DSB, MRS, MSR | Unallocated hints, DSB options and reserved SYSm values, which the disassemblers name |
 | LDRBT, LDRT, LDRSHT with Rn = PC | 4 | 0 | the literal load | Armv7-M decodes them as the literal load |
 
-So the executor (still to be written for 32-bit instructions) must raise a
-UsageFault for an undefined id: NOCP in the coprocessor space, UNDEFINSTR
-elsewhere, including double-precision registers above D15.
+So the executors must raise a UsageFault for an undefined id: NOCP in the
+coprocessor space, UNDEFINSTR elsewhere, including double-precision
+registers above D15. They do: the 32-bit executors (`thumb_exec32.c`,
+`thumb_gen32.c`) and the exception model are in place and tested against
+QEMU ([testing](testing.md)).

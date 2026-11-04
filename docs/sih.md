@@ -8,6 +8,24 @@ Here the board is Athrill: the stock `px4_fmu-v5_default` firmware (it
 includes SIH) runs on the emulated STM32F765 of a Pixhawk 4, and
 QGroundControl talks MAVLink to it over TCP.
 
+## Quick start
+
+[examples/px4-sih](../examples/px4-sih) does everything below: it makes the
+SD card image, selects the SIH airframe on the first run and boots PX4
+(from the repository, with the PX4 ELF built as in the README):
+
+```sh
+examples/px4-sih/run.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+```
+
+Then connect QGroundControl to TCP `127.0.0.1:5760` and fly; Ctrl+C stops
+it. On Linux and WSL2 the SD card image needs `sudo apt install dosfstools`
+(and `mtools` to read the logs). To check a flight with numbers:
+`pip install numpy pyulog pymavlink matplotlib`, then
+[examples/px4-sih/verify/verify.sh](../examples/px4-sih/verify/verify.sh)
+([verification](verification.md)). The rest of this page explains what
+the example sets up, for running it by hand.
+
 ## What the board provides
 
 | Part | Model | Use in SIH |
@@ -84,8 +102,11 @@ an SD card, also `param set SYS_DM_BACKEND 1` (the data manager in RAM).
 ## Run and fly
 
 ```
-athrill3 -c1 -m memory.txt -d device_config.txt -t 60000000000 px4_fmu-v5_default.elf
+athrill3 -c1 -m memory.txt -d device_config.txt -t -1 px4_fmu-v5_default.elf
 ```
+
+`-t -1` runs until stopped (Ctrl+C); `-t <clocks>` stops after that many
+virtual clocks (216 M per second of virtual time).
 
 PX4 boots with `Loading airframe: /etc/init.d/airframes/1100_rc_quad_x_sih.hil`
 and starts MAVLink on `/dev/ttyS1` (57600 baud, 2000 B/s). Connect
