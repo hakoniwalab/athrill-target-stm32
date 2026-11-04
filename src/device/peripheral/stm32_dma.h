@@ -23,4 +23,14 @@ void stm32_dma_reset(void);
 /* A received datum of the peripheral register par to the stream that reads it; FALSE: none enabled. */
 std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data);
 
+/*
+ * A block transfer the peripheral at par controls (the SDMMC, PFCTRL): len
+ * bytes to the memory of the enabled stream reading par (rx), or from the
+ * memory of the one writing par (tx); then the stream completes. FALSE: no
+ * such stream enabled.
+ */
+std_bool stm32_dma_peripheral_ready(uint32 par, std_bool to_memory);
+std_bool stm32_dma_peripheral_block_rx(uint32 par, const uint8 *data, uint32 len);
+std_bool stm32_dma_peripheral_block_tx(uint32 par, uint8 *data, uint32 len);
+
 #endif

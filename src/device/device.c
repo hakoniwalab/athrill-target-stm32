@@ -12,6 +12,7 @@
 #include "peripheral/stm32_exti.h"
 #include "peripheral/stm32_dma.h"
 #include "peripheral/stm32_i2c.h"
+#include "peripheral/stm32_sdmmc.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -35,6 +36,14 @@ static void uart_reset(void)
 	stm32_uart_reset(console, rx_file);
 }
 
+static uint32 cpu_mhz(void)
+{
+	uint32 mhz = 216U;
+
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
+	return mhz;
+}
+
 void device_init(CpuType *cpu, DeviceClockType *clock)
 {
 	(void)cpu;
@@ -52,6 +61,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_dma_reset();
 	stm32_spi_reset();
 	stm32_i2c_reset();
+	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
 	board_attach();
 	stm32_uart_tcp_attach();
@@ -66,6 +76,7 @@ void device_supply_clock(DeviceClockType *clock)
 	stm32_uart_tcp_tick();
 	stm32_uart_tick(clock);
 	stm32_i2c_tick();
+	stm32_sdmmc_tick(clock);
 	board_tick(clock);
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */

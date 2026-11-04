@@ -85,6 +85,8 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/sensor/ist8310.c
   src/device/sensor/ublox.c
   src/device/memory/fm25v02.c
+  src/device/memory/sdcard.c
+  src/device/peripheral/stm32_sdmmc.c
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -172,6 +174,12 @@ if(BUILD_TESTING)
   target_include_directories(test_fm25v02 PRIVATE src/device)
   target_link_libraries(test_fm25v02 PRIVATE athrill_stm32_config)
   add_test(NAME device-fm25v02 COMMAND test_fm25v02)
+  add_executable(test_sdmmc_sdcard test/device/test_sdmmc_sdcard.c src/device/peripheral/stm32_sdmmc.c
+    src/device/peripheral/stm32_dma.c src/device/memory/sdcard.c)
+  stm32_target(test_sdmmc_sdcard)
+  target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
+  target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config)
+  add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"

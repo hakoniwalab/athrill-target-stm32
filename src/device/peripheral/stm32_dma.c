@@ -159,6 +159,27 @@ static std_bool find_rx(uint32 par, DmaType **rd, uint32 *rs)
 	return FALSE;
 }
 
+/* The enabled stream that writes to peripheral address par, if any. */
+static std_bool find_tx(uint32 par, DmaType **td, uint32 *ts)
+{
+	uint32 c;
+	uint32 s;
+
+	for (c = 0U; c < 2U; c++) {
+		for (s = 0U; s < STREAMS; s++) {
+			uint32 *st = dmas[c].stream[s];
+
+			if (((st[SxCR] & CR_EN) != 0U) && (((st[SxCR] >> CR_DIR_SHIFT) & 3U) == DIR_M2P)
+				&& (st[SxPAR] == par)) {
+				*td = &dmas[c];
+				*ts = s;
+				return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}
+
 /* TX stream s enabled: an SPI exchange of NDTR frames, with the RX stream of the same DR. */
 static void start(DmaType *d, uint32 s)
 {
@@ -263,6 +284,46 @@ std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 		|| (((flags & FLAG_TC) != 0U) && ((st[SxCR] & CR_TCIE) != 0U))) {
 		(void)intc_raise_intr(d->irq[s]);
 	}
+	return TRUE;
+}
+
+std_bool stm32_dma_peripheral_ready(uint32 par, std_bool to_memory)
+{
+	DmaType *d = NULL;
+	uint32 s = 0U;
+
+	return to_memory ? find_rx(par, &d, &s) : find_tx(par, &d, &s);
+}
+
+std_bool stm32_dma_peripheral_block_rx(uint32 par, const uint8 *data, uint32 len)
+{
+	DmaType *d = NULL;
+	uint32 s = 0U;
+	uint32 i;
+
+	if (!find_rx(par, &d, &s)) {
+		return FALSE;
+	}
+	for (i = 0U; i < len; i++) {
+		mem_write(d->stream[s][SxM0AR] + i, 1U, data[i]);
+	}
+	complete(d, s);
+	return TRUE;
+}
+
+std_bool stm32_dma_peripheral_block_tx(uint32 par, uint8 *data, uint32 len)
+{
+	DmaType *d = NULL;
+	uint32 s = 0U;
+	uint32 i;
+
+	if (!find_tx(par, &d, &s)) {
+		return FALSE;
+	}
+	for (i = 0U; i < len; i++) {
+		data[i] = (uint8)mem_read(d->stream[s][SxM0AR] + i, 1U);
+	}
+	complete(d, s);
 	return TRUE;
 }
 

@@ -18,6 +18,7 @@
 #include "stm32_exti.h"
 #include "stm32_dma.h"
 #include "stm32_i2c.h"
+#include "stm32_sdmmc.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -52,7 +53,6 @@ void stm32_probe_init(void)
 #define FLASH_SR	0x40023C0CU
 #define RTC_ISR		0x4000280CU
 #define OTG_FS_GRSTCTL	0x50000010U
-#define SDMMC1_STA	0x40012C34U
 #define ADC1_SR		0x40012000U
 
 static const uint32 spi_bases[] = {
@@ -107,6 +107,9 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	if (stm32_i2c_owns(a)) {
 		return stm32_i2c_read(a);
 	}
+	if (stm32_sdmmc_owns(a)) {
+		return stm32_sdmmc_read(a);
+	}
 	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
 		if (a == spi_bases[i] + 0x08U) {
 			return v | 0x3U;	/* SR: TXE, RXNE */
@@ -131,8 +134,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 		return v | (1U << 5) | ((v & (1U << 7)) >> 1);
 	case OTG_FS_GRSTCTL:	/* CSRST, RXFFLSH, TXFFLSH done; AHBIDL */
 		return (v & ~0x31U) | (1U << 31);
-	case SDMMC1_STA:	/* no card: every command sent, every response timed out */
-		return (1U << 7) | (1U << 2);
 	case ADC1_SR:	/* EOC: a conversion is always done (DR keeps 0) */
 		return v | (1U << 1);
 	default:
@@ -169,6 +170,10 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 		stm32_i2c_write(addr, size, value);
 		return;
 	}
+	if (stm32_sdmmc_owns(a)) {
+		stm32_sdmmc_write(addr, size, value);
+		return;
+	}
 	if (stm32_spi_owns(a)) {
 		stm32_spi_write(addr, size, value);
 		return;
@@ -187,8 +192,8 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 		*d = (uint8)stm32_spi_read((uint32)a, 1U);
 		return STD_E_OK;
 	}
-	if (stm32_uart_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
 	*d = (uint8)(read_word(r, (uint32)a) >> (8U * (a & 3U)));
@@ -204,8 +209,8 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		*d = (uint16)stm32_spi_read((uint32)a, 2U);
 		return STD_E_OK;
 	}
-	if (stm32_uart_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
 	*d = (uint16)(read_word(r, (uint32)a) >> (8U * (a & 2U)));
@@ -221,8 +226,8 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		*d = (uint32)stm32_spi_read((uint32)a, 4U);
 		return STD_E_OK;
 	}
-	if (stm32_uart_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR: the next character may arrive at once */
+	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
 	*d = read_word(r, (uint32)a);

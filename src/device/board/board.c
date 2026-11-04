@@ -11,6 +11,8 @@
 #include "sensor/ist8310.h"
 #include "sensor/ublox.h"
 #include "memory/fm25v02.h"
+#include "memory/sdcard.h"
+#include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32_i2c.h"
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +22,7 @@ static Icm20689Type imu;
 static Ist8310Type mag;
 static UbloxType gps;
 static Fm25v02Type fram = { .fd = -1 };
+static SdcardType sdcard = { .fd = -1 };
 static std_bool has_imu;
 
 /* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
@@ -27,6 +30,7 @@ static void attach_fmu_v5(void)
 {
 	uint32 mhz = 216U;
 	char *fram_file = NULL;
+	char *sd_image = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
 	icm20689_reset(&imu, (uint64)mhz * 1000000U, ICM20689_ROTATION_YAW_90, STM32_GPIO_PORT('B'), 4U);
@@ -44,6 +48,15 @@ static void attach_fmu_v5(void)
 	}
 	fm25v02_open(&fram, fram_file);
 	stm32_spi_attach(2U, STM32_GPIO_PORT('F'), 5U, &fm25v02_ops, &fram);
+	/* the microSD card on SDMMC1, an image in DEVICE_CONFIG_STM32_SDCARD_IMAGE (none: empty slot) */
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE", &sd_image) != STD_E_OK) {
+		sd_image = NULL;
+	}
+	sdcard_open(&sdcard, sd_image);
+	if (sdcard_present(&sdcard)) {
+		stm32_sdmmc_attach(&sdcard);
+		stm32_gpio_drive(STM32_GPIO_PORT('C'), 8U, TRUE);	/* D0 high: the card is not busy */
+	}
 }
 
 void board_attach(void)
