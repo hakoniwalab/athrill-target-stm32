@@ -66,7 +66,7 @@ flight, not PX4 requirements. "Flying" is from takeoff to touchdown as
 | ekf2 faults | `estimator_status` | `filter_fault_flags` always 0 |
 | ekf2 innovations | `estimator_status` | position, velocity, height and heading test ratios below 1 (inside PX4's gates) while armed |
 | ekf2 position vs truth | `vehicle_local_position`, `…_groundtruth` | while flying, horizontal error RMS below 0.6 m and max below 1.5 m, vertical RMS below 0.3 m and max below 1.0 m (wide enough for v1.17.0's noisier simulated GPS, below) |
-| ekf2 tilt vs truth | `vehicle_attitude`, `…_groundtruth` | tilt error RMS below 0.5°, max below 2° (the two topics are sampled at different times, so fast attitude changes show a lag) |
+| ekf2 tilt vs truth | `vehicle_attitude`, `…_groundtruth` | tilt error RMS below 0.6°, max below 2° (the two topics are sampled at different times, so fast attitude changes show a lag; with PX4 v1.17.0 builds RMS 0.42–0.50°, and 0.67° when a stray at-rest IMU entered SIH's data path) |
 | ekf2 heading vs truth | the same | heading error below 5° |
 | attitude tracking | `vehicle_attitude`, `vehicle_attitude_setpoint` | tilt error RMS below 2° while flying |
 | altitude hold | `vehicle_local_position` | from reaching 2.5 m (within 5 cm) to the descent: mean within 5 cm of 2.5 m, every sample within 15 cm |

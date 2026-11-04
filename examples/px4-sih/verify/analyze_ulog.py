@@ -141,7 +141,7 @@ def main():
         tilt_e = np.abs(tilt_deg(q_est) - tilt_deg(q_true))
         yaw_e = np.abs((yaw_deg(q_est) - yaw_deg(q_true) + 180.0) % 360.0 - 180.0)
         # the logged estimate and truth are sampled at different times: fast attitude changes show a lag
-        r.check("ekf2 tilt vs truth", (np.sqrt(np.mean(tilt_e ** 2)) < 0.5) and (np.max(tilt_e) < 2.0),
+        r.check("ekf2 tilt vs truth", (np.sqrt(np.mean(tilt_e ** 2)) < 0.6) and (np.max(tilt_e) < 2.0),
                 f"RMS {np.sqrt(np.mean(tilt_e ** 2)):.3f} deg, max {np.max(tilt_e):.3f} deg")
         r.check("ekf2 heading vs truth", np.max(yaw_e) < 5.0,
                 f"RMS {np.sqrt(np.mean(yaw_e ** 2)):.2f} deg, max {np.max(yaw_e):.2f} deg")
