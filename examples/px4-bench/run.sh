@@ -15,6 +15,7 @@ fi
 ELF=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 DIR=$(cd "$(dirname "$0")" && pwd)
 ATHRILL=${2:-$DIR/../../build/athrill3}
+ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 cd "$DIR"
 ./make-sd-image.sh
 if [ ! -e fram.bin ]; then
