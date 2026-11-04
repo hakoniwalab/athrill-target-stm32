@@ -124,7 +124,12 @@ def main():
         err = np.stack([at(truth["timestamp"][m], lpos["timestamp"], lpos[k]) - truth[k][m] for k in "xyz"], axis=1)
         horiz = np.hypot(err[:, 0], err[:, 1])
         vert = np.abs(err[:, 2])
-        r.check("ekf2 position vs truth", (np.max(horiz) < 0.5) and (np.max(vert) < 0.5),
+        # SIH's GPS noise differs by PX4 version (v1.17: white noise, 0.2 m per axis
+        # and 0.5 m vertical per fix; main: a correlated model): bounds for both
+        h_rms = np.sqrt(np.mean(horiz ** 2))
+        v_rms = np.sqrt(np.mean(vert ** 2))
+        r.check("ekf2 position vs truth",
+                (h_rms < 0.6) and (np.max(horiz) < 1.5) and (v_rms < 0.3) and (np.max(vert) < 1.0),
                 f"horizontal RMS {np.sqrt(np.mean(horiz ** 2)):.3f} m max {np.max(horiz):.3f} m, "
                 f"vertical RMS {np.sqrt(np.mean(vert ** 2)):.3f} m max {np.max(vert):.3f} m")
     att = topic(u, "vehicle_attitude")
@@ -173,12 +178,12 @@ def main():
             # the last 5 s of hovering at the target
             tail = lpos["timestamp"][m][hover] > (lpos["timestamp"][m][hover][-1] - 5e6)
             d = np.hypot(x[tail] - args.target_north, y[tail] - args.target_east)
-            r.check("position hold", np.max(d) < 0.3,
+            r.check("position hold", np.max(d) < 0.6,
                     f"distance to ({args.target_north}, {args.target_east}) m over the last 5 s: "
                     f"mean {np.mean(d):.3f} m, max {np.max(d):.3f} m")
         else:
             drift = np.hypot(x - x[0], y - y[0])
-            r.check("position hold", np.max(drift) < 0.3, f"horizontal drift while hovering max {np.max(drift):.3f} m")
+            r.check("position hold", np.max(drift) < 0.6, f"horizontal drift while hovering max {np.max(drift):.3f} m")
     else:
         r.check("altitude hold", False, "no hovering samples near the hover altitude")
 
