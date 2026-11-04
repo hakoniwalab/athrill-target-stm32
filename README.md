@@ -244,13 +244,16 @@ TCP are checked by their logs, not for identity.
 
 ## Beyond SIH: PX4's sensor drivers and external physics
 
-**On a bench, with public parts only.** Without an external device, the
-emulated chips report a vehicle at rest at Tokyo Station (gravity, Earth's
+**On a bench, with public parts only.** With
+`DEVICE_CONFIG_STM32_SENSOR_BENCH 1` and no external device, the emulated
+chips report a vehicle at rest at Tokyo Station (gravity, Earth's
 field, sea-level pressure, a GPS fix, with fixed-seed noise). PX4 boots as a
 generic quadcopter with its own drivers for the ICM-20689 (SPI1 with DMA,
 FIFO at 800 Hz), MS5611 (SPI4), IST8310 (I2C3) and u-blox (USART1); EKF2
 gets a position and the preflight check passes. It does not fly: nothing
-moves the vehicle.
+moves the vehicle. The bench is off by default: PX4 starts these drivers
+in SIH too, and keeps the chips out of its data path because, without the
+bench, their values never change and are taken as stale.
 
 ```bash
 examples/px4-bench/check.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf

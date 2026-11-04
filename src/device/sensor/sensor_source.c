@@ -32,9 +32,12 @@ static uint32 base = DEFAULT_BASE;
 static std_bool looked;
 static std_bool present;
 static uint32 cpu_mhz = 216U;
+static uint32 bench;
 
 /*
- * The bench without the device: a vehicle at rest, level, facing north, at
+ * Without the device the chips report constant values (PX4 takes them as
+ * stale, so in SIH they stay out of its data path), or, with
+ * DEVICE_CONFIG_STM32_SENSOR_BENCH 1, a bench: a vehicle at rest, level, facing north, at
  * Tokyo Station (35.681236 N, 139.767125 E, 40 m), with the Earth's field
  * there (about 0.47 gauss, inclination 49 degrees, declination -7.5
  * degrees) and a GPS fix. Gaussian noise from a fixed-seed generator
@@ -74,6 +77,8 @@ void sensor_source_reset(void)
 	cpu_mhz = 216U;
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &cpu_mhz);
 	noise_state = 0x2545F4914F6CDD1DULL;
+	bench = 0U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_SENSOR_BENCH", &bench);
 	looked = FALSE;
 	present = FALSE;
 }
@@ -117,9 +122,16 @@ void sensor_source_sample(SensorSampleType *sample)
 {
 	uint32 k;
 
+	if (!device_present() && (bench == 0U)) {
+		memset(sample, 0, sizeof(*sample));
+		sample->acc[2] = -9.80665F;
+		sample->mag[0] = 0.21F;
+		sample->mag[2] = 0.43F;
+		sample->abs_pressure = 1013.25F;
+		sample->temperature = 20.0F;
+		return;
+	}
 	if (!device_present()) {
-		uint32 k;
-
 		memset(sample, 0, sizeof(*sample));
 		sample->acc[2] = -9.80665F;
 		sample->mag[0] = 0.307F;
@@ -145,6 +157,9 @@ void sensor_source_sample(SensorSampleType *sample)
 
 std_bool sensor_source_gps(GpsSampleType *gps)
 {
+	if (!device_present() && (bench == 0U)) {
+		return FALSE;
+	}
 	if (!device_present()) {
 		memset(gps, 0, sizeof(*gps));
 		gps->time_usec = (cpuemu_get_clock() / cpu_mhz) + 1U;
