@@ -14,6 +14,9 @@
 # C. With pymavlink: arm, take off, "go to" 5 m north, hover, land over
 #    MAVLink as QGroundControl does (fly_scenario.py), and its log; with
 #    matplotlib, its charts in work/charts (plot_ulog.py).
+# D. With the release ELF (PX4 v1.17.0 from this repository's Release):
+#    the ULog, F-RAM and console of A must be identical to the published
+#    run, on any host.
 #
 # Needs python3 with numpy and pyulog (pymavlink for C, matplotlib for the
 # charts); on Linux mtools (mcopy) to read the SD card image. Work files:
@@ -56,12 +59,25 @@ ulog_of() {
 	fi
 }
 
+sha256() {
+	if command -v sha256sum > /dev/null 2>&1; then
+		sha256sum "$1" | cut -d' ' -f1
+	else
+		shasum -a 256 "$1" | cut -d' ' -f1
+	fi
+}
+
 # which firmware the results belong to (PX4 embeds build information: each build differs)
-if command -v sha256sum > /dev/null 2>&1; then
-	echo "ELF sha256: $(sha256sum "$ELF" | cut -d' ' -f1)"
-else
-	echo "ELF sha256: $(shasum -a 256 "$ELF" | cut -d' ' -f1)"
-fi
+ELF_SHA=$(sha256 "$ELF")
+echo "ELF sha256: $ELF_SHA"
+
+# The published run of the release ELF (PX4 v1.17.0, built on the Mac): the
+# ULog, F-RAM and console of flight A. (The whole SD card image is not
+# compared across hosts: formatting it gives a new volume ID each time.)
+PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
+PUBLISHED_ULOG=5aaa66ebf76d7fde713ef39cb07890dc6cb5de136713fd35732121efef116e3d
+PUBLISHED_FRAM=c1a69ccb3740c797db62233deca689741a76a20692e982acea95c76199ff50e9
+PUBLISHED_CONSOLE=36a05910bf2ca4183818bc822bcefa0d16ebb6382fb29bc5b72cccbf223825ce
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
@@ -124,6 +140,18 @@ if python3 -c "import pymavlink" 2> /dev/null; then
 else
 	echo "C. SKIPPED: pymavlink is not installed (pip install pymavlink)"
 	SKIPPED=1
+fi
+
+cd "$WORK"
+if [ "$ELF_SHA" = "$PUBLISHED_ELF" ]; then
+	echo "D. the same as the published run (release ELF)"
+	grep -av "DEVICE_CONFIG_ARM_" fast1/console.txt > c1.txt
+	if [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 c1.txt)" = $PUBLISHED_CONSOLE ]; then
+		echo "  [PASS] ULog, F-RAM and console identical to the published run (ULog sha256 ${PUBLISHED_ULOG%"${PUBLISHED_ULOG#????????????????}"}...)"
+	else
+		echo "  [FAIL] differs from the published run: ULog $(sha256 a.ulg), F-RAM $(sha256 fast1/fram.bin), console $(sha256 c1.txt)"
+		FAILED=1
+	fi
 fi
 
 if [ $FAILED != 0 ]; then

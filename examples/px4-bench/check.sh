@@ -10,6 +10,9 @@
 # EKF2's position, the preflight check; then that a second run from the same
 # F-RAM and SD card images gives the same console output and SD card image.
 # Work files: examples/px4-bench/work. Exit status 0 when all pass.
+# The checks read PX4's console output (device IDs, `listener` fields) as
+# PX4 v1.17.0 prints it; another PX4 version may word or number it
+# differently.
 set -e
 if [ $# -lt 1 ]; then
 	echo "usage: $0 <px4_fmu-v5_default.elf> [athrill3]" >&2

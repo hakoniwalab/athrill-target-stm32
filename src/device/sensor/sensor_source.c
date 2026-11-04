@@ -8,7 +8,6 @@
 #include "mpu.h"
 #include "cpuemu_ops.h"
 #include <string.h>
-#include <math.h>
 
 #define DEFAULT_BASE		0x60000000U
 
@@ -40,7 +39,7 @@ static uint32 bench;
  * DEVICE_CONFIG_STM32_SENSOR_BENCH 1, a bench: a vehicle at rest, level, facing north, at
  * Tokyo Station (35.681236 N, 139.767125 E, 40 m), with the Earth's field
  * there (about 0.47 gauss, inclination 49 degrees, declination -7.5
- * degrees) and a GPS fix. Gaussian noise from a fixed-seed generator
+ * degrees) and a GPS fix. Gaussian-like noise from a fixed-seed integer generator
  * stands in for the sensors' own noise (PX4 takes a sensor whose value
  * never changes as stale): larger than one step of each chip's output
  * (ICM-20689 0.005 m/s^2 and 0.001 rad/s, IST8310 0.003 gauss), drawn in
@@ -55,19 +54,23 @@ static uint32 bench;
 
 static uint64 noise_state;
 
-/* A standard normal value (Box-Muller on xorshift64). */
+/*
+ * An approximately standard normal value: the sum of 12 uniform values minus
+ * 6 (Irwin-Hall), in integers on xorshift64, so it is the same bit for bit
+ * on every host (no libm).
+ */
 static float32 bench_noise(void)
 {
-	float64 u[2];
+	uint64 sum = 0U;
 	uint32 k;
 
-	for (k = 0U; k < 2U; k++) {
+	for (k = 0U; k < 12U; k++) {
 		noise_state ^= noise_state << 13;
 		noise_state ^= noise_state >> 7;
 		noise_state ^= noise_state << 17;
-		u[k] = ((float64)(noise_state >> 11) + 0.5) / 9007199254740992.0;
+		sum += noise_state >> 48;	/* 16 bits */
 	}
-	return (float32)(sqrt(-2.0 * log(u[0])) * cos(6.283185307179586 * u[1]));
+	return (float32)(((sint64)sum - (6LL << 16)) / 65536.0);
 }
 
 void sensor_source_reset(void)
