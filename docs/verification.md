@@ -91,9 +91,31 @@ WSL2, TCP link to `127.0.0.1:5760` through WSL's localhost forwarding), the
 vehicle shows at PX4's SIH home in Zurich and is armed, taken off, moved
 and landed from QGroundControl by hand.
 
+## Test machines
+
+| | Mac | WSL2 PC |
+| --- | --- | --- |
+| Machine | MacBook Pro (Mac14,9) | MouseComputer S4I7G60SRDDC (notebook), on AC, Windows power plan "High performance" |
+| CPU | Apple M2 Pro, 12 cores (8 performance, 4 efficiency) | Intel Core Ultra 7 155H, 16 cores / 22 threads |
+| Memory | 32 GB | 63.4 GB (WSL2 sees 31 GB, the default half) |
+| OS | macOS 27.2 | Windows 10.0.26300.9711, WSL 2.4.13.0 (kernel 5.15.167.4), Ubuntu 24.04.4 LTS |
+| Compiler, CMake | Apple clang 21.0.0, CMake 4.4.3 | gcc 13.3.0, CMake 3.28.3 |
+| PX4 build | Docker, `px4io/px4-dev:v1.17.0-beta1` (arm64) | Docker 29.8.2 inside WSL2, same image (amd64) |
+
 ## Speed
 
-| Host | RTF while hovering (MAVLink, SD logging) | verify.sh |
+RTF is virtual time over wall-clock time (above 1: faster than real time);
+Athrill runs on one host core. All runs in the default fast mode unless
+marked strict.
+
+| Workload | Mac (M2 Pro) | WSL2 PC (Core Ultra 7 155H) |
 | --- | ---: | ---: |
-| Apple Silicon Mac | 1.92 | about 100 s |
-| WSL2, Intel Core Ultra 7 155H | 1.29–1.34 | 159 s |
+| SIH hover over MAVLink, SD logging (`run.sh` + pymavlink) | 1.92 | 1.29 (1.34 just after the GPS fix) |
+| NSH flight of verify.sh A, boot to disarm, 74 s of virtual time, one run alone | 2.01 | not measured alone |
+| The same, strict mode (Arm pseudo-code only) | 1.58 | not measured alone |
+| `verify.sh`, everything (A runs its 3 flights in parallel) | about 100 s | 159 s |
+| Build: Athrill (cmake, build, ctest) | not timed | 44 s |
+| Build: PX4 (clone and submodules / Docker make with the image pull) | not timed | 266 s / 394 s |
+
+Hakoniwa Drone PRO's x500 (README, "Beyond SIH") runs at RTF 1.48 on the
+Mac, the whole system with MuJoCo and no viewer.

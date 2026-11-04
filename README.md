@@ -147,12 +147,15 @@ These steps were run as written on an **Apple Silicon Mac** (macOS) and on
 On WSL2: `sudo apt install dosfstools mtools`, and the Python packages in a
 venv. QGroundControl on Windows connects to PX4 in WSL2 with a TCP link to
 `127.0.0.1:5760` (WSL's localhost forwarding), shows the vehicle at Zurich
-and flies it. Hovering runs at RTF 1.92 on the Mac, 1.3 on that PC.
+and flies it. Hovering runs at RTF 1.92 on the Mac (M2 Pro), 1.29 on that
+PC; the machines and more numbers are in
+[docs/verification.md](docs/verification.md#test-machines).
 
 ## Performance and validation
 
-Results from **2026-11-04**, on an Apple Silicon Mac, with virtual STM32
-clock at 216 MHz:
+Results from **2026-11-04**, on an Apple Silicon Mac (M2 Pro), with
+virtual STM32 clock at 216 MHz (both hosts in
+[docs/verification.md](docs/verification.md#speed)):
 
 | Workload | Real-time factor (RTF) |
 | --- | ---: |
