@@ -111,6 +111,57 @@ static void record_sample(const TargetCoreType *core);
 static std_bool pc_sampling;		/* DEBUG_PC_SAMPLE_START given */
 static uint32 pc_sample_start;
 static uint64 run_steps;		/* instructions of thumb_execute_run, without sampling */
+static FILE *pc_trace;
+static uint32 pc_trace_remaining;
+
+void cpu_trace_pc(uint32 pc)
+{
+	if (pc_trace_remaining == 0U) {
+		return;
+	}
+	fprintf(pc_trace, "0x%08X\n", pc);
+	pc_trace_remaining--;
+	if (pc_trace_remaining == 0U) {
+		if (fclose(pc_trace) != 0) {
+			fprintf(stderr, "ERROR: could not finish ARM PC trace\n");
+		}
+		pc_trace = NULL;
+	}
+}
+
+static void close_pc_trace(void)
+{
+	if (pc_trace != NULL) {
+		(void)fclose(pc_trace);
+		pc_trace = NULL;
+	}
+}
+
+static void open_pc_trace(void)
+{
+	char *path = NULL;
+	uint32 count = 0U;
+	Std_ReturnType has_path;
+	Std_ReturnType has_count;
+
+	has_path = cpuemu_get_devcfg_string("DEVICE_CONFIG_ARM_PC_TRACE_FILE", &path);
+	has_count = cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_PC_TRACE_COUNT", &count);
+	if ((has_path != STD_E_OK) && (has_count != STD_E_OK)) {
+		return;
+	}
+	if ((has_path != STD_E_OK) || (has_count != STD_E_OK) || (count == 0U)) {
+		fprintf(stderr, "WARNING: ARM PC trace needs a file and a nonzero count\n");
+		return;
+	}
+	pc_trace = fopen(path, "w");
+	if (pc_trace == NULL) {
+		fprintf(stderr, "ERROR: cannot open ARM PC trace %s\n", path);
+		return;
+	}
+	pc_trace_remaining = count;
+	atexit(close_pc_trace);
+	fprintf(stderr, "INFO: tracing the first %u instruction PCs to %s\n", count, path);
+}
 
 static inline void sample_pc(const TargetCoreType *core)
 {
@@ -194,6 +245,7 @@ void cpu_init(void)
 	CoreIdType i;
 
 	read_fp_mode();
+	open_pc_trace();
 	pc_sampling = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &pc_sample_start) == STD_E_OK);
 	atexit(print_final_state);
 	for (i = 0; i < cpu_config_get_core_id_num(); i++) {

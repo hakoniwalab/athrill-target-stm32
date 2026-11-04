@@ -226,6 +226,7 @@ COLD_PATH static Std_ReturnType execute_slow(TargetCoreType *core)
 		core->m.cfsr |= ARM_M_UFSR_INVSTATE << 16;
 		return take(core, ArmMTakeSynchronous(core, ARM_M_EXC_USAGEFAULT, core->reg.pc));
 	}
+	cpu_trace_pc(core->reg.pc);
 	core->it_written = FALSE;
 	core->sync_exception = 0U;
 	core->exc_return_pending = FALSE;
@@ -271,6 +272,7 @@ static inline Std_ReturnType execute_one(TargetCoreType *core)
 	if (decoded == NULL) {
 		return execute_slow(core);
 	}
+	cpu_trace_pc(core->reg.pc);
 	core->reg.next_pc = core->reg.pc + decoded->length;
 	core->it_written = FALSE;
 	core->sync_exception = 0U;
