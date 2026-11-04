@@ -313,6 +313,15 @@ static inline uint32 ArmFPSCR(const TargetCoreType *core)
 	return core->reg.fpscr;
 }
 
+/* The floating-point mode (DEVICE_CONFIG_ARM_FP_MODE): fast (the host's FPU where exact) or strict. */
+extern std_bool stm32_fp_host_fast;
+
+static inline bool ArmFPHostFast(const TargetCoreType *core)
+{
+	(void)core;
+	return stm32_fp_host_fast;
+}
+
 static inline void ArmFPSCRWrite(TargetCoreType *core, uint32 value)
 {
 	core->reg.fpscr = value & STM32_FPSCR_MASK;

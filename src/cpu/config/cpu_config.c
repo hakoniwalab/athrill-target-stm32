@@ -169,10 +169,30 @@ static void print_final_state(void)
 		core->reg.pc, core->reg.r[14], core->reg.r[13], core->m.ipsr, (int)core->is_halt, core->m.primask, core->m.basepri);
 }
 
+std_bool stm32_fp_host_fast = TRUE;
+
+/* DEVICE_CONFIG_ARM_FP_MODE: fast (default) or strict (the Arm pseudo-code only). */
+static void read_fp_mode(void)
+{
+	char *mode = NULL;
+
+	stm32_fp_host_fast = TRUE;
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_ARM_FP_MODE", &mode) != STD_E_OK) {
+		return;
+	}
+	if (strcmp(mode, "strict") == 0) {
+		stm32_fp_host_fast = FALSE;
+	}
+	else if (strcmp(mode, "fast") != 0) {
+		printf("WARNING: DEVICE_CONFIG_ARM_FP_MODE %s: fast or strict; fast is used\n", mode);
+	}
+}
+
 void cpu_init(void)
 {
 	CoreIdType i;
 
+	read_fp_mode();
 	atexit(print_final_state);
 	for (i = 0; i < cpu_config_get_core_id_num(); i++) {
 		virtual_cpu.cores[i].core.core_id = i;

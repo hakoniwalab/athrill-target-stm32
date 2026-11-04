@@ -192,4 +192,8 @@ if(BUILD_TESTING)
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
   endforeach()
+  # The floating-point tests also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE strict).
+  foreach(t fpm fpa fpc)
+    add_test(NAME insn-${t}-strict COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t} strict)
+  endforeach()
 endif()
