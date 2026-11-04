@@ -230,9 +230,13 @@ not yet claim a measured speed advantage over QEMU or Renode.
 
 An earlier [Athrill RISC-V target](https://github.com/hakoniwalab/athrill-target-riscv)
 runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
-configuration for QGroundControl. Starting with the familiar **Pixhawk 4 /
-FMUv5** makes this work easier to evaluate for developers using STM32-based
-PX4 boards.
+configuration for QGroundControl. Erbium is a board target in upstream PX4
+([`boards/aifoundry/erbium`](https://github.com/PX4/PX4-Autopilot/tree/main/boards/aifoundry/erbium),
+`aifoundry_erbium_default`). The same Athrill core
+([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`) thus
+runs PX4 on two instruction sets, RISC-V (RV64) and Armv7-M. Starting with
+the familiar **Pixhawk 4 / FMUv5** makes this work easier to evaluate for
+developers using STM32-based PX4 boards.
 
 Feedback from PX4 developers on useful test cases, missing hardware models,
 reproduction steps, and limitations is very welcome.
