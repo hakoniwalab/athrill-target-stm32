@@ -166,7 +166,7 @@ static inline Std_ReturnType ArmMemU_W(TargetCoreType *core, uint32 address, uin
 {
 	uint32 i;
 	Std_ReturnType err;
-	uint8 *p = memory_window_pointer(address, size);
+	uint8 *p = memory_window_write_pointer(address, size);
 	uint16 v16;
 
 	if (p != NULL) {

@@ -16,6 +16,7 @@ typedef struct {
 	uint32 start;
 	uint32 size;		/* 0: empty */
 	uint8 *data;
+	std_bool writable;	/* RAM; a ROM region is read only, as the bus has it */
 } MemoryWindowType;
 
 extern MemoryWindowType memory_windows[2];
@@ -46,6 +47,26 @@ static inline uint8 *memory_window_pointer(uint32 addr, uint32 size)
 		return &w->data[addr - w->start];
 	}
 	return memory_window_lookup(addr, size);
+}
+
+/* The same for a write: NULL also for ROM (the bus then refuses the write). */
+static inline uint8 *memory_window_write_pointer(uint32 addr, uint32 size)
+{
+	const MemoryWindowType *w = &memory_windows[0];
+
+	if (w->writable && ((addr - w->start) < w->size) && ((w->size - (addr - w->start)) >= size)) {
+		return &w->data[addr - w->start];
+	}
+	if (memory_window_lookup(addr, size) == NULL) {
+		return NULL;
+	}
+	return memory_windows[0].writable ? &memory_windows[0].data[addr - memory_windows[0].start] : NULL;
+}
+
+/* Whether the code window (the last memory_window_code_pointer) is ROM: its instructions cannot change. */
+static inline std_bool memory_window_code_is_rom(void)
+{
+	return !memory_code_window.writable;
 }
 
 #endif /* ATHRILL_STM32_MEMORY_WINDOW_H */

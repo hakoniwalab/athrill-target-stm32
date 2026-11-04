@@ -100,7 +100,8 @@ PX4's SIH home (Zurich).
   the default 2.5 m and holds 2.49 to 2.51 m.
 - RTF 1.25 to 1.28 while hovering without the SD card, 1.19 with it
   (logging about 65 KiB/s), measured from MAVLink `time_boot_ms` against
-  wall-clock time.
+  wall-clock time; 1.94 with SD logging after the speed-ups of
+  `docs/performance.md` section 4 (fast mode, the default).
 - With the SD card the log of a takeoff and hover (40 s, 90 topics, no
   dropouts) reads back with pyulog on the host.
 - PX4's load monitor reports `sih low on stack! (184 bytes left)`; the

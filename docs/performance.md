@@ -73,12 +73,19 @@ virtual clocks (2.72 G instructions in 12 G clocks, 55.6 s), the rest is
 skipped idle time. RTF is then the host's instructions per second divided by
 about 49 M (216 MHz x 0.23): 57 M/s gave RTF 1.17.
 
-| Step | Host instructions/s | RTF (SIH hover, without / with SD logging over MAVLink) |
+| Step | Host instructions/s | RTF (SIH hover) |
 |---|---|---|
-| Start | 57 M | 1.17 / 1.19 |
+| Start | 57 M | 1.17 |
 | Priority-only check after MSR/CPS (athrill-arm-common) | 65 M | 1.33 |
 | Code window apart from the data windows; PC sampling only on request | 67 M | 1.37 |
-| Decode cache 2^16 to 2^20 entries | 72 M | 1.48 / 1.47 |
+| Decode cache 2^16 to 2^20 entries | 72 M | 1.48 |
+| Floating point on the host FPU where exact (fast mode) | 78 M | 1.61 |
+| Fast executors of the frequent encodings (fast mode) | 88 M | 1.80 |
+| Instructions in a row in `thumb_execute_run`, counters added after | 91 M | 1.86 |
+| Fast PUSH/POP, condition table | 92 M | 1.88 |
+
+With MAVLink over TCP and SD logging (the way it is used): RTF 1.19 at the
+start, 1.94 at the end.
 
 1. **MSR and CPS** (NuttX's critical sections write BASEPRI twice each) set a
    priority-only check: the pending exception of the highest priority found
@@ -89,15 +96,36 @@ about 49 M (216 MHz x 0.23): 57 M/s gave RTF 1.17.
    of 512.
 2. **Code window**: instruction fetch has its own memory window; with one
    pair of windows shared with loads and stores, a fetch after a RAM access
-   missed and swapped windows.
+   missed and swapped windows. Writes go through a window only to RAM: a
+   store to flash goes to the bus, which refuses it as before the windows
+   (they had let stores modify flash). Decoded instructions from flash are
+   then not checked against memory again.
 3. **PC sampling** (`record_sample`, a linear search) runs only with
    `DEBUG_PC_SAMPLE_START`; the instruction count is kept.
 4. **Decode cache** of 2^20 entries (32 MB of host memory): one entry per
    halfword of the 2 MB of flash, no conflicts in PX4's code.
+5. **Floating point** (`DEVICE_CONFIG_ARM_FP_MODE`, athrill-arm-common
+   `arm_fp_host.h`): the arithmetic runs on the host's FPU where IEEE 754
+   guarantees the pseudo-code's bits and FPSCR (round to nearest, normal or
+   zero operands and results); IXC is worked out exactly (TwoSum, FMA error
+   terms) because writing the host's flag register is slow on Apple
+   silicon. 2.8 M random cases against the pseudo-code.
+6. **Fast executors** (`DEVICE_CONFIG_ARM_EXEC_MODE`, `src/cpu/thumb_fast.c`)
+   of the 30 most frequent encodings (B, CMP, MOV, LDR/STR forms, BL, PUSH,
+   POP, ...: three quarters of the instructions PX4 SIH executes), with the
+   same profile functions as the pseudo-code but no input/output
+   structures. `test/cpu/test_thumb_fast.c` compares them with the generic
+   executors on 5.3 M random encodings and states (core state and memory).
+7. **The run loop** (`thumb_execute_run`): instructions in a row with the
+   step inlined; the cycle and elapsed counters are added after the run.
 
-The host profile now: `thumb_execute` itself 22 %, the batch loop 11 %, the
-floating-point pseudo-code (`FPRoundMode`, `ArmFPArith`, `FPMulAdd`, ...)
-about 13 %, the integer executors the rest. The next steps (a host-FPU fast
-path for the floating-point instructions, specialised executors for the
-most frequent instructions) trade the closeness to the Arm pseudo-code for
-speed and are left to decide.
+Strict mode (`DEVICE_CONFIG_ARM_FP_MODE strict`, `DEVICE_CONFIG_ARM_EXEC_MODE
+strict`) keeps the pseudo-code-only path: every QEMU instruction test runs in
+both modes, and PX4 SIH takes off in both (strict about 25 % slower).
+
+Where the time goes now: the step itself (`execute_one`: the decode cache,
+the indirect call) about a third, the device ticks between batches about a
+tenth, the floating-point loads and stores and the remaining generic
+executors the rest. About a quarter of PX4's instructions are its byte-wise
+`memset` loop, as on the board. The next step would be straight-line blocks
+(decision 7 of the design).

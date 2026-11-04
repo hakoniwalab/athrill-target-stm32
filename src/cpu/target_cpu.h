@@ -55,6 +55,14 @@ static inline uint32 cpu_get_sp(const TargetCoreType *core) { return core->reg.r
 /* Executes one Thumb instruction at core->reg.pc (thumb_exec.c). */
 Std_ReturnType thumb_execute(TargetCoreType *core);
 /*
+ * Executes instructions in a row, one clock each (*clock counts them), up to
+ * max_clocks: stops before an instruction when the core halts, a device was
+ * accessed (stm32_device_accessed), a reset is pending or requested, or PC
+ * is the idle function's (cpu_supply_clock does those), and after an
+ * instruction that returns an error. *executed: the instructions executed.
+ */
+Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed);
+/*
  * The instruction at address as the generated decoders name it (for
  * messages); *insn and *length get its encoding (first halfword in bits 31:16
  * of a 32-bit one) and its length in bytes.

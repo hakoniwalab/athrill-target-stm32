@@ -7,6 +7,8 @@
 #include "t32_decode32.h"
 #include "arm_common/arm_m_exception.h"
 #include "memory_window.h"
+#include "thumb_fast.h"
+#include "device.h"
 #include <string.h>
 
 static Std_ReturnType fetch(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length)
@@ -43,7 +45,8 @@ static Std_ReturnType fetch(const TargetCoreType *core, uint32 address, uint32 *
 typedef struct {
 	uint32 pc;		/* odd: empty */
 	uint32 insn;		/* as fetch() returns it */
-	uint32 length;
+	uint16 length;
+	std_bool rom;		/* fetched from ROM, which the CPU cannot write: not checked again */
 	ThumbExec16 exec16;
 	ThumbExec32 exec32;
 } ThumbDecodedType;
@@ -92,11 +95,15 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 		decode_cache_ready = TRUE;
 	}
 	hw1 = halfword(p);
+	e->rom = memory_window_code_is_rom();
 	if (t32_decode16(hw1) != T32_16_WIDE) {
 		e->pc = pc;
 		e->insn = hw1;
 		e->length = 2U;
-		e->exec16 = thumb_executor16(hw1);
+		e->exec16 = stm32_exec_fast ? thumb_fast_executor16(hw1) : NULL;
+		if (e->exec16 == NULL) {
+			e->exec16 = thumb_executor16(hw1);
+		}
 		if (e->exec16 == NULL) {
 			e->exec16 = undefined16;
 		}
@@ -107,11 +114,15 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 	if (p2 == NULL) {
 		return NULL;
 	}
+	e->rom = e->rom && memory_window_code_is_rom();
 	e->pc = pc;
 	e->insn = ((uint32)hw1 << 16) | halfword(p2);
 	e->length = 4U;
 	e->exec16 = NULL;
-	e->exec32 = thumb_executor32(e->insn);
+	e->exec32 = stm32_exec_fast ? thumb_fast_executor32(e->insn) : NULL;
+	if (e->exec32 == NULL) {
+		e->exec32 = thumb_executor32(e->insn);
+	}
 	if (e->exec32 == NULL) {
 		e->exec32 = undefined32;
 	}
@@ -125,6 +136,9 @@ static inline const ThumbDecodedType *decoded_at(uint32 pc)
 	const uint8 *p;
 
 	if (e->pc == pc) {
+		if (e->rom) {
+			return e;
+		}
 		p = memory_window_code_pointer(pc, e->length);
 		if ((p != NULL) && ((e->length == 2U) ? (e->insn == halfword(p))
 			: (e->insn == (((uint32)halfword(p) << 16) | halfword(p + 2U))))) {
@@ -245,7 +259,7 @@ COLD_PATH static Std_ReturnType execute_slow(TargetCoreType *core)
  * One step. The common case, kept short: no exception to look at, the
  * instruction in the decode cache, nothing asked for after it.
  */
-Std_ReturnType thumb_execute(TargetCoreType *core)
+static inline Std_ReturnType execute_one(TargetCoreType *core)
 {
 	const ThumbDecodedType *decoded;
 	Std_ReturnType err;
@@ -275,6 +289,29 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
 	}
 	core->reg.pc = core->reg.next_pc;
 	return STD_E_OK;
+}
+
+Std_ReturnType thumb_execute(TargetCoreType *core)
+{
+	return execute_one(core);
+}
+
+Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed)
+{
+	Std_ReturnType err = STD_E_OK;
+	uint64 n = 0U;
+
+	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed && !core->reset_pending
+		&& !core->scs.reset_requested && (core->reg.pc != core->idle_pc)) {
+		(*clock)++;
+		n++;
+		err = execute_one(core);
+		if (err != STD_E_OK) {
+			break;
+		}
+	}
+	*executed = n;
+	return err;
 }
 
 const char *thumb_instruction_at(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length)

@@ -28,6 +28,7 @@ static std_bool find_region(uint32 addr, uint32 size, MemoryWindowType *found)
 		found->start = (uint32)r->start;
 		found->size = (uint32)r->size;
 		found->data = r->data;
+		found->writable = (r->type != READONLY_MEMORY);
 		if (window_holds(found, addr, size)) {
 			return TRUE;
 		}

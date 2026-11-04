@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "arm_common/arm_m_exception.h"
 #include "symbol_ops.h"
+#include "thumb_fast.h"
 #include "device.h"
 
 /* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
@@ -107,11 +108,14 @@ static uint64 halted_samples;
 static uint32 sample_countdown = PC_SAMPLE_INTERVAL;
 
 static void record_sample(const TargetCoreType *core);
+static std_bool pc_sampling;		/* DEBUG_PC_SAMPLE_START given */
+static uint32 pc_sample_start;
+static uint64 run_steps;		/* instructions of thumb_execute_run, without sampling */
 
 static inline void sample_pc(const TargetCoreType *core)
 {
 	sampled_clocks++;
-	if (--sample_countdown != 0U) {
+	if (!pc_sampling || (--sample_countdown != 0U)) {
 		return;
 	}
 	sample_countdown = PC_SAMPLE_INTERVAL;
@@ -123,18 +127,7 @@ COLD_PATH static void record_sample(const TargetCoreType *core)
 	uint32 block = core->reg.pc >> 6;
 	uint32 i;
 
-	static uint32 start_clocks = 0xFFFFFFFFU;
-	static std_bool enabled = FALSE;
-
-	if (start_clocks == 0xFFFFFFFFU) {
-		start_clocks = 0U;
-		enabled = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &start_clocks) == STD_E_OK);
-	}
-	if (!enabled) {
-		sample_countdown = 0xFFFFFFFFU;	/* not sampling: called again only after 4 G instructions */
-		return;
-	}
-	if (sampled_clocks < start_clocks) {
+	if (sampled_clocks < pc_sample_start) {
 		return;
 	}
 	if (core->is_halt) {
@@ -160,7 +153,7 @@ static void print_final_state(void)
 	uint32 i;
 
 	fprintf(stderr, "SAMPLES halted=%llu steps=%llu\n", (unsigned long long)halted_samples,
-		(unsigned long long)sampled_clocks);
+		(unsigned long long)(sampled_clocks + run_steps));
 	for (i = 0U; i < pc_sample_used; i++) {
 		fprintf(stderr, "SAMPLE 0x%08x %u\n", pc_sample_block[i] << 6, pc_sample_count[i]);
 	}
@@ -170,22 +163,30 @@ static void print_final_state(void)
 }
 
 std_bool stm32_fp_host_fast = TRUE;
+std_bool stm32_exec_fast = TRUE;
 
-/* DEVICE_CONFIG_ARM_FP_MODE: fast (default) or strict (the Arm pseudo-code only). */
-static void read_fp_mode(void)
+/* A mode of the device configuration: fast (default) or strict (the Arm pseudo-code only). */
+static std_bool read_mode(const char *key)
 {
 	char *mode = NULL;
 
-	stm32_fp_host_fast = TRUE;
-	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_ARM_FP_MODE", &mode) != STD_E_OK) {
-		return;
+	if (cpuemu_get_devcfg_string(key, &mode) != STD_E_OK) {
+		return TRUE;
 	}
 	if (strcmp(mode, "strict") == 0) {
-		stm32_fp_host_fast = FALSE;
+		return FALSE;
 	}
-	else if (strcmp(mode, "fast") != 0) {
-		printf("WARNING: DEVICE_CONFIG_ARM_FP_MODE %s: fast or strict; fast is used\n", mode);
+	if (strcmp(mode, "fast") != 0) {
+		printf("WARNING: %s %s: fast or strict; fast is used\n", key, mode);
 	}
+	return TRUE;
+}
+
+/* DEVICE_CONFIG_ARM_FP_MODE (floating-point arithmetic), DEVICE_CONFIG_ARM_EXEC_MODE (thumb_fast.h). */
+static void read_fp_mode(void)
+{
+	stm32_fp_host_fast = read_mode("DEVICE_CONFIG_ARM_FP_MODE");
+	stm32_exec_fast = read_mode("DEVICE_CONFIG_ARM_EXEC_MODE");
 }
 
 void cpu_init(void)
@@ -193,6 +194,7 @@ void cpu_init(void)
 	CoreIdType i;
 
 	read_fp_mode();
+	pc_sampling = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &pc_sample_start) == STD_E_OK);
 	atexit(print_final_state);
 	for (i = 0; i < cpu_config_get_core_id_num(); i++) {
 		virtual_cpu.cores[i].core.core_id = i;
@@ -303,9 +305,27 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 
 	stm32_device_accessed = FALSE;
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed) {
+		std_bool special = core->reset_pending || core->scs.reset_requested || (core->reg.pc == core->idle_pc);
+		uint64 k;
+
+		if (!special && !pc_sampling) {
+			/* the common case: instructions in a row, their counts added after */
+			err = thumb_execute_run(core, max_clocks - n, clock, &k);
+			n += k;
+			core->internal_cycle += k;
+			virtual_cpu.cores[core_id].elaps += k;
+			run_steps += k;
+			if (err != STD_E_OK) {
+				if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
+					report_stop(core, err);
+				}
+				break;
+			}
+			continue;
+		}
 		(*clock)++;
 		n++;
-		if (core->reset_pending || core->scs.reset_requested || (core->reg.pc == core->idle_pc)) {
+		if (special) {
 			err = cpu_supply_clock(core_id);
 		}
 		else {

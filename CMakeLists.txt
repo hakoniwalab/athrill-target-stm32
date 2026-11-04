@@ -55,6 +55,7 @@ option(ATHRILL_STM32_COVERAGE "Build the CPU with code coverage" OFF)
 add_library(athrill_stm32_cpu STATIC
   src/cpu/config/cpu_config.c
   src/cpu/thumb_exec.c
+  src/cpu/thumb_fast.c
   src/cpu/memory_window.c
   src/cpu/thumb_exec16.c
   src/cpu/thumb_exec32.c
@@ -180,6 +181,12 @@ if(BUILD_TESTING)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
+  # The fast executors against the generic ones (src/cpu/thumb_fast.c).
+  add_executable(test_thumb_fast test/cpu/test_thumb_fast.c src/cpu/thumb_fast.c src/cpu/thumb_exec16.c
+    src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c
+    src/cpu/decoder/t32_decode16.c src/cpu/decoder/t32_decode32.c)
+  stm32_target(test_thumb_fast)
+  add_test(NAME cpu-thumb-fast COMMAND test_thumb_fast)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"
@@ -192,8 +199,8 @@ if(BUILD_TESTING)
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
   endforeach()
-  # The floating-point tests also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE strict).
-  foreach(t fpm fpa fpc)
+  # Every instruction test also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE and _EXEC_MODE strict).
+  foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t}-strict COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t} strict)
   endforeach()
 endif()
