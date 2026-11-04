@@ -2,10 +2,10 @@
 
 ## What Athrill is
 
-[Athrill](https://github.com/toppers/athrill/tree/cpp) is a CPU emulator of the
+[Athrill](https://github.com/toppers/athrill) is a CPU emulator of the
 TOPPERS project, made to run and debug embedded programs (bare metal or on
 a real-time OS) on a virtual microcontroller, first for the V850. The
-current generation, `athrill3` (the core's `cpp` branch), is a
+current generation, `athrill3` (version 3, from v3.0.0), is a
 CPU-independent core with one repository per target. Athrill supports four
 instruction sets:
 

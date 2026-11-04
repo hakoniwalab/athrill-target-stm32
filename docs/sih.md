@@ -122,7 +122,10 @@ PX4's SIH home (Zurich).
 - RTF 1.25 to 1.28 while hovering without the SD card, 1.19 with it
   (logging about 65 KiB/s), measured from MAVLink `time_boot_ms` against
   wall-clock time; 1.94 with SD logging after the speed-ups of
-  `docs/performance.md` section 4 (fast mode, the default).
+  `docs/performance.md` section 4 (fast mode, the default). These are
+  PX4 `main` (`216039a`) on the Mac; v1.17.0, the version the README
+  uses, runs fewer instructions and reaches 2.22
+  ([verification](verification.md#speed)).
 - With the SD card the log of a takeoff and hover (40 s, 90 topics, no
   dropouts) reads back with pyulog on the host.
 - PX4's load monitor reports `sih low on stack! (184 bytes left)`; the

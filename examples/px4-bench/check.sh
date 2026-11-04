@@ -60,6 +60,9 @@ wait
 cd "$WORK"
 L=run1/console.txt
 echo "the drivers and the estimator (PX4's own reports, run 1)"
+for run in run1 run2; do
+	check "$run ran to its clock limit" "EXIT for timeout" $run/console.txt
+done
 check "airframe 4001 loaded" "Loading airframe: .*4001_quad_x" $L
 check "ICM-20689 (SPI1): no bad transfers" "icm20689: bad transfer: 0 events" $L
 check "IMU at 800 Hz" "selected sensor: 3932170, rate: 800.0 Hz" $L

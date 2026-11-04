@@ -12,7 +12,7 @@ flight-controller board, including NuttX, its interrupt handling, and STM32
 peripheral drivers, **before putting it on hardware**?
 
 This project explores **Processor-in-the-Loop (PIL)** as a complementary testing
-option. It extends the open-source [Athrill](https://github.com/toppers/athrill/tree/cpp)
+option. It extends the open-source [Athrill](https://github.com/toppers/athrill)
 microcontroller emulator with an Armv7-M (Cortex-M7) target and functional
 STM32F7 / Pixhawk 4 devices. The result runs the regular PX4
 `px4_fmu-v5_default.elf` build on a development computer, rather than a
@@ -33,7 +33,8 @@ be mounted on the host afterwards. Everything used is public: Athrill, this
 target, PX4 itself and QGroundControl.
 
 In SIH, PX4 computes the vehicle and its sensor data internally
-(`SYS_HITL=2`); **the emulated sensor chips are not in the SIH data path**.
+(`SYS_HITL=2`) and does not start the board's sensor drivers: **the
+emulated sensor chips are not in the SIH data path**.
 PX4's own sensor drivers on those chips are exercised separately, on a bench
 with public parts and in flight with external physics (see [Beyond SIH](#beyond-sih-px4s-sensor-drivers-and-external-physics)).
 
@@ -76,12 +77,11 @@ AUX1–AUX4 rather than PX4IO's MAIN outputs.
 
 ### 1. Build Athrill STM32
 
-Place three repositories side by side, at the commits these results come
-from (the core's `cpp` branch and athrill-arm-common move on):
+Place three repositories side by side, at the versions these results come
+from (Athrill 3.0.0; athrill-arm-common moves on):
 
 ```sh
-git clone --branch cpp https://github.com/toppers/athrill.git
-git -C athrill checkout ba809715
+git clone --branch v3.0.0 --depth 1 https://github.com/toppers/athrill.git
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
@@ -252,20 +252,20 @@ chips report a vehicle at rest at Tokyo Station (gravity, Earth's
 field, sea-level pressure, a GPS fix, with fixed-seed noise). PX4 boots as a
 generic quadcopter with its own drivers for the ICM-20689 (SPI1 with DMA,
 FIFO at 800 Hz), MS5611 (SPI4), IST8310 (I2C3) and u-blox (USART1); EKF2
-gets a position and the preflight check passes. It does not fly: nothing
-moves the vehicle. The bench is off by default: PX4 starts these drivers
-in SIH too, and keeps the chips out of its data path because, without the
-bench, their values never change and are taken as stale.
+gets a position and the preflight check passes (with the power-supply
+check bypassed, `CBRK_SUPPLY_CHK`, as there is no power module to measure).
+It does not fly: nothing moves the vehicle. In SIH (`SYS_HITL=2`) PX4 does
+not start these drivers at all; it uses its simulated sensors.
 
 ```bash
-examples/px4-bench/check.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+examples/px4-bench/check.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 `check.sh` runs 30 s twice from the same images and checks, in PX4's own
 reports, that the drivers transfer without errors, the sensor validators
 are OK, the GPS has a 3D fix, EKF2's position is valid and the preflight
-check is OK, then that both runs give identical console output, F-RAM and SD
-card image (about 1 min on an Apple M2 Pro). `examples/px4-bench/run.sh`
+check is OK, then that both runs reach their clock limit and give
+identical console output, F-RAM and SD card image (about 1 min). `examples/px4-bench/run.sh`
 boots the same setup for QGroundControl on TCP 127.0.0.1:5760.
 
 **Flying, with external physics.** A further experiment flies with them. PX4's own
@@ -300,7 +300,7 @@ runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
 configuration for QGroundControl. Erbium is a board target in upstream PX4
 ([`boards/aifoundry/erbium`](https://github.com/PX4/PX4-Autopilot/tree/main/boards/aifoundry/erbium),
 `aifoundry_erbium_default`). Athrill
-([toppers/athrill](https://github.com/toppers/athrill/tree/cpp), branch `cpp`)
+([toppers/athrill](https://github.com/toppers/athrill), version 3)
 supports V850, RH850, RISC-V and Armv7-M (this target); PX4 runs on two of
 them, RISC-V (RV64) and Armv7-M ([docs/athrill.md](docs/athrill.md)). Starting with
 the familiar **Pixhawk 4 / FMUv5** makes this work easier to evaluate for

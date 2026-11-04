@@ -41,8 +41,9 @@ static uint32 bench;
  * there (about 0.47 gauss, inclination 49 degrees, declination -7.5
  * degrees) and a GPS fix. Gaussian-like noise from a fixed-seed integer generator
  * stands in for the sensors' own noise (PX4 takes a sensor whose value
- * never changes as stale): larger than one step of each chip's output
- * (ICM-20689 0.005 m/s^2 and 0.001 rad/s, IST8310 0.003 gauss), drawn in
+ * never changes as stale): RMS 0.02 m/s^2, 0.003 rad/s and 0.003 gauss,
+ * each above one step (LSB) of its chip's output (ICM-20689 about
+ * 0.005 m/s^2 and 0.001 rad/s, IST8310 0.003 gauss), drawn in
  * the order the chips ask for samples, so runs stay identical.
  */
 #define BENCH_LAT	356812360	/* degE7 */
