@@ -183,11 +183,15 @@ marked strict.
 | Workload | Mac (M2 Pro) | WSL2 PC (Core Ultra 7 155H) |
 | --- | ---: | ---: |
 | SIH hover over MAVLink, SD logging (`run.sh` + pymavlink) | 1.92 | 1.29 (1.34 just after the GPS fix) |
-| NSH flight of verify.sh A, boot to disarm, 74 s of virtual time, one run alone | 2.01 | not measured alone |
-| The same, strict mode (Arm pseudo-code only) | 1.58 | not measured alone |
+| NSH flight of verify.sh A, boot to disarm, 74 s of virtual time, one run alone | 2.01 (36.8 s) | 1.34 (55.5 s) |
+| The same, strict mode (Arm pseudo-code only) | 1.58 (46.8 s) | 1.06 (70.1 s) |
 | `verify.sh`, everything (A runs its 3 flights in parallel) | about 100 s | 159 s |
 | Build: Athrill (cmake, build, ctest) | not timed | 44 s |
 | Build: PX4 (clone and submodules / Docker make with the image pull) | not timed | 266 s / 394 s |
+
+Strict mode takes 1.27 times as long as the fast mode on both hosts. On the
+WSL2 PC something else kept one core busy during these runs (load average
+1.00 before them); Athrill uses one core, so the effect should be small.
 
 Hakoniwa Drone PRO's x500 (README, "Beyond SIH") runs at RTF 1.48 on the
 Mac, the whole system with MuJoCo and no viewer.
