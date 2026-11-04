@@ -1,8 +1,13 @@
 # Athrill STM32 — run PX4's Pixhawk 4 firmware without a flight controller
 
 [![ctest](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml/badge.svg)](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml)
+[![px4](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/px4.yml/badge.svg)](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/px4.yml)
 
 **Unmodified `px4_fmu-v5_default.elf` — NuttX, interrupts, DMA and all — on your laptop, flown from QGroundControl, with bit-identical replays.**
+
+![QGroundControl (left) takes off and flies "Go to location" legs with PX4 SIH on the emulated Pixhawk 4; PX4's own console (right) reports PX4 v1.17.0 on an STM32F76x, the arming, the ULog file and the takeoff. 4x speed.](docs/qgc-flight.gif)
+
+*QGroundControl flying PX4 v1.17.0 SIH on the emulated Pixhawk 4, with PX4's console on the right (4× speed). Prebuilt binaries and the ELF: [Release v0.1.1](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/v0.1.1).*
 
 A virtual Pixhawk 4 (FMUv5, STM32F765): no flight controller needed.
 
