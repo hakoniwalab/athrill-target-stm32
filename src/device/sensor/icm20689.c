@@ -174,12 +174,17 @@ static uint32 fifo_count(Icm20689Type *chip)
 	return (uint32)bytes;
 }
 
-/* The next FIFO byte: records of accel (H, L per axis), temperature, gyro x, y, z, as enabled. */
+/*
+ * The next FIFO byte: records of accel (H, L per axis), temperature, gyro x, y,
+ * z, as enabled. A record is sampled once, at its first byte. The gyroscope
+ * samples at 8 kHz and the accelerometer at 4 kHz: each accelerometer sample
+ * fills two records in a row, as on the chip (PX4's driver looks for these
+ * pairs and drops a transfer without them).
+ */
 static uint8 fifo_byte(Icm20689Type *chip)
 {
 	uint32 rec = record_bytes(chip);
 	uint32 pos;
-	uint8 layout[14];
 	uint32 n = 0U;
 	uint8 en = chip->regs[REG_FIFO_EN];
 	RawSampleType raw;
@@ -188,26 +193,35 @@ static uint8 fifo_byte(Icm20689Type *chip)
 	if ((rec == 0U) || (fifo_count(chip) == 0U)) {
 		return 0U;
 	}
-	raw_sample(chip, &raw);
-	if ((en & FIFO_EN_ACCEL) != 0U) {
-		for (k = 0U; k < 3U; k++) {
-			layout[n++] = (uint8)((uint16)raw.acc[k] >> 8);
-			layout[n++] = (uint8)raw.acc[k];
-		}
-	}
-	if ((en & FIFO_EN_TEMP) != 0U) {
-		layout[n++] = (uint8)((uint16)raw.temp >> 8);
-		layout[n++] = (uint8)raw.temp;
-	}
-	for (k = 0U; k < 3U; k++) {
-		if ((en & (FIFO_EN_XG >> k)) != 0U) {
-			layout[n++] = (uint8)((uint16)raw.gyro[k] >> 8);
-			layout[n++] = (uint8)raw.gyro[k];
-		}
-	}
 	pos = (uint32)(chip->fifo_read_bytes % rec);
+	if (pos == 0U) {
+		uint64 record = chip->fifo_read_bytes / rec;
+
+		raw_sample(chip, &raw);
+		if ((record % 2U) == 0U) {
+			for (k = 0U; k < 3U; k++) {
+				chip->acc_held[k] = raw.acc[k];
+			}
+		}
+		if ((en & FIFO_EN_ACCEL) != 0U) {
+			for (k = 0U; k < 3U; k++) {
+				chip->record[n++] = (uint8)((uint16)chip->acc_held[k] >> 8);
+				chip->record[n++] = (uint8)chip->acc_held[k];
+			}
+		}
+		if ((en & FIFO_EN_TEMP) != 0U) {
+			chip->record[n++] = (uint8)((uint16)raw.temp >> 8);
+			chip->record[n++] = (uint8)raw.temp;
+		}
+		for (k = 0U; k < 3U; k++) {
+			if ((en & (FIFO_EN_XG >> k)) != 0U) {
+				chip->record[n++] = (uint8)((uint16)raw.gyro[k] >> 8);
+				chip->record[n++] = (uint8)raw.gyro[k];
+			}
+		}
+	}
 	chip->fifo_read_bytes++;
-	return layout[pos];
+	return chip->record[pos];
 }
 
 static uint8 data_register(const Icm20689Type *chip, uint8 address)

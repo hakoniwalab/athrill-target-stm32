@@ -44,6 +44,8 @@ typedef struct {
 	uint64 fifo_taken;
 	uint64 fifo_read_bytes;
 	std_bool fifo_overflow;
+	uint8 record[14];	/* the FIFO record being read out */
+	sint16 acc_held[3];	/* the accelerometer sample of the current pair of records (4 kHz) */
 	uint64 next_sample;	/* the clock of the next data-ready pulse */
 } Icm20689Type;
 

@@ -8,6 +8,7 @@
 #include "mpu.h"
 #include "cpuemu_ops.h"
 #include <string.h>
+#include <math.h>
 
 #define DEFAULT_BASE		0x60000000U
 
@@ -30,11 +31,49 @@
 static uint32 base = DEFAULT_BASE;
 static std_bool looked;
 static std_bool present;
+static uint32 cpu_mhz = 216U;
+
+/*
+ * The bench without the device: a vehicle at rest, level, facing north, at
+ * Tokyo Station (35.681236 N, 139.767125 E, 40 m), with the Earth's field
+ * there (about 0.47 gauss, inclination 49 degrees, declination -7.5
+ * degrees) and a GPS fix. Gaussian noise from a fixed-seed generator
+ * stands in for the sensors' own noise (PX4 takes a sensor whose value
+ * never changes as stale): larger than one step of each chip's output
+ * (ICM-20689 0.005 m/s^2 and 0.001 rad/s, IST8310 0.003 gauss), drawn in
+ * the order the chips ask for samples, so runs stay identical.
+ */
+#define BENCH_LAT	356812360	/* degE7 */
+#define BENCH_LON	1397671250
+#define BENCH_ALT	40000		/* mm */
+#define BENCH_ACC_NOISE		0.02F	/* m/s^2, RMS */
+#define BENCH_GYRO_NOISE	0.003F	/* rad/s */
+#define BENCH_MAG_NOISE		0.003F	/* gauss */
+
+static uint64 noise_state;
+
+/* A standard normal value (Box-Muller on xorshift64). */
+static float32 bench_noise(void)
+{
+	float64 u[2];
+	uint32 k;
+
+	for (k = 0U; k < 2U; k++) {
+		noise_state ^= noise_state << 13;
+		noise_state ^= noise_state >> 7;
+		noise_state ^= noise_state << 17;
+		u[k] = ((float64)(noise_state >> 11) + 0.5) / 9007199254740992.0;
+	}
+	return (float32)(sqrt(-2.0 * log(u[0])) * cos(6.283185307179586 * u[1]));
+}
 
 void sensor_source_reset(void)
 {
 	base = DEFAULT_BASE;
 	(void)cpuemu_get_devcfg_value_hex("DEVICE_CONFIG_STM32_SENSOR_DEVICE", &base);
+	cpu_mhz = 216U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &cpu_mhz);
+	noise_state = 0x2545F4914F6CDD1DULL;
 	looked = FALSE;
 	present = FALSE;
 }
@@ -79,11 +118,19 @@ void sensor_source_sample(SensorSampleType *sample)
 	uint32 k;
 
 	if (!device_present()) {
+		uint32 k;
+
 		memset(sample, 0, sizeof(*sample));
 		sample->acc[2] = -9.80665F;
-		sample->mag[0] = 0.21F;
-		sample->mag[2] = 0.43F;
-		sample->abs_pressure = 1013.25F;
+		sample->mag[0] = 0.307F;
+		sample->mag[1] = -0.040F;
+		sample->mag[2] = 0.355F;
+		for (k = 0U; k < 3U; k++) {
+			sample->acc[k] += BENCH_ACC_NOISE * bench_noise();
+			sample->gyro[k] = BENCH_GYRO_NOISE * bench_noise();
+			sample->mag[k] += BENCH_MAG_NOISE * bench_noise();
+		}
+		sample->abs_pressure = 1012.77F;	/* 40 m above sea level */
 		sample->temperature = 20.0F;
 		return;
 	}
@@ -99,7 +146,17 @@ void sensor_source_sample(SensorSampleType *sample)
 std_bool sensor_source_gps(GpsSampleType *gps)
 {
 	if (!device_present()) {
-		return FALSE;
+		memset(gps, 0, sizeof(*gps));
+		gps->time_usec = (cpuemu_get_clock() / cpu_mhz) + 1U;
+		gps->lat = BENCH_LAT;
+		gps->lon = BENCH_LON;
+		gps->alt = BENCH_ALT;
+		gps->eph = 100U;
+		gps->epv = 150U;
+		gps->cog = 0U;
+		gps->fix_type = 3U;
+		gps->satellites = 12U;
+		return TRUE;
 	}
 	gps->time_usec = ((uint64)word(REG_GPS_TIME_HI) << 32) | word(REG_GPS_TIME_LO);
 	if (gps->time_usec == 0U) {
