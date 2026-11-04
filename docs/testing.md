@@ -7,8 +7,8 @@ implementation, and a decoder cross-check.
 ## Status
 
 What is in place on 2026-11-04 and what is planned. "CTest" means it runs
-with `(cd build && ctest)` (36 tests, all passing on macOS and WSL2);
-there is no CI workflow in this repository yet.
+with `(cd build && ctest)` (36 tests, all passing on macOS and WSL2), and
+in CI on Linux and macOS ([ctest workflow](../.github/workflows/ctest.yml)).
 
 | Check | Status |
 | --- | --- |
@@ -24,7 +24,7 @@ there is no CI workflow in this repository yet.
 | Comparison with Renode (whole chip, boot logs, traces, speed) | planned; Renode is not in the toolchain image yet |
 | NuttX ostest on an STM32F7 board configuration | planned |
 | ChibiOS / ArduPilot | planned (stage 3) |
-| CI | planned |
+| CI: CTest on Linux and macOS | in place ([ctest workflow](../.github/workflows/ctest.yml)); the SIH verification in CI is planned |
 
 ## 1. Toolchain (Docker)
 
@@ -137,7 +137,7 @@ The same form as the RISC-V target's UART and timer unit tests.
   execution.
 - Athrill can write an execution trace (with the virtual clock) for
   comparisons with other implementations.
-- All tests run automatically (CTest); running them in CI is planned.
+- All tests run automatically (CTest), also in CI on Linux and macOS.
 
 ### Floating-point tests
 

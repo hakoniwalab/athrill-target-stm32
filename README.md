@@ -1,5 +1,7 @@
 # Athrill STM32 — run PX4's Pixhawk 4 firmware without a flight controller
 
+[![ctest](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml/badge.svg)](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml)
+
 **Unmodified `px4_fmu-v5_default.elf` — NuttX, interrupts, DMA and all — on your laptop, flown from QGroundControl, with bit-identical replays.**
 
 A virtual Pixhawk 4 (FMUv5, STM32F765): no flight controller needed.
@@ -81,7 +83,7 @@ from (the core's `cpp` branch and athrill-arm-common move on):
 git clone --branch cpp https://github.com/toppers/athrill.git
 git -C athrill checkout ba809715
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
-git -C athrill-arm-common checkout d5e5ef8
+git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 

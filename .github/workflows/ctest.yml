@@ -1,0 +1,45 @@
+# Builds Athrill with this target and runs its CTest tests (decoder, the
+# instruction tests against QEMU's output in both modes, the fast executors
+# against the pseudo-code, the peripheral and chip models) on Linux and macOS.
+name: ctest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ctest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: athrill-target-stm32
+        uses: actions/checkout@v4
+        with:
+          path: athrill-target-stm32
+      # the core and the shared Arm pseudo-code, at the commits the README pins
+      - name: athrill (cpp)
+        uses: actions/checkout@v4
+        with:
+          repository: toppers/athrill
+          ref: ba80971543284c8c7286b4e3e14b92f2ebd4d9c4
+          path: athrill
+      - name: athrill-arm-common
+        uses: actions/checkout@v4
+        with:
+          repository: hakoniwalab/athrill-arm-common
+          ref: 60d8098cfcbbda5489c74843c15d3d2742e6c3bb
+          path: athrill-arm-common
+          fetch-depth: 0
+      - name: build
+        working-directory: athrill-target-stm32
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+      - name: ctest
+        working-directory: athrill-target-stm32/build
+        run: ctest --output-on-failure
