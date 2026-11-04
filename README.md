@@ -145,9 +145,9 @@ and asks for radio and flight-mode setup (no RC): both are expected.
 These steps were run as written on an **Apple Silicon Mac** (macOS) and on
 **Windows 11 / WSL2 Ubuntu** (Intel Core Ultra 7 155H, Docker inside WSL2).
 On WSL2: `sudo apt install dosfstools mtools`, and the Python packages in a
-venv (pymavlink takes off over `127.0.0.1:5760` inside WSL2; QGroundControl
-on Windows is still to be checked). Hovering runs at RTF 1.92 on the Mac,
-1.3 on that PC.
+venv. QGroundControl on Windows connects to PX4 in WSL2 with a TCP link to
+`127.0.0.1:5760` (WSL's localhost forwarding), shows the vehicle at Zurich
+and flies it. Hovering runs at RTF 1.92 on the Mac, 1.3 on that PC.
 
 ## Performance and validation
 

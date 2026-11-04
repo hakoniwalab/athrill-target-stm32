@@ -79,6 +79,13 @@ Input timed by the wall clock, such as QGroundControl's commands over TCP,
 arrives at run-dependent virtual times: those runs are checked by their
 logs, not for identity.
 
+## QGroundControl
+
+On the Mac and on Windows (QGroundControl on Windows, PX4 on Athrill in
+WSL2, TCP link to `127.0.0.1:5760` through WSL's localhost forwarding), the
+vehicle shows at PX4's SIH home in Zurich and is armed, taken off, moved
+and landed from QGroundControl by hand.
+
 ## Speed
 
 | Host | RTF while hovering (MAVLink, SD logging) | verify.sh |
