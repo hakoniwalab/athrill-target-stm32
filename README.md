@@ -189,7 +189,20 @@ electrical, safety, or flight validation.
 ## Verification
 
 [examples/px4-sih/verify](examples/px4-sih/verify) checks a PX4 SIH flight
-end to end with one command (about 2 minutes):
+end to end with one command (about 2 minutes). From one starting state
+(F-RAM and SD card images after the first boot), it
+
+- flies take off, hover, land three times from the NSH console at fixed
+  virtual times, twice in the default mode and once in strict mode, and
+  requires the console, the F-RAM and the whole SD card image to be
+  identical;
+- checks that flight's ULog: EKF2 against SIH's ground truth, attitude
+  tracking, altitude and position hold, the arm-to-disarm sequence;
+- flies arm, take off, "go to" 5 m north, land over MAVLink as
+  QGroundControl does, and checks its log the same way.
+
+What it runs, every threshold and what it does not show are in
+[docs/verification.md](docs/verification.md#what-verifysh-does).
 
 ```sh
 examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf

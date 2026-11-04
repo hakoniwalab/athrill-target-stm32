@@ -9,6 +9,78 @@ scenario, read from the emulated microSD card, with
 thresholds are in [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py)
 (chosen for this SIH vehicle, not PX4 requirements).
 
+## What verify.sh does
+
+```sh
+examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf [athrill3]
+```
+
+It prints the ELF's SHA-256 (the results belong to that firmware), then:
+
+1. **Golden images.** A first boot on a new F-RAM and a new 1 GB FAT32 SD
+   card image selects the SIH airframe (`SYS_AUTOSTART 1100`). These two
+   files are the starting state of every flight below: PX4 keeps
+   parameters, logs and mission data in them, so a run that starts from a
+   used image is a different experiment.
+2. **A. Determinism.** The flight of [scenario.nsh](../examples/px4-sih/verify/scenario.nsh)
+   (wait 12 s, `commander takeoff`, 20 s, `commander land`, 20 s) is typed
+   into the NSH console, which Athrill delivers at fixed virtual times, so
+   nothing depends on the host's clock. It runs three times at once from
+   copies of the golden images, for 16 G clocks (74 s of virtual time):
+   twice in the default mode, once in strict mode. The console output, the
+   F-RAM and the whole SD card image must be byte for byte the same.
+   Agreement with strict mode also shows that the fast paths (fast
+   executors, host FPU) compute exactly what the Arm pseudo-code does.
+3. **B. Checks of A's flight log.** The ULog is read from the SD card
+   image (mtools, or hdiutil on macOS) and checked by
+   [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py) (table
+   below).
+4. **C. A QGroundControl-style flight**, when pymavlink is installed: PX4
+   runs with MAVLink on TCP, and
+   [fly_scenario.py](../examples/px4-sih/verify/fly_scenario.py) arms,
+   takes off, sends "go to" 5 m north (`MAV_CMD_DO_REPOSITION`), hovers
+   15 s, lands and waits for the disarm, timing each phase by the
+   vehicle's clock. Its log gets the same checks, plus holding the target.
+   With matplotlib, [plot_ulog.py](../examples/px4-sih/verify/plot_ulog.py)
+   draws the charts of this page from it.
+
+The script ends with `ALL PASS` and exit status 0, or `SOME CHECKS FAILED`
+and 1. Its files stay in `examples/px4-sih/verify/work/`: `golden/`,
+`fast1/`, `fast2/`, `strict/` and `mavlink/` (each with its console output,
+F-RAM and SD card image), `a.ulg`, `mavlink/c.ulg` and `charts/`.
+
+### The checks of a flight log
+
+The thresholds are for this SIH quadcopter, chosen to catch a broken
+flight, not PX4 requirements. "Flying" is from takeoff to touchdown as
+`vehicle_land_detected` reports them.
+
+| Check | Topics | Passes when |
+| --- | --- | --- |
+| log | the ULog | no dropouts |
+| flight | `vehicle_status`, `vehicle_land_detected` | armed, airborne, landed again, disarmed at the end |
+| ekf2 faults | `estimator_status` | `filter_fault_flags` always 0 |
+| ekf2 innovations | `estimator_status` | position, velocity, height and heading test ratios below 1 (inside PX4's gates) while armed |
+| ekf2 position vs truth | `vehicle_local_position`, `…_groundtruth` | while flying, horizontal and vertical error below 0.5 m |
+| ekf2 tilt vs truth | `vehicle_attitude`, `…_groundtruth` | tilt error RMS below 0.5°, max below 2° (the two topics are sampled at different times, so fast attitude changes show a lag) |
+| ekf2 heading vs truth | the same | heading error below 5° |
+| attitude tracking | `vehicle_attitude`, `vehicle_attitude_setpoint` | tilt error RMS below 2° while flying |
+| altitude hold | `vehicle_local_position` | from reaching 2.5 m (within 5 cm) to the descent: mean within 5 cm of 2.5 m, every sample within 15 cm |
+| position hold | `vehicle_local_position` | A: horizontal drift while hovering below 0.3 m; C: within 0.3 m of the target over the last 5 s |
+
+### What it does not show
+
+- **PX4's sensor drivers.** SIH gives PX4 its sensor data directly; the
+  emulated chips are not in this data path (README, "Beyond SIH").
+- **Timing of the real board.** Every instruction takes one clock of the
+  virtual 216 MHz; PX4's CPU load and its real-time margins on a Pixhawk
+  are not modelled.
+- **Identity across hosts.** Each host's runs are identical, but different
+  ELFs give different instruction counts; one ELF on two hosts is not
+  compared here.
+- **Identity of MAVLink runs.** C's commands arrive at wall-clock times,
+  so its runs differ in detail; they are judged by their logs only.
+
 ## The flight
 
 Arm, take off to the default 2.5 m, "go to" a point 5 m north (`MAV_CMD_DO_REPOSITION`,
