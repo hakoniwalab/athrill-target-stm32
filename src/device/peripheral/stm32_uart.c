@@ -104,6 +104,7 @@ static UartType uarts[] = {
 
 static UartType *console;
 static FILE *rx_file;
+static FILE *tx_file;
 static std_bool rx_file_at_end;
 static std_bool tx_dma_enabled;
 
@@ -174,6 +175,9 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 	u->sending = TRUE;
 	if (u == console) {
 		(void)dbg_serial_putchar(0, data);
+		if (tx_file != NULL) {
+			(void)fputc(data, tx_file);
+		}
 	}
 	else if (u->chip_ops != NULL) {
 		u->chip_ops->transmit(u->chip, data);
@@ -412,7 +416,7 @@ void stm32_uart_write(uint32 addr, uint32 size, uint32 value)
 	write_register(u, offset, value << shift, mask);
 }
 
-void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
+void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const char *tx_file_path)
 {
 	uint32 i;
 	uint32 k;
@@ -446,11 +450,21 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
 		fclose(rx_file);
 		rx_file = NULL;
 	}
+	if (tx_file != NULL) {
+		fclose(tx_file);
+		tx_file = NULL;
+	}
 	rx_file_at_end = FALSE;
 	if (rx_file_path != NULL) {
 		rx_file = fopen(rx_file_path, "rb");
 		if (rx_file == NULL) {
 			printf("WARNING: can not open UART input file %s\n", rx_file_path);
+		}
+	}
+	if (tx_file_path != NULL) {
+		tx_file = fopen(tx_file_path, "wb");
+		if (tx_file == NULL) {
+			printf("WARNING: can not open UART output file %s\n", tx_file_path);
 		}
 	}
 }

@@ -30,14 +30,18 @@ static void uart_reset(void)
 	uint32 console = 3U;
 	uint32 tx_dma = 0U;
 	char *rx_file = NULL;
+	char *tx_file = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_CONSOLE_UART", &console);
 	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_UART_TX_DMA", &tx_dma);
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_RX_FILE", &rx_file) != STD_E_OK) {
 		rx_file = NULL;
 	}
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_TX_FILE", &tx_file) != STD_E_OK) {
+		tx_file = NULL;
+	}
 	stm32_uart_set_tx_dma(tx_dma != 0U);
-	stm32_uart_reset(console, rx_file);
+	stm32_uart_reset(console, rx_file, tx_file);
 }
 
 static uint32 cpu_mhz(void)

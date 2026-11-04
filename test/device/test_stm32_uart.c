@@ -141,7 +141,7 @@ static void setup(const char *rx_file)
 	dma_tx_data = NULL;
 	dma_tx_pos = 0U;
 	stm32_uart_set_tx_dma(TRUE);
-	stm32_uart_reset(3U, rx_file);
+	stm32_uart_reset(3U, rx_file, NULL);
 }
 
 static void wr(uint32 base, uint32 offset, uint32 value)
@@ -405,6 +405,31 @@ static void test_receive_file(void)
 	remove(path);
 }
 
+static void test_transmit_file(void)
+{
+	const char *path = "test_stm32_uart_tx.bin";
+	char got[3] = { 0 };
+	FILE *f;
+
+	setup(NULL);
+	stm32_uart_reset(3U, NULL, path);
+	wr(USART3, BRR, 469U);
+	wr(USART3, CR1, UE | TE);
+	wr(USART3, TDR, 'A');
+	wr(USART3, TDR, 'B');
+	now = FRAME_115200;
+	(void)rd(USART3, ISR);
+	stm32_uart_reset(3U, NULL, NULL); /* closes and flushes the capture */
+	f = fopen(path, "rb");
+	CHECK_EQ("TX file opened", f != NULL, 1U);
+	if (f != NULL) {
+		CHECK_EQ("TX file bytes", fread(got, 1U, 2U, f), 2U);
+		fclose(f);
+	}
+	CHECK_STR("TX file is raw UART data", got, "AB");
+	remove(path);
+}
+
 int main(void)
 {
 	test_transmit();
@@ -412,6 +437,7 @@ int main(void)
 	test_transmit_interrupts();
 	test_receive();
 	test_receive_file();
+	test_transmit_file();
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }
