@@ -53,10 +53,10 @@ jobs:
           docker run --rm -v "$PWD/PX4:/src" -w /src px4io/px4-dev:v1.17.0-beta1 make px4_fmu-v5_default
           mkdir -p px4-elf
           cp PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf px4-elf/
-      - name: tools (FAT image, ULog analysis)
+      - name: tools (reading the SD card image, ULog analysis)
         run: |
           sudo apt-get update
-          sudo apt-get install -y dosfstools mtools python3-numpy
+          sudo apt-get install -y mtools python3-numpy
           pip3 install --break-system-packages pyulog
 
       - name: bench (PX4's sensor drivers)

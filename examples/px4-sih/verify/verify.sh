@@ -15,8 +15,8 @@
 #    MAVLink as QGroundControl does (fly_scenario.py), and its log; with
 #    matplotlib, its charts in work/charts (plot_ulog.py).
 # D. With the release ELF (PX4 v1.17.0 from this repository's Release):
-#    the ULog, F-RAM and console of A must be identical to the published
-#    run, on any host.
+#    the whole SD card image, the ULog, F-RAM and console of A must be
+#    identical to the published run, on any host.
 #
 # Needs python3 with numpy and pyulog (pymavlink for C, matplotlib for the
 # charts); on Linux mtools (mcopy) to read the SD card image. Work files:
@@ -72,12 +72,13 @@ ELF_SHA=$(sha256 "$ELF")
 echo "ELF sha256: $ELF_SHA"
 
 # The published run of the release ELF (PX4 v1.17.0, built on the Mac): the
-# ULog, F-RAM and console of flight A. (The whole SD card image is not
-# compared across hosts: formatting it gives a new volume ID each time.)
+# whole SD card image, ULog, F-RAM and console of flight A. (make-sd-image.sh
+# makes the same image on every host.)
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
 PUBLISHED_ULOG=5aaa66ebf76d7fde713ef39cb07890dc6cb5de136713fd35732121efef116e3d
 PUBLISHED_FRAM=c1a69ccb3740c797db62233deca689741a76a20692e982acea95c76199ff50e9
 PUBLISHED_CONSOLE=36a05910bf2ca4183818bc822bcefa0d16ebb6382fb29bc5b72cccbf223825ce
+PUBLISHED_SD=cdce0b68427e967b4f47fcdf2378496f7970736ed68d8c3c15d575f3391ed16d
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
@@ -152,10 +153,10 @@ cd "$WORK"
 if [ "$ELF_SHA" = "$PUBLISHED_ELF" ]; then
 	echo "D. the same as the published run (release ELF)"
 	grep -av "DEVICE_CONFIG_ARM_" fast1/console.txt > c1.txt
-	if [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 c1.txt)" = $PUBLISHED_CONSOLE ]; then
-		echo "  [PASS] ULog, F-RAM and console identical to the published run (ULog sha256 ${PUBLISHED_ULOG%"${PUBLISHED_ULOG#????????????????}"}...)"
+	if [ "$(sha256 fast1/sd.img)" = $PUBLISHED_SD ] && [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 c1.txt)" = $PUBLISHED_CONSOLE ]; then
+		echo "  [PASS] SD card image, ULog, F-RAM and console identical to the published run (SD card image sha256 ${PUBLISHED_SD%"${PUBLISHED_SD#????????????????}"}...)"
 	else
-		echo "  [FAIL] differs from the published run: ULog $(sha256 a.ulg), F-RAM $(sha256 fast1/fram.bin), console $(sha256 c1.txt)"
+		echo "  [FAIL] differs from the published run: SD card image $(sha256 fast1/sd.img), ULog $(sha256 a.ulg), F-RAM $(sha256 fast1/fram.bin), console $(sha256 c1.txt)"
 		FAILED=1
 	fi
 fi

@@ -127,8 +127,8 @@ belong to root (`sudo chown -R "$USER" PX4` if you want them back).
 configuration and a script. Its first run makes the microSD card image
 (1 GB FAT32) and selects the SIH airframe (`SYS_AUTOSTART 1100`, kept in the
 emulated F-RAM, `fram.bin`); every run then boots PX4 with its console on
-the terminal. On Linux the SD card image needs `mkfs.vfat`
-(`sudo apt install dosfstools`).
+the terminal. The SD card image is written by python3, the same byte for
+byte on every host.
 
 ```sh
 cd athrill-target-stm32
@@ -149,7 +149,7 @@ and asks for radio and flight-mode setup (no RC): both are expected.
 
 These steps were run as written on an **Apple Silicon Mac** (macOS) and on
 **Windows 11 / WSL2 Ubuntu** (Intel Core Ultra 7 155H, Docker inside WSL2).
-On WSL2: `sudo apt install dosfstools mtools`, and the Python packages in a
+On WSL2: `sudo apt install mtools` (to read the SD card image), and the Python packages in a
 venv. QGroundControl on Windows connects to PX4 in WSL2 with a TCP link to
 `127.0.0.1:5760` (WSL's localhost forwarding), shows the vehicle at Zurich
 and flies it. Hovering runs at RTF 2.22 on the Mac (M2 Pro) with PX4
@@ -207,8 +207,9 @@ end to end with one command (about 2 minutes). From one starting state
   tracking, altitude and position hold, the arm-to-disarm sequence;
 - flies arm, take off, "go to" 5 m north, land over MAVLink as
   QGroundControl does, and checks its log the same way.
-- with the PX4 ELF of the Release, checks that the ULog, F-RAM and console
-  are identical, bit for bit, to the run we published.
+- with the PX4 ELF of the Release, checks that the SD card image, ULog,
+  F-RAM and console are identical, bit for bit, to the run we published
+  (on the Mac; a run on WSL2 passes this check too).
 
 What it runs, every threshold and what it does not show are in
 [docs/verification.md](docs/verification.md#what-verifysh-does).
