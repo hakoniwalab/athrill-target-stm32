@@ -1,6 +1,8 @@
 # Design: Athrill STM32 target for a lightweight PX4 PIL
 
-This document records the design decisions for the Athrill STM32 target.
+This document records the design decisions for the Athrill STM32 target,
+made at stage 0. Where the implementation went another way or is not done
+yet, a "Now" note says so (as of 2026-11-04).
 
 ## 1. Goal
 
@@ -43,7 +45,9 @@ needs to run and to be checked, not the whole chip:
 - Exception model: reset, NVIC with priorities, SysTick, PendSV and SVCall,
   exception entry and return with the stacked frame, lazy floating-point
   stacking as configured by the firmware.
-- MPU (PMSAv7) as far as NuttX and PX4 configure it.
+- MPU (PMSAv7) as far as NuttX and PX4 configure it. *Now: not modelled
+  yet (PX4 runs without it being enforced), nor the FPU's access control
+  (CPACR) and the faults of memory accesses.*
 - Caches and the TCMs: accepted and reported as present; no cache effects
   are modelled.
 
@@ -65,6 +69,11 @@ hardware does. In the order the firmware meets them:
 
 Later or never: USB OTG, SDMMC (logging), CAN, DShot.
 
+*Now: SDMMC with a microSD card (PX4's logs, data manager, parameter
+backup) and the FM25V02A F-RAM on SPI (parameters) are modelled, the RCC,
+PWR and FLASH interface by their ready bits; USB OTG, CAN, DShot, the ADC
+and the watchdog are not.*
+
 ### 3.3 Sensors
 
 The sensor chips of the FMUv5 board definition in PX4 are listed and modelled
@@ -73,21 +82,30 @@ data-ready, data registers or FIFO). The samples come from `hil_sensor` and
 `hil_gps` (5). The GPS receiver on its UART follows the same rule: emulate it
 where practical, otherwise a virtual device.
 
+*Now: the ICM-20689 (SPI1, FIFO by DMA, 8 kHz data-ready), MS5611 (SPI4,
+with its ADC noise), IST8310 (I2C3) and a u-blox M8 (USART1, UBX) are
+emulated; no virtual device was needed.*
+
 ### 3.4 Motor outputs
 
 The timer channels that PX4's FMUv5 board definition uses for the main
 outputs: Athrill reads the period and pulse width and writes the outputs to
 `hil_actuator` in the same form as PX4 SITL's HIL_ACTUATOR_CONTROLS.
 
+*Now: the main outputs come from the PX4IO co-processor, which is not
+modelled; the motors are assigned to the FMU's own AUX outputs (TIM1, TIM4,
+TIM12, parameters only), whose pulses go to `hil_actuator`
+([hakoniwa](hakoniwa.md)).*
+
 ## 4. Stages
 
-| Stage | Content | Done when |
-|---|---|---|
-| 0 | Survey | Existing STM32 emulation (Renode and others) and Arm's instruction set documentation and its terms are checked; what may be used is written down here |
-| 1 | CPU and the peripherals to boot | PX4 `px4_fmu-v5_default`, as built, boots to the NSH prompt |
-| 2 | Sensors, PWM outputs and the Hakoniwa link | Hakoniwa's x500 takes off and hovers with PX4 |
-| 3 | ArduPilot | ArduPilot's Pixhawk 4 firmware boots on ChibiOS, then flies the same x500 |
-| 4 | Pixhawk 6X | `px4_fmu-v6x` boots and flies |
+| Stage | Content | Done when | Now |
+|---|---|---|---|
+| 0 | Survey | Existing STM32 emulation (Renode and others) and Arm's instruction set documentation and its terms are checked; what may be used is written down here | done ([survey](survey.md)) |
+| 1 | CPU and the peripherals to boot | PX4 `px4_fmu-v5_default`, as built, boots to the NSH prompt | done; it also flies PX4's SIH ([sih](sih.md), [verification](verification.md)) |
+| 2 | Sensors, PWM outputs and the Hakoniwa link | Hakoniwa's x500 takes off and hovers with PX4 | done ([hakoniwa](hakoniwa.md)) |
+| 3 | ArduPilot | ArduPilot's Pixhawk 4 firmware boots on ChibiOS, then flies the same x500 | planned |
+| 4 | Pixhawk 6X | `px4_fmu-v6x` boots and flies | planned |
 
 Each stage keeps the rule of 2-7: every speed-up is checked against
 one-instruction-at-a-time execution.

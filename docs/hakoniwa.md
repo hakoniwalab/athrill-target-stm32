@@ -1,5 +1,9 @@
 # PX4 on the emulated Pixhawk 4 with Hakoniwa Drone PRO
 
+**Hakoniwa Drone PRO is not publicly available.** This page records the
+setup for those who have it; PX4 developers without it can run everything
+else in this repository, starting with [PX4 SIH](sih.md).
+
 The stock `px4_fmu-v5_default` firmware flies Hakoniwa Drone PRO's x500 in
 MuJoCo: Drone PRO computes the vehicle and writes its sensor samples to
 Hakoniwa (`hil_sensor`, `hil_gps`); the emulated chips of the board (ICM-20689,
@@ -25,7 +29,7 @@ each sensor sample (the Hakoniwa sensor device of hakoniwa-drone-pro,
 ## Files
 
 - Memory (`memory.txt`): ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB, and
-  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (built with
+  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (`.so` on Linux; built with
   `ATHRILL_ADDRESS_WIDTH=32` against the same Hakoniwa Foundation as Drone PRO).
 - Device configuration:
 
@@ -85,9 +89,11 @@ Athrill with the Foundation's `lib` there. QGroundControl or pymavlink on
 
 ## Results (2026-11-04, Apple M-series host, no viewer)
 
-- Arm and `MAV_CMD_NAV_TAKEOFF` over MAVLink: the x500 climbs and hovers at
-  2.31 to 2.33 m of relative altitude (takeoff target 2.5 m; not looked into
-  yet).
+- Arm and `MAV_CMD_NAV_TAKEOFF` over MAVLink, and from QGroundControl: the
+  x500 climbs and hovers at 2.50 to 2.51 m of relative altitude (takeoff
+  target 2.5 m). The very first flight, on a parameter set just written,
+  held 2.31 to 2.33 m; later flights with the same files held 2.5 m. That
+  first run was not looked into further.
 - RTF 1.48 for the whole system while hovering (Athrill 91 % of a core,
   Drone PRO 111 %); PX4 SIH alone runs at 1.94 (`docs/sih.md`): here the
   chips' drivers run (IMU data ready at 8 kHz with SPI DMA) and the lockstep

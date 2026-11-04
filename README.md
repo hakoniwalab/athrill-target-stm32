@@ -1,6 +1,10 @@
 # Athrill STM32 — run PX4's Pixhawk 4 firmware without a flight controller
 
-**Run a board-target PX4 firmware build on a virtual Pixhawk 4 (FMUv5), connect QGroundControl, and take off without a physical flight controller.**
+[![ctest](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml/badge.svg)](https://github.com/hakoniwalab/athrill-target-stm32/actions/workflows/ctest.yml)
+
+**Unmodified `px4_fmu-v5_default.elf` — NuttX, interrupts, DMA and all — on your laptop, flown from QGroundControl, with bit-identical replays.**
+
+A virtual Pixhawk 4 (FMUv5, STM32F765): no flight controller needed.
 
 PX4's Software-in-the-Loop (SITL) is an excellent way to develop and test flight
 software. But what if we also want to run the firmware built for an actual
@@ -23,8 +27,8 @@ not a cycle-accurate or electrically accurate substitute for real hardware.
 
 The stock PX4 `px4_fmu-v5_default` firmware boots on the emulated Pixhawk 4,
 runs PX4's **SIH** (simulation-in-hardware) quadcopter, talks MAVLink to
-QGroundControl over TCP, takes off to the default **2.5 m** and holds
-**2.49–2.51 m**, and writes its ULog to the emulated microSD card, which can
+QGroundControl over TCP, takes off to the default **2.5 m** and hovers there
+(2.45–2.54 m in the estimate), and writes its ULog to the emulated microSD card, which can
 be mounted on the host afterwards. Everything used is public: Athrill, this
 target, PX4 itself and QGroundControl.
 
@@ -72,12 +76,14 @@ AUX1–AUX4 rather than PX4IO's MAIN outputs.
 
 ### 1. Build Athrill STM32
 
-Place three repositories side by side. The core currently uses its `cpp`
-branch:
+Place three repositories side by side, at the commits these results come
+from (the core's `cpp` branch and athrill-arm-common move on):
 
 ```sh
 git clone --branch cpp https://github.com/toppers/athrill.git
+git -C athrill checkout ba809715
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
+git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
@@ -97,22 +103,21 @@ stops at its clock limit (`EXIT for timeout(100000).`, exit status 1).
 
 ### 2. Build the PX4 firmware
 
-The stock Pixhawk 4 target of PX4 `main`, unmodified, at the commit the
-demonstrations used, with PX4's build image (Docker), beside the other
-repositories:
+The stock Pixhawk 4 target of PX4 v1.17.0, the current stable release,
+unmodified, with PX4's build image (Docker), beside the other repositories
+(about 6 minutes; `make` fetches the submodules it needs):
 
 ```sh
 cd ..
-git clone https://github.com/PX4/PX4-Autopilot.git PX4
-git -C PX4 checkout 216039a12bab5a86769128f7be3e5f63dc7b4952
-git -C PX4 submodule update --init --recursive
+git clone --branch v1.17.0 --depth 1 https://github.com/PX4/PX4-Autopilot.git PX4
 docker run --rm -v "$PWD/PX4:/src" -w /src px4io/px4-dev:v1.17.0-beta1 make px4_fmu-v5_default
 ls -l PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
-Athrill loads the **ELF** (it needs the symbols), not the `.px4` upload
-file, and starts PX4 itself at `0x08008000`, after the place of the
-bootloader, which is not run. `px4_sitl` is not a substitute: the point is
+PX4 `main` works too (checked at `216039a`; see
+[docs/verification.md](docs/verification.md)). Athrill loads the **ELF**
+(it needs the symbols), not the `.px4` upload file, and starts PX4 itself
+at `0x08008000`, past the bootloader, which is not run. `px4_sitl` is not a substitute: the point is
 the board-target build. On Linux the container's files under `PX4/build`
 belong to root (`sudo chown -R "$USER" PX4` if you want them back).
 
@@ -147,16 +152,21 @@ These steps were run as written on an **Apple Silicon Mac** (macOS) and on
 On WSL2: `sudo apt install dosfstools mtools`, and the Python packages in a
 venv. QGroundControl on Windows connects to PX4 in WSL2 with a TCP link to
 `127.0.0.1:5760` (WSL's localhost forwarding), shows the vehicle at Zurich
-and flies it. Hovering runs at RTF 1.92 on the Mac, 1.3 on that PC.
+and flies it. Hovering runs at RTF 2.22 on the Mac (M2 Pro) with PX4
+v1.17.0; the machines and more numbers, of both hosts and PX4 versions, are
+in
+[docs/verification.md](docs/verification.md#test-machines).
 
 ## Performance and validation
 
-Results from **2026-11-04**, on an Apple Silicon Mac, with virtual STM32
-clock at 216 MHz:
+Results from **2026-11-04**, on an Apple Silicon Mac (M2 Pro), with
+virtual STM32 clock at 216 MHz (both hosts and PX4 versions in
+[docs/verification.md](docs/verification.md#speed)):
 
 | Workload | Real-time factor (RTF) |
 | --- | ---: |
-| PX4 SIH hover, QGroundControl/MAVLink and SD logging, after optimization | **1.94** |
+| PX4 v1.17.0 SIH hover, QGroundControl/MAVLink and SD logging | **2.22** |
+| The same with PX4 `main` (`216039a`) | 1.92–1.94 |
 
 An RTF above 1 means virtual simulation time advances faster than elapsed
 wall-clock time for the measured workload. These are *workload- and
@@ -186,29 +196,46 @@ electrical, safety, or flight validation.
 ## Verification
 
 [examples/px4-sih/verify](examples/px4-sih/verify) checks a PX4 SIH flight
-end to end with one command (about 2 minutes):
+end to end with one command (about 2 minutes). From one starting state
+(F-RAM and SD card images after the first boot), it
+
+- flies take off, hover, land three times from the NSH console at fixed
+  virtual times, twice in the default mode and once in strict mode, and
+  requires the F-RAM, the whole SD card image and the console output (but
+  the strict run's two mode lines) to be identical;
+- checks that flight's ULog: EKF2 against SIH's ground truth, attitude
+  tracking, altitude and position hold, the arm-to-disarm sequence;
+- flies arm, take off, "go to" 5 m north, land over MAVLink as
+  QGroundControl does, and checks its log the same way.
+
+What it runs, every threshold and what it does not show are in
+[docs/verification.md](docs/verification.md#what-verifysh-does).
 
 ```sh
 examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 It needs python3 with numpy, pyulog and pymavlink (matplotlib for the
-charts), and on Linux mtools to read the SD card image. Results on
+charts: `pip install numpy pyulog pymavlink matplotlib`), and on Linux mtools
+to read the SD card image; without pymavlink it skips the MAVLink flight and
+reports `PARTIAL PASS`. Results on
 2026-11-04, all PASS on the Mac and on WSL2; charts, hashes and both hosts'
 numbers are in [docs/verification.md](docs/verification.md):
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/verification/altitude-dark.png">
-  <img alt="Altitude over time: setpoint, SIH ground truth and EKF2 estimate overlap from takeoff through the 2.5 m hover to touchdown" src="docs/verification/altitude-light.png" width="720">
+  <img alt="Altitude over time: setpoint, SIH ground truth and EKF2 estimate within about 0.1 m of each other from takeoff through the 2.5 m hover to touchdown" src="docs/verification/altitude-light.png" width="720">
 </picture>
 
 
+PX4 v1.17.0 on the Mac (PX4 `main` and WSL2 in the verification page):
+
 | Check | Result |
 | --- | --- |
-| **Determinism**: take off, hover, land, typed into the NSH console at fixed virtual times, three runs from the same F-RAM and SD card images | Two runs in the default mode and one in strict mode (Arm pseudo-code only, no fast executors, no host FPU): identical console output, F-RAM, and **whole SD card image including the ULog**, 3,507,861,181 instructions each |
-| **EKF2** (estimate vs SIH ground truth, from the ULog) | no filter faults; innovation test ratios at most 0.26 (gate 1); position error RMS 4 cm horizontal, 2 cm vertical; tilt 0.12°, heading 1.8° |
-| **Attitude and position control** | hover at 2.489 m mean (2.451–2.504 m) for a 2.5 m takeoff; horizontal drift at most 7 cm |
-| **QGroundControl-style MAVLink**: arm, take off, "go to" 5 m north, hover, land | all commands acknowledged; up to 21° tilt with tilt tracking RMS 1.2°; holds the target within 18 cm; lands and disarms; ULog checks as above pass |
+| **Determinism**: take off, hover, land, typed into the NSH console at fixed virtual times, three runs from the same F-RAM and SD card images | Two runs in the default mode and one in strict mode (Arm pseudo-code only, no fast executors, no host FPU): identical F-RAM, **whole SD card image including the ULog**, and console output apart from the strict run's two mode lines; 2,903,884,344 instructions each |
+| **EKF2** (estimate vs SIH ground truth, from the ULog) | no filter faults; innovation test ratios at most 0.24 (gate 1); position error RMS 39 cm horizontal, 11 cm vertical (v1.17.0's simulated GPS adds 0.2 m white noise per fix); tilt 0.44°, heading 1.3° |
+| **Attitude and position control** | hover at 2.498 m mean (2.451–2.513 m) for a 2.5 m takeoff; horizontal drift at most 28 cm |
+| **QGroundControl-style MAVLink**: arm, take off, "go to" 5 m north, hover, land | all commands acknowledged; up to 20° tilt with tilt tracking RMS 1.1°; holds the target within 40 cm; lands and disarms; ULog checks as above pass |
 
 The checks and their limits are in
 [analyze_ulog.py](examples/px4-sih/verify/analyze_ulog.py) (thresholds chosen
@@ -234,8 +261,13 @@ and record/replay](https://www.qemu.org/docs/master/system/replay.html), and
 [ArduPilot documents firmware emulation with
 Renode](https://ardupilot.org/dev/docs/renode-emulation.html).
 
-Our focus is narrower: a **lightweight, inspectable PX4 FMUv5 firmware
-execution path** that can be connected to the Hakoniwa simulation environment,
+[docs/athrill.md](docs/athrill.md) explains what Athrill is and how it
+differs from QEMU and Renode. In one sentence, against Renode, which already
+models the STM32F7 for ArduPilot: Athrill advances in virtual-time lockstep
+with external physics (Hakoniwa), generates its decoders from Arm's
+machine-readable data, and has a pseudo-code-only strict mode that a whole
+PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
+inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
 with explicit virtual time and testable functional peripheral models. We do
 not yet claim a measured speed advantage over QEMU or Renode.
 
@@ -243,9 +275,10 @@ An earlier [Athrill RISC-V target](https://github.com/hakoniwalab/athrill-target
 runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
 configuration for QGroundControl. Erbium is a board target in upstream PX4
 ([`boards/aifoundry/erbium`](https://github.com/PX4/PX4-Autopilot/tree/main/boards/aifoundry/erbium),
-`aifoundry_erbium_default`). The same Athrill core
-([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`) thus
-runs PX4 on two instruction sets, RISC-V (RV64) and Armv7-M. Starting with
+`aifoundry_erbium_default`). Athrill
+([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`)
+supports V850, RH850, RISC-V and Armv7-M (this target); PX4 runs on two of
+them, RISC-V (RV64) and Armv7-M ([docs/athrill.md](docs/athrill.md)). Starting with
 the familiar **Pixhawk 4 / FMUv5** makes this work easier to evaluate for
 developers using STM32-based PX4 boards.
 
@@ -254,6 +287,7 @@ reproduction steps, and limitations is very welcome.
 
 ## Design and license
 
+- [Athrill, and how it differs from QEMU and Renode](docs/athrill.md)
 - [Design decisions and staged goals](docs/design.md)
 - [Survey of existing approaches](docs/survey.md)
 - [Test strategy](docs/testing.md)

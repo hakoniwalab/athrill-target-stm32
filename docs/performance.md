@@ -45,26 +45,31 @@ sensors are attached.
 
 The console output of PX4 is identical before and after each step.
 
-## 3. What is left
+## 3. What was left after round 1
+
+Kept as written after round 1, with what became of each (round 2, section 4).
 
 - **The pseudo-code executors** take most of the remaining time: each
   instruction fills an input structure (register numbers, names, values) and
   an output structure, and the pseudo-code functions follow the Arm
   pseudo-code closely. This is deliberate (readability, checkability against
   the manual). A next round could add specialised fast executors for the
-  most frequent instructions (loads and stores with immediate offsets,
-  `push`/`pop`, `add`/`sub`/`cmp` immediate, branches), checked against the
-  pseudo-code versions. To be decided with the measured RTF under load.
+  most frequent instructions, checked against the pseudo-code versions.
+  *Done in round 2: fast executors of 30 encodings and the host-FPU path,
+  both with a strict mode.*
 - **Straight-line blocks** (decision 7 of the design): run a cached sequence
   of instructions without returning to the batch loop between them.
+  *Still open: the next step for speed.*
 - **Device ticks** during boot: the timer and UART ticks loop over all
-  instances; a list of active ones would cut that.
+  instances; a list of active ones would cut that. *Still open.*
 - **Check against one-instruction-at-a-time execution**: a build with
   `ATHRILL_TARGET_BATCH_CLOCKS=1` should give the same console output.
   Ending batches only at writes changes when devices tick, so the total
   instruction count at a fixed clock can differ by a few instructions (idle
   wake-up points), while the output stays the same; this needs a written
-  rule of what "identical" means.
+  rule of what "identical" means. *Still open. Identity between runs of the
+  same build, and between the fast and strict modes, is shown
+  ([verification](verification.md#determinism)).*
 
 ## 4. Round 2: PX4 SIH under load (2026-11-04 afternoon)
 

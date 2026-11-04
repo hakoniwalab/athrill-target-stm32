@@ -13,22 +13,24 @@ The start-up is the code reachable from the reset entry `__start` through
 direct branches and calls; calls through pointers are not followed, so it is
 a lower bound of what runs.
 
-With PX4 built in `../PX4-Autopilot` and this target built in `build` (with
-`BUILD_TESTING`, for `decode_dump`), from this checkout:
+With PX4 built in `../PX4` (as in the README) and this target built in
+`build` (with `BUILD_TESTING`, for `decode_dump`), and the toolchain image
+of [testing](testing.md) built (`docker build -t athrill-stm32-toolchain
+docker/`), from this checkout:
 
 ```bash
-docker run --rm -v "$PWD/../PX4-Autopilot/build/px4_fmu-v5_default:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -d px4_fmu-v5_default.elf > fmuv5.lst'
-python tools/insn_usage.py ../PX4-Autopilot/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start --stop=nx_start
-python tools/insn_usage.py ../PX4-Autopilot/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start
+docker run --rm -v "$PWD/../PX4/build/px4_fmu-v5_default:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -d px4_fmu-v5_default.elf > fmuv5.lst'
+python tools/insn_usage.py ../PX4/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start --stop=nx_start
+python tools/insn_usage.py ../PX4/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start
 ```
 
 ## Result
 
-| Part | Functions | Instructions | Encodings used | Executed now |
+| Part | Functions | Instructions | Encodings used | With an executor, at the first measurement / now |
 |---|---|---|---|---|
-| Before the OS (`__start` without `nx_start`) | 30 | 1,087 | 93 | 21 |
-| With the OS start (`nx_start` and what it calls directly) | 358 | 11,637 | 184 | 26 |
-| Whole firmware | 11,628 | 483,143 | | |
+| Before the OS (`__start` without `nx_start`) | 30 | 1,087 | 93 | 21 / 93 |
+| With the OS start (`nx_start` and what it calls directly) | 358 | 11,637 | 184 | 26 / 184 |
+| Whole firmware | 11,628 | 483,143 | | 100 % now (step 9 below) |
 
 Before the OS, the code is the chip and board set-up: `__start`,
 `stm32_clockconfig`, `stm32_lowsetup`, `stm32_boardinitialize`,
@@ -71,7 +73,8 @@ SBFX, SXTB/SXTH, ...) and these, which need more than an instruction:
 The start-up also needs, before any instruction is reached:
 
 - the vector table at 0x08008000: the firmware sits after PX4's bootloader,
-  so the reset reads it there (the reset address is fixed to 0x08000000 now);
+  so the reset reads it there (`DEVICE_CONFIG_STM32_BOOT_ADDR 0x08008000`;
+  0x08000000 when it is not given);
 - RCC and PWR ready flags: `stm32_clockconfig` waits on RCC_CR (HSIRDY,
   HSERDY, PLLRDY, PLLSAIRDY), RCC_CFGR (SWS) and PWR_CSR1 (ODRDY, ODSWRDY),
   forever for some of them, so these registers must answer as the hardware
@@ -89,14 +92,14 @@ the run. The figures after "without" leave those uses out.
 Measured with `tools/coverage.sh` and `tools/encoding_coverage.py --usage`
 (share of the start-up's instructions, counted by use):
 
-| Date | Executors | Before the OS: with an executor / tested | With the OS start: with an executor / tested |
+| Step | Executors | Before the OS: with an executor / tested | With the OS start: with an executor / tested |
 |---|---|---|---|
-| 2026-11-03 | 63 encodings (ADD, SUB, CMP, AND, MOV, LDR, B, ...) | 37 of 93 encodings, 60.9% / 58.5% of uses | 50 of 184 encodings, 63.8% / 61.6% of uses |
-| 2026-11-03 | 134 encodings (all data processing) | 50 of 93 encodings, 71.1% / 71.1% of uses | 77 of 184 encodings, 68.8% / 68.8% of uses |
-| 2026-11-03 | 226 encodings (and loads and stores) | 73 of 93 encodings, 86.5% / 86.5% of uses | 120 of 184 encodings, 80.8% / 80.8% of uses |
-| 2026-11-04 | 230 encodings (and BL, BLX, CBZ, CBNZ) | 76 of 93 encodings, 92.2% / 92.2% of uses | 124 of 184 encodings, 91.1% / 91.1% of uses |
-| 2026-11-04 | 290 encodings (and SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, REV/RBIT/CLZ, multiply, divide) | 87 of 93 encodings, 95.0% / 95.0% of uses | 150 of 184 encodings, 94.9% / 94.9% of uses |
-| 2026-11-04 | 300 encodings (and IT, BX in common, MRS/MSR of the program status registers, barriers, hints) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 157 of 184 encodings, 99.0% / 99.0% of uses; 96.4% without the MRS/MSR of other registers |
-| 2026-11-05 | 386 encodings (and the DSP extension; the start-up uses none) | unchanged | unchanged; whole firmware: 97.6% of its instructions have an executor, 2.3% are floating point |
-| 2026-11-06 | 512 encodings (and the FPU, FPv5-D16) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 180 of 184 encodings, 99.4% / 99.4% of uses; 96.8% without the MRS/MSR of other registers; whole firmware: 99.94% (left: CPSID/CPSIE, SVC, UDF) |
-| 2026-11-06 | 523 encodings (and the exception model: CPS, MRS/MSR of all special registers, SVC, WFE/SEV, BKPT, UDF) | 93 of 93 encodings, 100% / 100% of uses | 184 of 184 encodings, 100% / 100% of uses; whole firmware: 100% |
+| 1 | 63 encodings (ADD, SUB, CMP, AND, MOV, LDR, B, ...) | 37 of 93 encodings, 60.9% / 58.5% of uses | 50 of 184 encodings, 63.8% / 61.6% of uses |
+| 2 | 134 encodings (all data processing) | 50 of 93 encodings, 71.1% / 71.1% of uses | 77 of 184 encodings, 68.8% / 68.8% of uses |
+| 3 | 226 encodings (and loads and stores) | 73 of 93 encodings, 86.5% / 86.5% of uses | 120 of 184 encodings, 80.8% / 80.8% of uses |
+| 4 | 230 encodings (and BL, BLX, CBZ, CBNZ) | 76 of 93 encodings, 92.2% / 92.2% of uses | 124 of 184 encodings, 91.1% / 91.1% of uses |
+| 5 | 290 encodings (and SP-relative ADD/SUB, ADR, MOVT, extend, bitfield, REV/RBIT/CLZ, multiply, divide) | 87 of 93 encodings, 95.0% / 95.0% of uses | 150 of 184 encodings, 94.9% / 94.9% of uses |
+| 6 | 300 encodings (and IT, BX in common, MRS/MSR of the program status registers, barriers, hints) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 157 of 184 encodings, 99.0% / 99.0% of uses; 96.4% without the MRS/MSR of other registers |
+| 7 | 386 encodings (and the DSP extension; the start-up uses none) | unchanged | unchanged; whole firmware: 97.6% of its instructions have an executor, 2.3% are floating point |
+| 8 | 512 encodings (and the FPU, FPv5-D16) | 92 of 93 encodings, 99.5% / 99.5% of uses; 97.0% without the MRS/MSR of other registers | 180 of 184 encodings, 99.4% / 99.4% of uses; 96.8% without the MRS/MSR of other registers; whole firmware: 99.94% (left: CPSID/CPSIE, SVC, UDF) |
+| 9 | 523 encodings (and the exception model: CPS, MRS/MSR of all special registers, SVC, WFE/SEV, BKPT, UDF) | 93 of 93 encodings, 100% / 100% of uses | 184 of 184 encodings, 100% / 100% of uses; whole firmware: 100% |
