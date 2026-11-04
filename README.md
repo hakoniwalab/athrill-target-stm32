@@ -165,10 +165,37 @@ run the pseudo-code only. Instruction, FP, and exception tests are compared with
 Arm targets. See [testing](docs/testing.md) and [decoder details](docs/decoder.md).
 
 A virtual-clock-based event model and Hakoniwa lockstep integration are
-central design choices. However, **complete deterministic replay across all
-external inputs and all configurations has not been established**. The
-emulation is neither instruction-cycle accurate nor suitable as a substitute
-for board-level electrical, safety, or flight validation.
+central design choices. A flight driven only by virtual time repeats exactly
+(see [Verification](#verification)); input timed by the wall clock, such as
+QGroundControl's commands over TCP, arrives at run-dependent virtual times,
+so **complete deterministic replay across all external inputs and all
+configurations has not been established**. The emulation is neither
+instruction-cycle accurate nor suitable as a substitute for board-level
+electrical, safety, or flight validation.
+
+## Verification
+
+[examples/px4-sih/verify](examples/px4-sih/verify) checks a PX4 SIH flight
+end to end with one command (about 2 minutes):
+
+```sh
+examples/px4-sih/verify/verify.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+```
+
+It needs python3 with numpy, pyulog and pymavlink, and on Linux mtools to
+read the SD card image. Results on 2026-11-04 (Apple Silicon Mac), all PASS:
+
+| Check | Result |
+| --- | --- |
+| **Determinism**: take off, hover, land, typed into the NSH console at fixed virtual times, three runs from the same F-RAM and SD card images | Two runs in the default mode and one in strict mode (Arm pseudo-code only, no fast executors, no host FPU): identical console output, F-RAM, and **whole SD card image including the ULog**, 3,507,861,181 instructions each |
+| **EKF2** (estimate vs SIH ground truth, from the ULog) | no filter faults; innovation test ratios at most 0.26 (gate 1); position error RMS 4 cm horizontal, 2 cm vertical; tilt 0.12°, heading 1.8° |
+| **Attitude and position control** | hover at 2.489 m mean (2.451–2.504 m) for a 2.5 m takeoff; horizontal drift at most 7 cm |
+| **QGroundControl-style MAVLink**: arm, take off, "go to" 5 m north, hover, land | all commands acknowledged; up to 21° tilt with tilt tracking RMS 1.2°; holds the target within 18 cm; lands and disarms; ULog checks as above pass |
+
+The checks and their limits are in
+[analyze_ulog.py](examples/px4-sih/verify/analyze_ulog.py) (thresholds chosen
+for this SIH vehicle, not PX4 requirements). Runs that receive input over
+TCP are checked by their logs, not for identity.
 
 ## Beyond SIH: PX4's sensor drivers and external physics
 
