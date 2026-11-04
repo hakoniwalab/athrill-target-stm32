@@ -207,8 +207,9 @@ end to end with one command (about 2 minutes). From one starting state
   tracking, altitude and position hold, the arm-to-disarm sequence;
 - flies arm, take off, "go to" 5 m north, land over MAVLink as
   QGroundControl does, and checks its log the same way.
-- with the PX4 ELF of the Release, checks that the ULog, F-RAM and console
-  are identical, bit for bit, to the run we published.
+- with the PX4 ELF of the Release, checks that the SD card image, ULog,
+  F-RAM and console are identical, bit for bit, to the run we published
+  (on the Mac; a run on WSL2 passes this check too).
 
 What it runs, every threshold and what it does not show are in
 [docs/verification.md](docs/verification.md#what-verifysh-does).

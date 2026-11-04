@@ -165,7 +165,10 @@ FAT size, and PX4 then ran 2,903,919,925 instructions instead of
 2,903,884,344 with the same ELF. With the PX4 ELF of the Release (the one in
 this table), `verify.sh` compares the four results with these published
 values (check D), so a run on your computer can be shown to be identical
-to ours, bit for bit. Every host and version below gave three identical runs. The counts
+to ours, bit for bit. **Across hosts:** on WSL2 (Intel Core Ultra 7 155H),
+the release ELF on the Linux x86_64 athrill3 of the Release gave the same
+2,903,884,344 instructions and passed check D: its SD card image, ULog,
+F-RAM and console are identical to the Mac's (Apple M2 Pro). Every host and version below gave three identical runs. The counts
 belong to the ELF each host built (`verify.sh` prints its SHA-256 first):
 
 | Host | PX4 | `px4_fmu-v5_default.elf`, SHA-256 | Instructions of each run |
