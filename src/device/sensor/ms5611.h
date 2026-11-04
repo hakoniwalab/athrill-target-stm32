@@ -4,7 +4,13 @@
  * conversions and the ADC read. A conversion takes the sensor source's
  * pressure and temperature at the time it is commanded, as raw D1/D2 values
  * that give them back through the datasheet's compensation (first and
- * second order). Lightweight: the result is ready at once.
+ * second order); a D1 conversion fits the last D2, which the driver
+ * compensates it with. Each conversion adds the ADC's noise of the datasheet for
+ * its oversampling ratio (RMS 0.065 to 0.012 mbar, 0.012 to 0.002 degrees C
+ * for OSR 256 to 4096) from a fixed-seed generator, so runs repeat; like the
+ * real chip, its readings are never exactly constant (PX4 takes a reading
+ * that does not change as a stale sensor). Lightweight: the result is
+ * ready at once.
  */
 #ifndef ATHRILL_STM32_MS5611_H
 #define ATHRILL_STM32_MS5611_H
@@ -21,6 +27,9 @@ typedef struct {
 	uint32 adc;		/* the last conversion */
 	uint32 d1;		/* raw pressure, raw temperature for the source's sample */
 	uint32 d2;
+	std_bool has_d2;	/* a D2 conversion was made (D1 then fits it) */
+	std_bool noise;		/* the ADC noise (TRUE after reset) */
+	uint64 noise_state;	/* its generator */
 } Ms5611Type;
 
 extern const Stm32SpiChipOps ms5611_ops;

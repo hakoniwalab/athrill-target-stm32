@@ -5,6 +5,7 @@
  * is stubbed.
  */
 #include <stdio.h>
+#include <math.h>
 #include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_spi.h"
 #include "sensor/ms5611.h"
@@ -127,6 +128,7 @@ static void setup(void)
 	stm32_gpio_reset();
 	stm32_spi_reset();
 	ms5611_reset(&baro);
+	baro.noise = FALSE;	/* exact values below; the noise is checked apart */
 	stm32_spi_attach(4U, STM32_GPIO_PORT('F'), 10U, &ms5611_ops, &baro);
 	stm32_gpio_write(GPIOF + MODER, 4U, 1U << 20);	/* PF10 output */
 	cs(FALSE);
@@ -204,11 +206,50 @@ static void test_ms5611(void)
 	CHECK_EQ("PROM read restarts after CS", prom(1U), 40127U);
 }
 
+/* The ADC noise: OSR 4096 conversions around the source's pressure, RMS 0.012 mbar as the datasheet. */
+static void test_noise(void)
+{
+	uint32 i;
+	uint32 n = 4000U;
+	uint32 changes = 0U;
+	sint32 last = 0;
+	double sum = 0.0;
+	double sum2 = 0.0;
+	double mean;
+	double rms;
+
+	setup();
+	baro.noise = TRUE;
+	source_pressure = 1013.25F;
+	source_temperature = 20.0F;
+	for (i = 0U; i < n; i++) {
+		uint32 d2 = convert_and_read(0x58U);
+		uint32 d1 = convert_and_read(0x48U);
+		sint32 p;
+		sint32 t;
+
+		ms5611_compensate(&baro, d1, d2, &p, &t);
+		sum += p;
+		sum2 += (double)p * p;
+		if ((i != 0U) && (p != last)) {
+			changes++;
+		}
+		last = p;
+	}
+	mean = sum / n;
+	rms = sqrt((sum2 / n) - (mean * mean));
+	printf("noise: mean %.3f rms %.3f changes %u\n", mean, rms, changes);
+	CHECK_EQ("noise: mean within 0.2 Pa (0.01 hPa units x 10)", (long long)((mean - 101325.0) * 10.0 / 2.0), 0);
+	CHECK_EQ("noise: RMS 1.2 Pa within 25 % (in 0.1 Pa)", (rms > 0.9) && (rms < 1.5), 1);
+	CHECK_EQ("noise: readings change", changes > (n / 2U), 1);
+}
+
 int main(void)
 {
 	test_gpio();
 	test_spi();
 	test_ms5611();
+	test_noise();
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }

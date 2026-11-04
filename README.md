@@ -10,7 +10,9 @@ See [docs/design.md](docs/design.md) for the design decisions and stages, and
 [docs/testing.md](docs/testing.md) for how the target is tested (toolchain in
 [docker/Dockerfile](docker/Dockerfile)). [docs/sih.md](docs/sih.md) runs PX4's
 SIH (the vehicle simulated inside PX4) on the emulated Pixhawk 4 with
-QGroundControl over TCP.
+QGroundControl over TCP, and [docs/hakoniwa.md](docs/hakoniwa.md) flies
+Hakoniwa Drone PRO's x500 with PX4's own sensor drivers on the emulated
+chips.
 
 The RISC-V target ([athrill-target-riscv](https://github.com/hakoniwalab/athrill-target-riscv))
 already runs PX4 on the AIFoundry Erbium board this way.

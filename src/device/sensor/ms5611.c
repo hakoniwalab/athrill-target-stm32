@@ -3,6 +3,7 @@
  * MS5611-01BA03 datasheet; the PROM CRC from application note AN520.
  */
 #include "ms5611.h"
+#include <math.h>
 #include "sensor_source.h"
 
 #define CMD_RESET	0x1EU
@@ -52,6 +53,28 @@ void ms5611_reset(Ms5611Type *chip)
 	chip->out_len = 0U;
 	chip->out_pos = 0U;
 	chip->adc = 0U;
+	chip->noise = TRUE;
+	chip->has_d2 = FALSE;
+	chip->noise_state = 0x9E3779B97F4A7C15ULL;
+}
+
+/* The RMS noise of OSR 256, 512, 1024, 2048, 4096 (datasheet: resolution RMS). */
+static const float32 pressure_noise_mbar[5] = { 0.065F, 0.042F, 0.027F, 0.018F, 0.012F };
+static const float32 temperature_noise_c[5] = { 0.012F, 0.008F, 0.005F, 0.003F, 0.002F };
+
+/* A standard normal value (Box-Muller on xorshift64). */
+static float32 gaussian(Ms5611Type *chip)
+{
+	float64 u[2];
+	uint32 k;
+
+	for (k = 0U; k < 2U; k++) {
+		chip->noise_state ^= chip->noise_state << 13;
+		chip->noise_state ^= chip->noise_state >> 7;
+		chip->noise_state ^= chip->noise_state << 17;
+		u[k] = ((float64)(chip->noise_state >> 11) + 0.5) / 9007199254740992.0;
+	}
+	return (float32)(sqrt(-2.0 * log(u[0])) * cos(6.283185307179586 * u[1]));
 }
 
 void ms5611_compensate(const Ms5611Type *chip, uint32 d1, uint32 d2, sint32 *pressure, sint32 *temperature)
@@ -108,10 +131,16 @@ static uint32 search(const Ms5611Type *chip, std_bool for_pressure, uint32 fixed
 	return lo;
 }
 
+/* value * 100 to the nearest integer (0.01 hPa, 0.01 degrees C). */
+static sint32 hundredths(float32 value)
+{
+	return (sint32)lround((float64)value * 100.0);
+}
+
 void ms5611_raw(const Ms5611Type *chip, float32 pressure, float32 temperature, uint32 *d1, uint32 *d2)
 {
-	*d2 = search(chip, FALSE, 0U, (sint32)(temperature * 100.0F));
-	*d1 = search(chip, TRUE, *d2, (sint32)(pressure * 100.0F));
+	*d2 = search(chip, FALSE, 0U, hundredths(temperature));
+	*d1 = search(chip, TRUE, *d2, hundredths(pressure));
 }
 
 static void chip_select(void *p, std_bool selected)
@@ -133,9 +162,29 @@ static void command(Ms5611Type *chip, uint8 cmd)
 		chip->adc = 0U;
 	}
 	else if ((cmd & 0xF0U) == CMD_CONVERT_D1 || (cmd & 0xF0U) == CMD_CONVERT_D2) {
+		uint32 osr = ((uint32)cmd >> 1) & 7U;
+
+		std_bool d1 = ((cmd & 0xF0U) == CMD_CONVERT_D1);
+
 		sensor_source_sample(&sample);
-		ms5611_raw(chip, sample.abs_pressure, sample.temperature, &chip->d1, &chip->d2);
-		chip->adc = ((cmd & 0xF0U) == CMD_CONVERT_D1) ? chip->d1 : chip->d2;
+		if (chip->noise && (osr < 5U)) {
+			/* each conversion has its own noise: D1 the pressure's, D2 the temperature's */
+			if (d1) {
+				sample.abs_pressure += pressure_noise_mbar[osr] * gaussian(chip);
+			}
+			else {
+				sample.temperature += temperature_noise_c[osr] * gaussian(chip);
+			}
+		}
+		if (d1 && chip->has_d2) {
+			/* D1 that the driver's compensation with the D2 it read gives the pressure */
+			chip->d1 = search(chip, TRUE, chip->d2, hundredths(sample.abs_pressure));
+		}
+		else {
+			ms5611_raw(chip, sample.abs_pressure, sample.temperature, &chip->d1, &chip->d2);
+			chip->has_d2 = chip->has_d2 || !d1;
+		}
+		chip->adc = d1 ? chip->d1 : chip->d2;
 	}
 	else if (cmd == CMD_ADC_READ) {
 		chip->out[0] = (uint8)(chip->adc >> 16);
