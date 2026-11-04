@@ -113,20 +113,28 @@ SIH logs its own ground truth next to the EKF2 estimate. The charts are of
   <img alt="EKF2 innovation test ratios for position, velocity, height and heading stay below 0.3, far under the gate of 1" src="verification/ekf2-ratios-light.png" width="720">
 </picture>
 
-| Check (MAVLink scenario) | Mac, PX4 v1.17.0 | Mac, PX4 main `216039a` | WSL2, PX4 main `216039a` |
-| --- | --- | --- | --- |
-| Commands acknowledged (arm, takeoff, reposition, land) | all | all | all |
-| EKF2 filter faults | none | none | none |
-| EKF2 innovation test ratios, max (position, velocity, height, heading) | 0.11, 0.14, 0.05, 0.21 | 0.02, 0.05, 0.18, 0.15 | below 1 (PASS) |
-| EKF2 position vs ground truth, RMS horizontal / vertical (max) | 46 cm / 12 cm (92 cm / 37 cm) | 5.1 cm / 2.2 cm | 5.0 cm horizontal |
-| Tilt tracking error, RMS (max tilt) | 1.07° (20.1°) | 1.19° (21.2°) | 1.20° (21.2°) |
-| Hover altitude, mean (target 2.5 m) | 2.511 m | 2.490 m | 2.489 m |
-| Distance to the target over the last 5 s, mean / max | 33 cm / 40 cm | 13 cm / 18 cm | 13 cm / 18 cm |
+| Check (MAVLink scenario) | Mac, PX4 v1.17.0 | WSL2, PX4 v1.17.0 | Mac, PX4 main `216039a` | WSL2, PX4 main `216039a` |
+| --- | --- | --- | --- | --- |
+| Commands acknowledged (arm, takeoff, reposition, land) | all | all | all | all |
+| EKF2 filter faults | none | none | none | none |
+| EKF2 innovation test ratios, max (position, velocity, height, heading) | 0.11, 0.14, 0.05, 0.21 | below 1 (PASS) | 0.02, 0.05, 0.18, 0.15 | below 1 (PASS) |
+| EKF2 position vs ground truth, RMS horizontal / vertical (max) | 46 cm / 12 cm (92 cm / 37 cm) | PASS | 5.1 cm / 2.2 cm | 5.0 cm horizontal |
+| Tilt tracking error, RMS (max tilt) | 1.07° (20.1°) | PASS | 1.19° (21.2°) | 1.20° (21.2°) |
+| Hover altitude, mean (target 2.5 m) | 2.511 m | 2.511 m | 2.490 m | 2.489 m |
+| Distance to the target over the last 5 s, mean / max | 33 cm / 40 cm | 33 cm / 40 cm | 13 cm / 18 cm | 13 cm / 18 cm |
 
 The EKF2 errors differ between the PX4 versions because SIH's simulated GPS
 does: v1.17.0 adds white noise to every fix (0.2 m per horizontal axis,
 0.5 m vertical), `main` a correlated noise model. Both versions run the same
 way in strict mode, so this is PX4, not the emulator.
+
+With v1.17.0, PX4 also republishes its home position during the flight
+(60 times on the Mac, 82 on WSL2), its altitude moving by up to about 2.5 m
+with the GPS noise. The altitude above home that MAVLink reports
+(`GLOBAL_POSITION_INT.relative_alt`, shown by QGroundControl) therefore
+jumps between about 1.3 m and 2.4 m while the vehicle holds 2.5 m in
+EKF2's local frame and in SIH's ground truth; with `main` it stays at
+2.49–2.51 m. Not yet investigated further on the PX4 side.
 
 After touchdown, SIH's ground truth ends up to 0.5 m below the takeoff point
 (0.1 m in this v1.17.0 flight) and the estimate settles back to 0: SIH's
@@ -162,6 +170,7 @@ belong to the ELF each host built (`verify.sh` prints its SHA-256 first):
 | --- | --- | --- | ---: |
 | Mac (arm64 build image) | v1.17.0 | `f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e` | 2,903,884,344 |
 | Mac (arm64 build image) | main `216039a` | `3b1e760d380493539212d1d414612aabbe7ef2e65197bfe83215caad8c11c482` | 3,507,861,181 |
+| WSL2 (amd64 build image) | v1.17.0 | `0bb9d54bf79d3444c287716043c0e10dece765b855b73730234d68cf3683eb55` | 2,903,946,936 |
 | WSL2 (amd64 build image) | main `216039a` | `2a8a47df1f67c58a3d97de05716c2952a409f080eede6f67d16b1ce0a37c7e72` | 3,507,214,657 |
 
 Different ELFs (PX4 embeds build information, and the images differ) give
@@ -195,14 +204,14 @@ RTF is virtual time over wall-clock time (above 1: faster than real time);
 Athrill runs on one host core. All runs in the default fast mode unless
 marked strict.
 
-| Workload | Mac, PX4 v1.17.0 | Mac, PX4 main | WSL2, PX4 main |
-| --- | ---: | ---: | ---: |
-| SIH hover over MAVLink, SD logging (`run.sh` + pymavlink) | 2.22 | 1.92 | 1.29 (1.34 just after the GPS fix) |
-| NSH flight of verify.sh A, boot to disarm, 74 s of virtual time, one run alone | 2.25 (32.9 s) | 2.01 (36.8 s) | 1.34 (55.5 s) |
-| The same, strict mode (Arm pseudo-code only) | 1.80 (41.1 s) | 1.58 (46.8 s) | 1.06 (70.1 s) |
-| `verify.sh`, everything (A runs its 3 flights in parallel) | about 100 s | about 100 s | 159 s |
-| Build: Athrill (cmake, build, ctest) | not timed | not timed | 44 s |
-| Build: PX4 (clone / Docker make) | 356 s together (shallow clone of the tag, no separate submodule step) | not timed | 266 s / 394 s (with submodules and the image pull) |
+| Workload | Mac, PX4 v1.17.0 | WSL2, PX4 v1.17.0 | Mac, PX4 main | WSL2, PX4 main |
+| --- | ---: | ---: | ---: | ---: |
+| SIH hover over MAVLink, SD logging (`run.sh` + pymavlink) | 2.22 | 1.32 | 1.92 | 1.29 (1.34 just after the GPS fix) |
+| NSH flight of verify.sh A, boot to disarm, 74 s of virtual time, one run alone | 2.25 (32.9 s) | 1.36 (54.3 s) | 2.01 (36.8 s) | 1.34 (55.5 s) |
+| The same, strict mode (Arm pseudo-code only) | 1.80 (41.1 s) | 1.09 (67.9 s) | 1.58 (46.8 s) | 1.06 (70.1 s) |
+| `verify.sh`, everything (A runs its 3 flights in parallel) | about 100 s | 155 s | about 100 s | 159 s |
+| Build: Athrill (cmake, build, ctest) | not timed | not timed | not timed | 44 s |
+| Build: PX4 (clone / Docker make) | 356 s together (shallow clone of the tag, no separate submodule step) | 38 s / 215 s (shallow clone of the tag; image already pulled) | not timed | 266 s / 394 s (with submodules and the image pull) |
 
 PX4 v1.17.0 runs about 17 % fewer instructions than `main` for the same
 flight, hence its higher RTF. Strict mode takes about 1.25 times as long as
