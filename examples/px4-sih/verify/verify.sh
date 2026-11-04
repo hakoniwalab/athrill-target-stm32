@@ -105,6 +105,12 @@ for run in fast1 fast2 strict; do
 done
 wait
 cd "$WORK"
+for run in fast1 fast2 strict; do
+	if ! grep -aq "EXIT for timeout" $run/console.txt; then
+		echo "  [FAIL] $run did not run to its clock limit"
+		FAILED=1
+	fi
+done
 for run in fast2 strict; do
 	grep -av "DEVICE_CONFIG_ARM_" fast1/console.txt > c1.txt
 	grep -av "DEVICE_CONFIG_ARM_" $run/console.txt > c2.txt

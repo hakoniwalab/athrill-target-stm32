@@ -33,7 +33,8 @@ be mounted on the host afterwards. Everything used is public: Athrill, this
 target, PX4 itself and QGroundControl.
 
 In SIH, PX4 computes the vehicle and its sensor data internally
-(`SYS_HITL=2`); **the emulated sensor chips are not in the SIH data path**.
+(`SYS_HITL=2`) and does not start the board's sensor drivers: **the
+emulated sensor chips are not in the SIH data path**.
 PX4's own sensor drivers on those chips are exercised separately, on a bench
 with public parts and in flight with external physics (see [Beyond SIH](#beyond-sih-px4s-sensor-drivers-and-external-physics)).
 
@@ -252,20 +253,20 @@ chips report a vehicle at rest at Tokyo Station (gravity, Earth's
 field, sea-level pressure, a GPS fix, with fixed-seed noise). PX4 boots as a
 generic quadcopter with its own drivers for the ICM-20689 (SPI1 with DMA,
 FIFO at 800 Hz), MS5611 (SPI4), IST8310 (I2C3) and u-blox (USART1); EKF2
-gets a position and the preflight check passes. It does not fly: nothing
-moves the vehicle. The bench is off by default: PX4 starts these drivers
-in SIH too, and keeps the chips out of its data path because, without the
-bench, their values never change and are taken as stale.
+gets a position and the preflight check passes (with the power-supply
+check bypassed, `CBRK_SUPPLY_CHK`, as there is no power module to measure).
+It does not fly: nothing moves the vehicle. In SIH (`SYS_HITL=2`) PX4 does
+not start these drivers at all; it uses its simulated sensors.
 
 ```bash
-examples/px4-bench/check.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+examples/px4-bench/check.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 `check.sh` runs 30 s twice from the same images and checks, in PX4's own
 reports, that the drivers transfer without errors, the sensor validators
 are OK, the GPS has a 3D fix, EKF2's position is valid and the preflight
-check is OK, then that both runs give identical console output, F-RAM and SD
-card image (about 1 min on an Apple M2 Pro). `examples/px4-bench/run.sh`
+check is OK, then that both runs reach their clock limit and give
+identical console output, F-RAM and SD card image (about 1 min). `examples/px4-bench/run.sh`
 boots the same setup for QGroundControl on TCP 127.0.0.1:5760.
 
 **Flying, with external physics.** A further experiment flies with them. PX4's own
