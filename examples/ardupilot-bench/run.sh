@@ -15,4 +15,7 @@ ATHRILL=${3:-$DIR/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 
 cd "$DIR"
+if [ ! -e fram.bin ]; then
+	cp fram-brd-io-disabled.bin fram.bin
+fi
 exec "$ATHRILL" -c1 -m memory.txt -d device_config.txt -t "$CLOCK_LIMIT" "$ELF"
