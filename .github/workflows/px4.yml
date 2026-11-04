@@ -1,0 +1,69 @@
+# Boots the stock PX4 v1.17.0 Pixhawk 4 firmware on Athrill STM32 on every
+# change: the bench (PX4's own sensor drivers on the emulated chips, EKF2,
+# preflight check, two identical runs) and the SIH verification without
+# MAVLink (three identical flights in fast and strict mode, and the flight
+# log). The PX4 ELF is built once in PX4's build image and cached.
+name: px4
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  px4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: athrill-target-stm32
+        uses: actions/checkout@v4
+        with:
+          path: athrill-target-stm32
+      # the core and the shared Arm pseudo-code, at the commits the README pins
+      - name: athrill (cpp)
+        uses: actions/checkout@v4
+        with:
+          repository: toppers/athrill
+          ref: ba80971543284c8c7286b4e3e14b92f2ebd4d9c4
+          path: athrill
+      - name: athrill-arm-common
+        uses: actions/checkout@v4
+        with:
+          repository: hakoniwalab/athrill-arm-common
+          ref: 60d8098cfcbbda5489c74843c15d3d2742e6c3bb
+          path: athrill-arm-common
+          fetch-depth: 0
+      - name: build athrill3
+        working-directory: athrill-target-stm32
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: PX4 ELF from the cache
+        id: elf
+        uses: actions/cache@v4
+        with:
+          path: px4-elf
+          key: px4-v1.17.0-fmu-v5-px4-dev-v1.17.0-beta1
+      - name: build PX4 v1.17.0 px4_fmu-v5_default
+        if: steps.elf.outputs.cache-hit != 'true'
+        run: |
+          git clone --branch v1.17.0 --depth 1 https://github.com/PX4/PX4-Autopilot.git PX4
+          docker run --rm -v "$PWD/PX4:/src" -w /src px4io/px4-dev:v1.17.0-beta1 make px4_fmu-v5_default
+          mkdir -p px4-elf
+          cp PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf px4-elf/
+      - name: tools (FAT image, ULog analysis)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dosfstools mtools python3-numpy
+          pip3 install --break-system-packages pyulog
+
+      - name: bench (PX4's sensor drivers)
+        run: athrill-target-stm32/examples/px4-bench/check.sh px4-elf/px4_fmu-v5_default.elf
+      # exit status 2 = PARTIAL PASS: A and B passed, C (MAVLink) not run here
+      - name: SIH verification (determinism and flight log, no MAVLink)
+        run: |
+          status=0
+          athrill-target-stm32/examples/px4-sih/verify/verify.sh px4-elf/px4_fmu-v5_default.elf || status=$?
+          test $status = 0 -o $status = 2

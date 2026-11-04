@@ -12,7 +12,7 @@ flight-controller board, including NuttX, its interrupt handling, and STM32
 peripheral drivers, **before putting it on hardware**?
 
 This project explores **Processor-in-the-Loop (PIL)** as a complementary testing
-option. It extends the open-source [Athrill](https://github.com/toppers/athrill)
+option. It extends the open-source [Athrill](https://github.com/toppers/athrill/tree/cpp)
 microcontroller emulator with an Armv7-M (Cortex-M7) target and functional
 STM32F7 / Pixhawk 4 devices. The result runs the regular PX4
 `px4_fmu-v5_default.elf` build on a development computer, rather than a
@@ -207,6 +207,8 @@ end to end with one command (about 2 minutes). From one starting state
   tracking, altitude and position hold, the arm-to-disarm sequence;
 - flies arm, take off, "go to" 5 m north, land over MAVLink as
   QGroundControl does, and checks its log the same way.
+- with the PX4 ELF of the Release, checks that the ULog, F-RAM and console
+  are identical, bit for bit, to the run we published.
 
 What it runs, every threshold and what it does not show are in
 [docs/verification.md](docs/verification.md#what-verifysh-does).
@@ -298,7 +300,7 @@ runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
 configuration for QGroundControl. Erbium is a board target in upstream PX4
 ([`boards/aifoundry/erbium`](https://github.com/PX4/PX4-Autopilot/tree/main/boards/aifoundry/erbium),
 `aifoundry_erbium_default`). Athrill
-([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`)
+([toppers/athrill](https://github.com/toppers/athrill/tree/cpp), branch `cpp`)
 supports V850, RH850, RISC-V and Armv7-M (this target); PX4 runs on two of
 them, RISC-V (RV64) and Armv7-M ([docs/athrill.md](docs/athrill.md)). Starting with
 the familiar **Pixhawk 4 / FMUv5** makes this work easier to evaluate for
