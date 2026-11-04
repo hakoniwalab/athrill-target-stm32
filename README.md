@@ -142,9 +142,11 @@ mtools reads it without mounting (`mdir -/ -i sd.img ::/log`,
 QGroundControl warns that HITL is enabled (`SYS_HITL=2` is how SIH runs)
 and asks for radio and flight-mode setup (no RC): both are expected.
 
-The documented flight tests were run on an **Apple Silicon Mac**. We would
-also like to provide a verified **Windows/WSL2** walkthrough; this has not
-yet been documented or validated here.
+These steps were run as written on an **Apple Silicon Mac** (macOS) and on
+**Windows 11 / WSL2 Ubuntu** (Intel Core Ultra 7 155H, Docker inside WSL2).
+On WSL2: `sudo apt install dosfstools mtools`, the Python packages in a
+venv, and QGroundControl on Windows reaches the WSL2 port at
+`127.0.0.1:5760`. Hovering runs at RTF 1.92 on the Mac, 1.3 on that PC.
 
 ## Performance and validation
 
@@ -189,8 +191,16 @@ end to end with one command (about 2 minutes):
 examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
-It needs python3 with numpy, pyulog and pymavlink, and on Linux mtools to
-read the SD card image. Results on 2026-11-04 (Apple Silicon Mac), all PASS:
+It needs python3 with numpy, pyulog and pymavlink (matplotlib for the
+charts), and on Linux mtools to read the SD card image. Results on
+2026-11-04, all PASS on the Mac and on WSL2; charts, hashes and both hosts'
+numbers are in [docs/verification.md](docs/verification.md):
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/verification/altitude-dark.png">
+  <img alt="Altitude over time: setpoint, SIH ground truth and EKF2 estimate overlap from takeoff through the 2.5 m hover to touchdown" src="docs/verification/altitude-light.png" width="720">
+</picture>
+
 
 | Check | Result |
 | --- | --- |

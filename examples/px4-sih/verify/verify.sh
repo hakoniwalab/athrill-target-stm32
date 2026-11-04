@@ -10,7 +10,8 @@
 # B. The flight log of A: EKF2, attitude and position control
 #    (analyze_ulog.py).
 # C. With pymavlink: arm, take off, "go to" 5 m north, hover, land over
-#    MAVLink as QGroundControl does (fly_scenario.py), and its log.
+#    MAVLink as QGroundControl does (fly_scenario.py), and its log; with
+#    matplotlib, its charts in work/charts (plot_ulog.py).
 #
 # Needs python3 with numpy and pyulog (pymavlink for C); on Linux mtools
 # (mcopy) to read the SD card image. Work files: examples/px4-sih/verify/work.
@@ -104,6 +105,9 @@ if python3 -c "import pymavlink" 2> /dev/null; then
 	wait $PID 2> /dev/null || true
 	ulog_of sd.img c.ulg
 	python3 "$HERE/analyze_ulog.py" c.ulg --target-north 5 --target-east 0 || FAILED=1
+	if python3 -c "import matplotlib" 2> /dev/null; then
+		python3 "$HERE/plot_ulog.py" c.ulg "$WORK/charts" --target-north 5 --target-east 0
+	fi
 else
 	echo "C. skipped (no pymavlink)"
 fi
