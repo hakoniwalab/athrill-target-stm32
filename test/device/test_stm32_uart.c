@@ -40,6 +40,8 @@ static std_bool dma_enabled;
 static uint32 dma_par;
 static char dma_got[16];
 static uint32 dma_len;
+static const char *dma_tx_data;
+static uint32 dma_tx_pos;
 
 std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 {
@@ -51,6 +53,16 @@ std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 		dma_got[dma_len++] = (char)data;
 		dma_got[dma_len] = '\0';
 	}
+	return TRUE;
+}
+
+std_bool stm32_dma_peripheral_tx(uint32 par, uint32 *data)
+{
+	(void)par;
+	if ((dma_tx_data == NULL) || (dma_tx_data[dma_tx_pos] == '\0')) {
+		return FALSE;
+	}
+	*data = (uint8)dma_tx_data[dma_tx_pos++];
 	return TRUE;
 }
 
@@ -126,6 +138,9 @@ static void setup(const char *rx_file)
 	}
 	console_len = 0U;
 	console_out[0] = '\0';
+	dma_tx_data = NULL;
+	dma_tx_pos = 0U;
+	stm32_uart_set_tx_dma(TRUE);
 	stm32_uart_reset(3U, rx_file);
 }
 
@@ -190,6 +205,19 @@ static void test_transmit(void)
 	now = 5U * FRAME_115200;
 	(void)rd(USART3, ISR);
 	CHECK_STR("F dropped", console_out, "ABCE");
+
+	/* DMAT: TXE requests fetch one byte into the shifter and one into TDR. */
+	setup(NULL);
+	wr(USART3, BRR, 469U);
+	wr(USART3, CR1, UE | TE);
+	dma_tx_data = "XY";
+	wr(USART3, CR3, 1U << 7);
+	(void)tick();
+	CHECK_STR("UART DMA starts at TXE", console_out, "X");
+	CHECK_EQ("UART DMA has filled TDR", rd(USART3, ISR) & TXE, 0U);
+	now = FRAME_115200;
+	(void)tick();
+	CHECK_STR("UART DMA follows the frame time", console_out, "XY");
 
 	/* a UART other than the console: an unconnected line */
 	setup(NULL);

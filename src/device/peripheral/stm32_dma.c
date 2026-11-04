@@ -287,6 +287,47 @@ std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 	return TRUE;
 }
 
+std_bool stm32_dma_peripheral_tx(uint32 par, uint32 *data)
+{
+	DmaType *d = NULL;
+	uint32 s = 0U;
+	uint32 *st;
+	uint32 size;
+	uint32 done;
+	uint32 flags = 0U;
+
+	if (!find_tx(par, &d, &s)) {
+		return FALSE;
+	}
+	st = d->stream[s];
+	if (st[SxNDTR] == 0U) {
+		return FALSE;
+	}
+	size = unit(st[SxCR], CR_MSIZE_SHIFT);
+	done = d->ndtr_start[s] - st[SxNDTR];
+	*data = mem_read(st[SxM0AR] + (((st[SxCR] & CR_MINC) != 0U) ? (done * size) : 0U), size);
+	st[SxNDTR]--;
+	done++;
+	if (done == (d->ndtr_start[s] / 2U)) {
+		flags = FLAG_HT;
+	}
+	if (st[SxNDTR] == 0U) {
+		flags = FLAG_TC;
+		if ((st[SxCR] & CR_CIRC) != 0U) {
+			st[SxNDTR] = d->ndtr_start[s];
+		}
+		else {
+			st[SxCR] &= ~CR_EN;
+		}
+	}
+	d->isr[s / 4U] |= flags << flag_shift(s);
+	if ((((flags & FLAG_HT) != 0U) && ((st[SxCR] & CR_HTIE) != 0U))
+		|| (((flags & FLAG_TC) != 0U) && ((st[SxCR] & CR_TCIE) != 0U))) {
+		(void)intc_raise_intr(d->irq[s]);
+	}
+	return TRUE;
+}
+
 std_bool stm32_dma_peripheral_ready(uint32 par, std_bool to_memory)
 {
 	DmaType *d = NULL;

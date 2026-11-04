@@ -36,6 +36,8 @@ uint32 stm32_uart_read(uint32 addr);
 void stm32_uart_write(uint32 addr, uint32 size, uint32 value);
 /* console: the UART number (1 to 8) of the console; rx_file: its input file or NULL. */
 void stm32_uart_reset(uint32 console, const char *rx_file);
+/* Enable memory-to-TDR DMA; kept configurable for the established PX4 trace. */
+void stm32_uart_set_tx_dma(std_bool enabled);
 /* The UARTs up to the device clock, input, interrupts, the clocks to the next event. */
 void stm32_uart_tick(DeviceClockType *clock);
 /* A character for the console UART (the debugger's serial input); STD_E_LIMIT when the queue is full. */
