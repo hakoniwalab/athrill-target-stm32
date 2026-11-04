@@ -69,11 +69,16 @@ executors, no host FPU).
 
 The whole 1 GB SD card image, with the ULog, is the same bit for bit, and
 the fast paths give exactly the pseudo-code's results over the whole
-flight. On WSL2 the three runs are identical too (3,507,214,657
-instructions each). The counts of the two hosts differ because their ELFs
-differ: each host built PX4 in its own container (arm64 and amd64 images),
-and the firmware embeds build information; running one ELF on both hosts
-is the check still to make.
+flight. On WSL2 the three runs are identical too. The counts belong to the
+ELF each host built (`verify.sh` prints its SHA-256 first):
+
+| Host | `px4_fmu-v5_default.elf`, SHA-256 | Instructions of each run |
+| --- | --- | ---: |
+| Apple Silicon Mac (arm64 build image) | `3b1e760d380493539212d1d414612aabbe7ef2e65197bfe83215caad8c11c482` | 3,507,861,181 |
+| WSL2, Intel Core Ultra 7 155H (amd64 build image) | `2a8a47df1f67c58a3d97de05716c2952a409f080eede6f67d16b1ce0a37c7e72` | 3,507,214,657 |
+
+The two ELFs differ (PX4 embeds build information, and the images differ),
+so their counts are not compared with each other.
 
 Input timed by the wall clock, such as QGroundControl's commands over TCP,
 arrives at run-dependent virtual times: those runs are checked by their

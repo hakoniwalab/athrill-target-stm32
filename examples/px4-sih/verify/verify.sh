@@ -50,6 +50,13 @@ ulog_of() {
 	fi
 }
 
+# which firmware the results belong to (PX4 embeds build information: each build differs)
+if command -v sha256sum > /dev/null 2>&1; then
+	echo "ELF sha256: $(sha256sum "$ELF" | cut -d' ' -f1)"
+else
+	echo "ELF sha256: $(shasum -a 256 "$ELF" | cut -d' ' -f1)"
+fi
+
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
 cd "$WORK/golden"
