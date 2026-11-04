@@ -19,8 +19,7 @@ examples/px4-sih/run.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 Then connect QGroundControl to TCP `127.0.0.1:5760` and fly; Ctrl+C stops
-it. On Linux and WSL2 the SD card image needs `sudo apt install dosfstools`
-(and `mtools` to read the logs). To check a flight with numbers:
+it. On Linux and WSL2, `mtools` reads the logs from the SD card image. To check a flight with numbers:
 `pip install numpy pyulog pymavlink matplotlib`, then
 [examples/px4-sih/verify/verify.sh](../examples/px4-sih/verify/verify.sh)
 ([verification](verification.md)). The rest of this page explains what
@@ -68,14 +67,11 @@ DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img
 
 ## The SD card image
 
-On macOS, a 1 GB FAT32 image:
-
-```
-mkfile -n 1g sd.img
-DISK=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount sd.img | awk '{print $1}')
-newfs_msdos -F 32 -v PX4SD "$DISK"
-hdiutil detach "$DISK"
-```
+`make-sd-image.sh` writes a 1 GB FAT32 image with python3: the layout
+macOS `newfs_msdos -F 32 -v PX4SD` gives, with a fixed volume serial and
+label date, so the image is the same byte for byte on every host. (Host
+formatters differ: `mkfs.vfat` chooses another FAT size, and PX4 then runs
+differently, so a run on another host would not be identical.)
 
 After a run, `hdiutil attach -readonly -imagekey
 diskimage-class=CRawDiskImage sd.img` mounts it as `/Volumes/PX4SD`, with

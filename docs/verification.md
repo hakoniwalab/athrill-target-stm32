@@ -150,20 +150,22 @@ twice in the default mode, once in strict mode (`DEVICE_CONFIG_ARM_FP_MODE`
 and `DEVICE_CONFIG_ARM_EXEC_MODE strict`: Arm pseudo-code only, no fast
 executors, no host FPU). PX4 v1.17.0 on the Mac:
 
-| Run | Instructions | ULog, SHA-256 | F-RAM, SHA-256 | Console without the mode lines, SHA-256 |
-| --- | ---: | --- | --- | --- |
-| fast 1 | 2,903,884,344 | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
-| fast 2 | 2,903,884,344 | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
-| strict | 2,903,884,344 | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
+| Run | Instructions | SD card image after the run, SHA-256 | ULog, SHA-256 | F-RAM, SHA-256 | Console without the mode lines, SHA-256 |
+| --- | ---: | --- | --- | --- | --- |
+| fast 1 | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
+| fast 2 | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
+| strict | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
 
-Within a set of runs the whole 1 GB SD card image is the same bit for bit
-too, and the fast paths give exactly the pseudo-code's results over the
-whole flight. The SD card image is not a reference across sets: formatting
-a new one gives it a new volume ID. The ULog, F-RAM and console are: two
-sets from freshly formatted images gave the hashes above. With the PX4 ELF
-of the Release (the one in this table), `verify.sh` compares them with
-these published values (check D), so a run on your computer can be shown
-to be identical to ours, bit for bit. Every host and version below gave three identical runs. The counts
+The whole 1 GB SD card image is the same bit for bit, and the fast paths
+give exactly the pseudo-code's results over the whole flight. The blank
+SD card image is written by `make-sd-image.sh` the same on every host
+(python3, the macOS `newfs_msdos` layout with a fixed serial). Formatting
+it with the host's tools does not do: `mkfs.vfat` on Linux chooses another
+FAT size, and PX4 then ran 2,903,919,925 instructions instead of
+2,903,884,344 with the same ELF. With the PX4 ELF of the Release (the one in
+this table), `verify.sh` compares the four results with these published
+values (check D), so a run on your computer can be shown to be identical
+to ours, bit for bit. Every host and version below gave three identical runs. The counts
 belong to the ELF each host built (`verify.sh` prints its SHA-256 first):
 
 | Host | PX4 | `px4_fmu-v5_default.elf`, SHA-256 | Instructions of each run |
