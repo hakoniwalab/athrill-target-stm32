@@ -23,3 +23,20 @@ the terminal. This configuration neither opens nor uses a TCP listener.
 The seed was provisioned through ArduPilot's `PARAM_SET` handling and then
 run with the original ELF. It is data, not ArduPilot code or an emulation of
 the IOMCU protocol.
+
+For a workload with live deterministic bench sensors, a microSD card and a
+GCS requesting the normal status/sensor streams, run:
+
+```sh
+examples/ardupilot-bench/run-full.sh /path/to/arducopter.elf 17280000000
+examples/ardupilot-bench/inspect-mavlink.py \
+  examples/ardupilot-bench/mavlink-full.raw
+tools/list_fat.py examples/ardupilot-bench/sd.img
+```
+
+`run-full.sh` makes a local writable copy of the deterministic PX4 FAT32
+image. The clock limit above is 80 virtual seconds. To create a Renode-format
+trace of the first 20 million executed instruction PCs from the smaller
+Round-2 workload, use `run-trace.sh`; the result is
+`athrill-pc-trace.txt`. `tools/compare_pc_trace.py` compares it with another
+trace while streaming both files and can resolve PCs with `--elf`.
