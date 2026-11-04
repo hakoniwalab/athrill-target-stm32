@@ -287,17 +287,36 @@ for those who have it. The SIH demonstration does not need it.
 
 The unmodified ArduCopter Pixhawk 4 firmware boots on the same emulated
 board. ArduPilot also runs this firmware on Renode, so we compared the two
-emulators on one Mac with the same ELF:
+on one Apple M2 Pro with the same ELF:
 
 | | Real-time factor (mean of 3) |
 | --- | ---: |
-| **Athrill STM32** | **1.56** |
-| Renode (ArduPilot's performance branch) | 0.30 |
+| **Athrill STM32**, a branch to itself waits as `WFI` (no knowledge of the firmware) | **1.583** |
+| Athrill STM32, the idle loop executed as written | 0.62 |
+| Renode, ArduPilot's performance branch | 0.30 |
 
-Both executed the same instruction stream: of the first 411,872 instructions,
-411,536 were identical in lock-step. The traces differed only where the
-firmware waits on hardware timing. Conditions, caveats and how to reproduce
-are in [docs/ardupilot.md](docs/ardupilot.md).
+The emulated peripherals differ, so these are results for these two
+benchmark configurations, not a fully normalised comparison of workloads.
+
+**The same instruction addresses.** The PC traces of the two emulators agree
+on 411,627 of the 411,873 instructions that Renode traced from reset. They
+differ only where the firmware waits on hardware timing.
+
+**Why Athrill is faster.** Athrill has an exact virtual clock: one
+instruction is one clock.
+- **No idle time is executed.** ArduCopter's idle loop is `b .`, with no
+  `WFI` anywhere. Only an interrupt can leave it, so Athrill halts there and
+  the clock jumps to the next event.
+- **Device accesses are cheap.** A device computes its state from that clock
+  when the firmware reads it, without a time framework in between.
+
+**Documents:**
+- [docs/ardupilot.md](docs/ardupilot.md): conditions, caveats and how to
+  reproduce.
+- [docs/time-skip.md](docs/time-skip.md): the time design, with measurements.
+
+This is a first step. Next we connect ArduPilot to Hakoniwa, as for PX4
+above, and then release v0.2.0 with a new `athrill3`.
 
 ## Related work and motivation
 
@@ -314,8 +333,9 @@ with external physics (Hakoniwa), generates its decoders from Arm's
 machine-readable data, and has a pseudo-code-only strict mode that a whole
 PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
 inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
-with explicit virtual time and testable functional peripheral models. We do
-not yet claim a measured speed advantage over QEMU or Renode.
+with explicit virtual time and testable functional peripheral models. Against
+Renode we have one measured comparison, on ArduPilot
+([above](#ardupilot-and-a-race-with-renode)); against QEMU, none.
 
 An earlier [Athrill RISC-V target](https://github.com/hakoniwalab/athrill-target-riscv)
 runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
@@ -339,6 +359,7 @@ reproduction steps, and limitations is very welcome.
 - [Test strategy](docs/testing.md)
 - [Performance measurements](docs/performance.md)
 - [ArduPilot, and a comparison with Renode](docs/ardupilot.md)
+- [Virtual time and the clock skip](docs/time-skip.md)
 
 `src/cpu/decoder/t32_decode16.{h,c}` and `t32_decode32.{h,c}` are generated
 from Arm's Architecture Machine Readable Specification and are provided under

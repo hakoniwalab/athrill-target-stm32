@@ -53,13 +53,23 @@ COLD_PATH static void reset_core(TargetCoreType *core)
  * with no exception to take, it sleeps as at WFI. An idle loop that does not
  * sleep (NuttX's up_idle on PX4 is empty) then lets the halted CPU skip to
  * the next event instead of spinning until it.
+ * Without the clock skip (DEBUG_FUNC_ENABLE_SKIP_CLOCK not 1) the idle
+ * function is not used: a halted core would then advance one clock per
+ * main loop, ticking every device, which is slower than executing the idle
+ * loop in batches. The results are the same either way.
  */
 static uint32 idle_function(void)
 {
 	char *name = "up_idle";
 	AthrillAddrType addr;
 	uint32 size;
+	uint32 skip = 0U;
 
+	(void)cpuemu_get_devcfg_value("DEBUG_FUNC_ENABLE_SKIP_CLOCK", &skip);
+	if (skip != 1U) {
+		fprintf(stderr, "INFO: no clock skip: the idle function is not used\n");
+		return 0U;
+	}
 	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_IDLE_FUNCTION", &name);
 	if (symbol_get_func(name, (uint32)strlen(name), &addr, &size) < 0) {
 		return 0U;
@@ -72,6 +82,7 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 	uint32 sp;
 	uint32 entry;
 	uint32 boot = STM32_RESET_VTOR;
+	uint32 spin = 0U;
 
 	/* DEVICE_CONFIG_STM32_BOOT_ADDR: the vector table to boot from (BOOT_ADD0),
 	 * e.g. an application after a bootloader */
@@ -85,6 +96,10 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 	}
 	core->m.vtor = boot;	/* the boot address: the flash, aliased at 0 on the device */
 	core->idle_pc = idle_function();
+	core->spin_halt = (cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_SPIN_HALT", &spin) == STD_E_OK) && (spin != 0U);
+	if (core->spin_halt) {
+		fprintf(stderr, "INFO: a branch to itself halts the core as WFI\n");
+	}
 	if (core->idle_pc != 0U) {
 		fprintf(stderr, "INFO: idle function at 0x%08x\n", core->idle_pc);
 	}

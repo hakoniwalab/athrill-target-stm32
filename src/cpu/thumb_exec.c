@@ -257,6 +257,24 @@ COLD_PATH static Std_ReturnType execute_slow(TargetCoreType *core)
 }
 
 /*
+ * A branch to itself: B or B<cond> whose target is its own address. Only an
+ * exception can leave it, and executing it again changes nothing but the
+ * clock, so the core may wait in it as in WFI. Encodings: B T1/T2 (16 bits),
+ * B T3/T4 (32 bits, offset -4), from the Armv7-M ARM A7.7.12.
+ */
+static std_bool branch_to_self(const ThumbDecodedType *decoded)
+{
+	uint32 insn = decoded->insn;
+
+	if (decoded->length == 2U) {
+		return (insn == 0xE7FEU)	/* B T2 */
+			|| (((insn & 0xF0FFU) == 0xD0FEU) && ((insn & 0x0E00U) != 0x0E00U));	/* B<c> T1 */
+	}
+	return (insn == 0xF7FFBFFEU)	/* B T4 */
+		|| (((insn & 0xFC3FFFFFU) == 0xF43FAFFEU) && ((insn & 0x03800000U) != 0x03800000U));	/* B<c> T3 */
+}
+
+/*
  * One step. The common case, kept short: no exception to look at, the
  * instruction in the decode cache, nothing asked for after it.
  */
@@ -288,6 +306,12 @@ static inline Std_ReturnType execute_one(TargetCoreType *core)
 	}
 	if ((core->reg.itstate != 0U) && !core->it_written) {
 		core->reg.itstate = ArmITAdvance(core->reg.itstate);
+	}
+	if ((core->reg.next_pc == core->reg.pc) && core->spin_halt && (core->reg.itstate == 0U)
+		&& branch_to_self(decoded)) {
+		/* nothing pending (pending_check clear): wait for the next exception */
+		core->is_halt = TRUE;
+		core->wfe = FALSE;
 	}
 	core->reg.pc = core->reg.next_pc;
 	return STD_E_OK;

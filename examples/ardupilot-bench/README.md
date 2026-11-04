@@ -6,7 +6,8 @@ IO coprocessor. Without that setting ArduPilot tries to update the absent
 IOMCU, reports `Failed to update IO firmware`, and deliberately remains in
 `AP_BoardConfig::config_error()` before it creates the telemetry links.
 
-Run it from the repository root:
+The helper scripts need python3 with pymavlink
+(`python3 -m pip install pymavlink`). Run them from the repository root:
 
 ```sh
 examples/ardupilot-bench/run.sh /path/to/arducopter.elf 4320000000
@@ -14,9 +15,9 @@ python3 examples/ardupilot-bench/check-mavlink.py \
   examples/ardupilot-bench/mavlink.raw
 ```
 
-The clock limit above is 20 virtual seconds at 216 MHz. `run.sh` copies
-`fram-brd-io-disabled.bin` to the ignored writable `fram.bin` on the first
-run. Remove `fram.bin` to return to that seed. `mavlink.raw` contains only
+The clock limit above is 20 virtual seconds at 216 MHz. Every run starts
+from the seed: `run.sh` copies `fram-brd-io-disabled.bin` to the ignored,
+writable `fram.bin`. `mavlink.raw` contains only
 raw USART2 (SERIAL1/TELEM1) bytes; ordinary emulator diagnostics still go to
 the terminal. This configuration neither opens nor uses a TCP listener.
 
@@ -34,9 +35,16 @@ examples/ardupilot-bench/inspect-mavlink.py \
 tools/list_fat.py examples/ardupilot-bench/sd.img
 ```
 
-`run-full.sh` makes a local writable copy of the deterministic PX4 FAT32
-image. The clock limit above is 80 virtual seconds. To create a Renode-format
-trace of the first 20 million executed instruction PCs from the smaller
-Round-2 workload, use `run-trace.sh`; the result is
-`athrill-pc-trace.txt`. `tools/compare_pc_trace.py` compares it with another
+Every run of `run-full.sh` starts from the same state: the F-RAM seed and a
+new, empty microSD image, made by `examples/px4-sih/make-sd-image.sh` (the
+same bytes on every host). The clock limit above is 80 virtual seconds.
+
+`run-trace.sh` writes the PCs of the first 20 million executed instructions,
+in Renode's text format, to `athrill-pc-trace.txt`. It uses the plain boot
+configuration of `run.sh`, without the sensor bench and the microSD card. `tools/compare_pc_trace.py` compares it with another
 trace while streaming both files and can resolve PCs with `--elf`.
+
+`renode/` holds the Renode side of the comparison in
+[docs/ardupilot.md](../../docs/ardupilot.md): `bench-renode.sh` (three RTF
+runs at each CPU setting), `measure-rtf.py` (the MAVLink measurement it uses)
+and `trace.resc` (Renode's PC trace).

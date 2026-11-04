@@ -8,13 +8,16 @@
 # (mkfs.vfat chooses another size of the FAT), and PX4 then runs
 # differently: a run on another host could not be identical. The file is
 # sparse; it is made under another name and renamed only when complete.
+# Usage: make-sd-image.sh [image]  (default: sd.img next to this script;
+# a relative path is taken from this script's directory)
 set -e
 cd "$(dirname "$0")"
-if [ -e sd.img ]; then
-	echo "sd.img exists"
+OUT=${1:-sd.img}
+if [ -e "$OUT" ]; then
+	echo "$OUT exists"
 	exit 0
 fi
-python3 - sd.img.new <<'EOF'
+python3 - "$OUT.new" <<'EOF'
 import sys
 
 SECTOR = 512
@@ -67,5 +70,5 @@ with open(sys.argv[1], "wb") as f:
         f.seek(number * SECTOR)
         f.write(content)
 EOF
-mv sd.img.new sd.img
-echo "sd.img: 1 GB FAT32"
+mv "$OUT.new" "$OUT"
+echo "$OUT: 1 GB FAT32"

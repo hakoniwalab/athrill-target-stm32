@@ -45,6 +45,7 @@ typedef struct TargetCoreTypeTag {
     uint32 exc_return;
     std_bool wfe;		/* halted by WFE (an event also wakes it) */
     uint32 idle_pc;		/* the idle function's address (0: none), see cpu_supply_clock */
+    std_bool spin_halt;	/* a branch to itself halts as WFI (DEVICE_CONFIG_ARM_SPIN_HALT), see thumb_exec.c */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;

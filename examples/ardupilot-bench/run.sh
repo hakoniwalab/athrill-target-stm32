@@ -1,5 +1,6 @@
 #!/bin/sh
 # Boot an unmodified ArduCopter Pixhawk4 ELF on Athrill STM32.
+# Every run starts from the F-RAM seed.
 # Usage: run.sh <arducopter.elf> [clock-limit] [athrill3]
 set -e
 
@@ -15,7 +16,5 @@ ATHRILL=${3:-$DIR/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 
 cd "$DIR"
-if [ ! -e fram.bin ]; then
-	cp fram-brd-io-disabled.bin fram.bin
-fi
+cp fram-brd-io-disabled.bin fram.bin
 exec "$ATHRILL" -c1 -m memory.txt -d device_config.txt -t "$CLOCK_LIMIT" "$ELF"
