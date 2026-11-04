@@ -11,14 +11,17 @@
  *     one character per frame time while RDR is free and a reader listens
  *     (RXNEIE or DMAR set), so the same file arrives at the same virtual
  *     times on every run;
- *   - a UART with a chip on it (stm32_uart_attach: a GPS receiver ...)
+ *   - a UART with a chip on it (stm32_uart_attach: a GPS receiver, a TCP
+ *     client of stm32_uart_tcp.c ...)
  *     hands the chip what it sends and receives what the chip sends back
  *     (stm32_uart_chip_send), timed as the console's input;
  *   - the other UARTs are unconnected lines: what they send is dropped and
  *     nothing arrives.
+ * With DMAR set, a received character goes to the DMA stream that reads
+ * RDR (stm32_dma_peripheral_rx) when one is enabled.
  * Lightweight on purpose: no overrun (input waits for RDR), no parity or
- * framing errors, no hardware flow control, LIN, smartcard, IrDA or DMA
- * (their registers are kept).
+ * framing errors, no hardware flow control, LIN, smartcard, IrDA or
+ * transmit DMA (their registers are kept).
  */
 #ifndef ATHRILL_STM32_UART_H
 #define ATHRILL_STM32_UART_H

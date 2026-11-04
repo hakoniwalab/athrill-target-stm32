@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "peripheral/stm32_uart.h"
+#include "peripheral/stm32_dma.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 
@@ -32,6 +33,25 @@ int intc_raise_intr(uint32 intno)
 std_bool intc_irq_active(uint32 intno)
 {
 	return active_irq[intno] != 0U;
+}
+
+/* the DMA stream reading RDR: takes the characters when dma_enabled */
+static std_bool dma_enabled;
+static uint32 dma_par;
+static char dma_got[16];
+static uint32 dma_len;
+
+std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
+{
+	if (!dma_enabled) {
+		return FALSE;
+	}
+	dma_par = par;
+	if (dma_len < (sizeof(dma_got) - 1U)) {
+		dma_got[dma_len++] = (char)data;
+		dma_got[dma_len] = '\0';
+	}
+	return TRUE;
 }
 
 bool dbg_serial_putchar(uint8 c, uint8 d)
@@ -295,7 +315,35 @@ static void test_receive(void)
 	(void)stm32_uart_console_input('d');
 	wr(USART3, CR3, 1U << 6);
 	wr(USART3, CR1, UE | RE);
-	CHECK_EQ("DMAR: input", rd(USART3, RDR), 'd');
+	CHECK_EQ("DMAR, no stream enabled: input in RDR", rd(USART3, RDR), 'd');
+	/* DMAR with an enabled stream: the stream takes each character a frame apart, RDR stays empty */
+	setup(NULL);
+	dma_enabled = TRUE;
+	dma_len = 0U;
+	(void)stm32_uart_console_input('x');
+	(void)stm32_uart_console_input('y');
+	wr(USART3, BRR, 469U);
+	wr(USART3, CR3, 1U << 6);
+	wr(USART3, CR1, UE | RE);
+	CHECK_EQ("DMA: clocks to the next character", tick(), FRAME_115200);
+	CHECK_STR("DMA: the first character", dma_got, "x");
+	CHECK_EQ("DMA: from RDR", dma_par, USART3 + RDR);
+	CHECK_EQ("DMA: RXNE not set", rd(USART3, ISR) & RXNE, 0U);
+	now = FRAME_115200;
+	(void)tick();
+	CHECK_STR("DMA: the second a frame later", dma_got, "xy");
+	/* after an idle line the next character comes a frame after the one that arrived, not at every tick */
+	(void)stm32_uart_console_input('1');
+	(void)stm32_uart_console_input('2');
+	now = 100U * FRAME_115200;
+	(void)tick();
+	now += 1U;
+	(void)tick();
+	CHECK_STR("DMA: one character, not a burst", dma_got, "xy1");
+	now += FRAME_115200 - 1U;
+	(void)tick();
+	CHECK_STR("DMA: the next a frame later", dma_got, "xy12");
+	dma_enabled = FALSE;
 	/* only the console receives */
 	setup(NULL);
 	(void)stm32_uart_console_input('q');

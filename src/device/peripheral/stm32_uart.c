@@ -9,6 +9,7 @@
  *     previous one, and not before RDR has been read.
  */
 #include "stm32_uart.h"
+#include "stm32_dma.h"
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
@@ -239,8 +240,18 @@ static void advance_to(UartType *u, uint64 now)
 	}
 	if (listening(u) && !u->rxne && (now >= u->rx_next) && input_available(u)) {
 		if (next_input(u, &data)) {
-			u->rdr = data;
-			u->rxne = TRUE;
+			/* with DMAR the stream reading RDR takes the character, else it waits in RDR */
+			if (((reg(u, USART_CR3) & CR3_DMAR) != 0U)
+				&& stm32_dma_peripheral_rx(u->base + USART_RDR, data)) {
+				/* no RDR read restarts the line: the next character is a frame after this one arrived */
+				if (u->rx_next < now) {
+					u->rx_next = now;
+				}
+			}
+			else {
+				u->rdr = data;
+				u->rxne = TRUE;
+			}
 			u->rx_next += frame_clocks(u);
 		}
 		else {

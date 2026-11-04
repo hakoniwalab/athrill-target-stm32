@@ -101,6 +101,7 @@ static void check_eq(int line, const char *what, long long got, long long want)
 
 #define GPIOF	0x40021400U
 #define SPI1	0x40013000U
+#define DMA1	0x40026000U
 #define DMA2	0x40026400U
 #define EXTI	0x40013C00U
 #define EXTICR2	0x4001380CU
@@ -289,8 +290,47 @@ static void test_data_ready(void)
 	CHECK_EQ("next pulse on the sample grid", clock.min_intr_interval, SAMPLE - 7U);
 }
 
+/*
+ * USART2 RX of NuttX: DMA1 stream 5, 8-bit, memory increment, circular,
+ * half and full transfer interrupts, 8 bytes; the driver polls NDTR.
+ */
+static void test_uart_rx(void)
+{
+	uint32 cr = (1U << 10) | (1U << 8) | (1U << 4) | (1U << 3) | (4U << 25);	/* MINC CIRC TCIE HTIE ch4 P2M */
+	uint32 rdr = 0x40004400U + 0x24U;
+	uint32 i;
+
+	stm32_dma_reset();
+	memset(raised, 0, sizeof(raised));
+	memset(ram, 0, sizeof(ram));
+	CHECK_EQ("no stream: not taken", stm32_dma_peripheral_rx(rdr, 'a'), FALSE);
+	stm32_dma_write(DMA1 + 0x88U + 0x04U, 4U, 8U);
+	stm32_dma_write(DMA1 + 0x88U + 0x08U, 4U, rdr);
+	stm32_dma_write(DMA1 + 0x88U + 0x0CU, 4U, RAM_BASE + 0x100U);
+	stm32_dma_write(DMA1 + 0x88U, 4U, cr | 1U);
+	for (i = 0U; i < 3U; i++) {
+		CHECK_EQ("taken", stm32_dma_peripheral_rx(rdr, 'a' + i), TRUE);
+	}
+	CHECK_EQ("bytes in memory", ram[0x102], 'c');
+	CHECK_EQ("NDTR counts down", stm32_dma_read(DMA1 + 0x88U + 0x04U), 5U);
+	CHECK_EQ("no interrupt yet", raised[16], 0U);
+	(void)stm32_dma_peripheral_rx(rdr, 'd');
+	CHECK_EQ("half: HTIF5 (HISR bit 10)", stm32_dma_read(DMA1 + 0x04U) & (1U << 10), 1U << 10);
+	CHECK_EQ("half: stream 5 interrupt", raised[16], 1U);
+	for (i = 4U; i < 8U; i++) {
+		(void)stm32_dma_peripheral_rx(rdr, 'a' + i);
+	}
+	CHECK_EQ("full: TCIF5 (HISR bit 11)", stm32_dma_read(DMA1 + 0x04U) & (1U << 11), 1U << 11);
+	CHECK_EQ("full: interrupt", raised[16], 2U);
+	CHECK_EQ("circular: NDTR reloaded", stm32_dma_read(DMA1 + 0x88U + 0x04U), 8U);
+	CHECK_EQ("circular: still enabled", stm32_dma_read(DMA1 + 0x88U) & 1U, 1U);
+	(void)stm32_dma_peripheral_rx(rdr, 'z');
+	CHECK_EQ("circular: wraps to the start", ram[0x100], 'z');
+}
+
 int main(void)
 {
+	test_uart_rx();
 	test_registers();
 	test_fifo_dma();
 	test_data_ready();

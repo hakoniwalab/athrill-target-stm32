@@ -4,6 +4,7 @@
 #include "peripheral/stm32_periph_probe.h"
 #include "peripheral/stm32_tim.h"
 #include "peripheral/stm32_uart.h"
+#include "peripheral/stm32_uart_tcp.h"
 #include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_spi.h"
 #include "sensor/sensor_source.h"
@@ -53,6 +54,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_i2c_reset();
 	sensor_source_reset();
 	board_attach();
+	stm32_uart_tcp_attach();
 }
 
 void device_supply_clock(DeviceClockType *clock)
@@ -61,6 +63,7 @@ void device_supply_clock(DeviceClockType *clock)
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
 	arm_m_scs_tick(clock);
 	stm32_tim_tick(clock);
+	stm32_uart_tcp_tick();
 	stm32_uart_tick(clock);
 	stm32_i2c_tick();
 	board_tick(clock);

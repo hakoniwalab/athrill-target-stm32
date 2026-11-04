@@ -70,6 +70,7 @@ endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
   src/device/device.c src/device/peripheral/stm32_uart.c
+  src/device/peripheral/stm32_uart_tcp.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32_tim.c
@@ -83,6 +84,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32_i2c.c
   src/device/sensor/ist8310.c
   src/device/sensor/ublox.c
+  src/device/memory/fm25v02.c
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -165,6 +167,11 @@ if(BUILD_TESTING)
   target_include_directories(test_ublox PRIVATE src/device)
   target_link_libraries(test_ublox PRIVATE athrill_stm32_config)
   add_test(NAME device-ublox COMMAND test_ublox)
+  add_executable(test_fm25v02 test/device/test_fm25v02.c src/device/memory/fm25v02.c)
+  stm32_target(test_fm25v02)
+  target_include_directories(test_fm25v02 PRIVATE src/device)
+  target_link_libraries(test_fm25v02 PRIVATE athrill_stm32_config)
+  add_test(NAME device-fm25v02 COMMAND test_fm25v02)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"
