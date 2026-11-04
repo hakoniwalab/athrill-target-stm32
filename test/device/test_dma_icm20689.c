@@ -31,8 +31,13 @@ int intc_raise_intr(uint32 intno)
 	return 0;
 }
 
+/* vary: each sample differs from the one before (a moving source) */
+static int vary;
+static int sample_calls;
+
 void sensor_source_sample(SensorSampleType *s)
 {
+	sample_calls++;
 	memset(s, 0, sizeof(*s));
 	s->acc[0] = 1.0F;	/* forward */
 	s->acc[1] = 2.0F;	/* right */
@@ -41,6 +46,10 @@ void sensor_source_sample(SensorSampleType *s)
 	s->gyro[1] = -0.2F;
 	s->gyro[2] = 0.3F;
 	s->temperature = 25.0F;
+	if (vary) {
+		s->acc[0] += 0.1F * (float32)sample_calls;
+		s->gyro[0] += 0.01F * (float32)sample_calls;
+	}
 }
 
 Std_ReturnType mpu_get_data8(CoreIdType c, AthrillAddrType a, uint8 *d)
@@ -328,8 +337,36 @@ static void test_uart_rx(void)
 	CHECK_EQ("circular: wraps to the start", ram[0x100], 'z');
 }
 
+/* A moving source: one sample per record (not per byte); the accelerometer
+ * (4 kHz) fills two records in a row, the gyroscope (8 kHz) changes in every
+ * one, as PX4's driver expects. */
+static void test_fifo_pairs(void)
+{
+	uint32 r;
+	const uint8 *f;
+
+	setup();
+	configure();
+	vary = 1;
+	sample_calls = 0;
+	now = 8U * SAMPLE + 5U;
+	ram[0] = 0x74U | 0x80U;
+	cs(TRUE);
+	dma_exchange(RAM_BASE, RAM_BASE + 0x400U, 1U + (8U * 12U));
+	cs(FALSE);
+	f = &ram[0x401];
+	CHECK_EQ("one source sample per record", sample_calls, 8);
+	for (r = 0U; r < 8U; r += 2U) {
+		CHECK_EQ("accel pair equal", memcmp(&f[r * 12U], &f[(r + 1U) * 12U], 6), 0);
+		CHECK_EQ("gyro differs within the pair", memcmp(&f[(r * 12U) + 6U], &f[((r + 1U) * 12U) + 6U], 6) != 0, 1);
+	}
+	CHECK_EQ("next pair: new accel", memcmp(&f[12], &f[24], 6) != 0, 1);
+	vary = 0;
+}
+
 int main(void)
 {
+	test_fifo_pairs();
 	test_uart_rx();
 	test_registers();
 	test_fifo_dma();

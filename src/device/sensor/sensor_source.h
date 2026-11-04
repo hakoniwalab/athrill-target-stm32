@@ -6,8 +6,11 @@
  * samples (or a vehicle at rest in its test mode) and takes the motor
  * outputs for hil_actuator.
  *
- * Without the device, the chips see a vehicle at rest: no rotation, 1 g
- * upwards, sea-level pressure at 20 degrees C.
+ * Without the device, the chips report constant values and no GPS (PX4
+ * takes them as stale). With DEVICE_CONFIG_STM32_SENSOR_BENCH 1 they see a
+ * bench instead: a vehicle at rest at Tokyo Station (level, facing north,
+ * 1 g upwards, the Earth's field there, the pressure 40 m above sea level
+ * at 20 degrees C), with fixed-seed Gaussian noise, and a 3D GPS fix there.
  *
  * Units and axes are those of HIL_SENSOR: m/s^2, rad/s, gauss, hPa,
  * degrees C, body front-right-down.

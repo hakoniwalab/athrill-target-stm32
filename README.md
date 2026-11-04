@@ -34,8 +34,8 @@ target, PX4 itself and QGroundControl.
 
 In SIH, PX4 computes the vehicle and its sensor data internally
 (`SYS_HITL=2`); **the emulated sensor chips are not in the SIH data path**.
-Flying with PX4's own sensor drivers on those chips is a second, separate
-experiment (see [Beyond SIH](#beyond-sih-px4s-sensor-drivers-and-external-physics)).
+PX4's own sensor drivers on those chips are exercised separately, on a bench
+with public parts and in flight with external physics (see [Beyond SIH](#beyond-sih-px4s-sensor-drivers-and-external-physics)).
 
 ## Why PIL in addition to SITL and HITL?
 
@@ -244,7 +244,29 @@ TCP are checked by their logs, not for identity.
 
 ## Beyond SIH: PX4's sensor drivers and external physics
 
-A second, separate experiment exercises the parts SIH bypasses. PX4's own
+**On a bench, with public parts only.** With
+`DEVICE_CONFIG_STM32_SENSOR_BENCH 1` and no external device, the emulated
+chips report a vehicle at rest at Tokyo Station (gravity, Earth's
+field, sea-level pressure, a GPS fix, with fixed-seed noise). PX4 boots as a
+generic quadcopter with its own drivers for the ICM-20689 (SPI1 with DMA,
+FIFO at 800 Hz), MS5611 (SPI4), IST8310 (I2C3) and u-blox (USART1); EKF2
+gets a position and the preflight check passes. It does not fly: nothing
+moves the vehicle. The bench is off by default: PX4 starts these drivers
+in SIH too, and keeps the chips out of its data path because, without the
+bench, their values never change and are taken as stale.
+
+```bash
+examples/px4-bench/check.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+```
+
+`check.sh` runs 30 s twice from the same images and checks, in PX4's own
+reports, that the drivers transfer without errors, the sensor validators
+are OK, the GPS has a 3D fix, EKF2's position is valid and the preflight
+check is OK, then that both runs give identical console output, F-RAM and SD
+card image (about 1 min on an Apple M2 Pro). `examples/px4-bench/run.sh`
+boots the same setup for QGroundControl on TCP 127.0.0.1:5760.
+
+**Flying, with external physics.** A further experiment flies with them. PX4's own
 drivers read the emulated ICM-20689, MS5611, IST8310 and u-blox chips, whose
 samples come from **Hakoniwa Drone PRO** (the x500 in MuJoCo), and PX4's
 PWM pulses on the FMU AUX outputs go back to it as motor commands, in
