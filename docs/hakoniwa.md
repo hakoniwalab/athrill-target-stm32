@@ -29,7 +29,7 @@ each sensor sample (the Hakoniwa sensor device of hakoniwa-drone-pro,
 ## Files
 
 - Memory (`memory.txt`): ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB, and
-  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (built with
+  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (`.so` on Linux; built with
   `ATHRILL_ADDRESS_WIDTH=32` against the same Hakoniwa Foundation as Drone PRO).
 - Device configuration:
 

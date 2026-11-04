@@ -6,11 +6,13 @@
 TOPPERS project, made to run and debug embedded programs (bare metal or on
 a real-time OS) on a virtual microcontroller, first for the V850. The
 current generation, `athrill3` (the core's `cpp` branch), is a
-CPU-independent core with one repository per target:
+CPU-independent core with one repository per target. Athrill supports four
+instruction sets:
 
 | Target | Instruction set | Runs |
 | --- | --- | --- |
 | [athrill-target-v850e2m](https://github.com/toppers/athrill-target-v850e2m) | V850E2M | TOPPERS real-time OS programs |
+| [athrill-target-rh850f1x](https://github.com/toppers/athrill-target-rh850f1x) | RH850 (F1x) | programs for the RH850/F1x microcontrollers |
 | [athrill-target-riscv](https://github.com/hakoniwalab/athrill-target-riscv) | RV64IMFC | PX4 on the AIFoundry Erbium board (`aifoundry_erbium_default`, a board in upstream PX4) |
 | athrill-target-stm32 (this repository) | Armv7-M (Cortex-M7, FPv5-D16) | PX4 on Pixhawk 4 (`px4_fmu-v5_default`) |
 

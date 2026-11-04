@@ -72,12 +72,14 @@ AUX1–AUX4 rather than PX4IO's MAIN outputs.
 
 ### 1. Build Athrill STM32
 
-Place three repositories side by side. The core currently uses its `cpp`
-branch:
+Place three repositories side by side, at the commits these results come
+from (the core's `cpp` branch and athrill-arm-common move on):
 
 ```sh
 git clone --branch cpp https://github.com/toppers/athrill.git
+git -C athrill checkout ba809715
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
+git -C athrill-arm-common checkout d5e5ef8
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
@@ -159,7 +161,7 @@ virtual STM32 clock at 216 MHz (both hosts in
 
 | Workload | Real-time factor (RTF) |
 | --- | ---: |
-| PX4 SIH hover, QGroundControl/MAVLink and SD logging, after optimization | **1.94** |
+| PX4 SIH hover, QGroundControl/MAVLink and SD logging, after optimization | **1.92–1.94** (two runs) |
 
 An RTF above 1 means virtual simulation time advances faster than elapsed
 wall-clock time for the measured workload. These are *workload- and
@@ -253,7 +255,11 @@ and record/replay](https://www.qemu.org/docs/master/system/replay.html), and
 Renode](https://ardupilot.org/dev/docs/renode-emulation.html).
 
 [docs/athrill.md](docs/athrill.md) explains what Athrill is and how it
-differs from QEMU and Renode. Our focus is narrower: a **lightweight,
+differs from QEMU and Renode. In one sentence, against Renode, which already
+models the STM32F7 for ArduPilot: Athrill advances in virtual-time lockstep
+with external physics (Hakoniwa), generates its decoders from Arm's
+machine-readable data, and has a pseudo-code-only strict mode that a whole
+PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
 inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
 with explicit virtual time and testable functional peripheral models. We do
 not yet claim a measured speed advantage over QEMU or Renode.
@@ -262,9 +268,10 @@ An earlier [Athrill RISC-V target](https://github.com/hakoniwalab/athrill-target
 runs PX4 on the AIFoundry Erbium board, including an optional MAVLink
 configuration for QGroundControl. Erbium is a board target in upstream PX4
 ([`boards/aifoundry/erbium`](https://github.com/PX4/PX4-Autopilot/tree/main/boards/aifoundry/erbium),
-`aifoundry_erbium_default`). The same Athrill core
-([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`) thus
-runs PX4 on two instruction sets, RISC-V (RV64) and Armv7-M. Starting with
+`aifoundry_erbium_default`). Athrill
+([toppers/athrill](https://github.com/toppers/athrill), branch `cpp`)
+supports V850, RH850, RISC-V and Armv7-M (this target); PX4 runs on two of
+them, RISC-V (RV64) and Armv7-M ([docs/athrill.md](docs/athrill.md)). Starting with
 the familiar **Pixhawk 4 / FMUv5** makes this work easier to evaluate for
 developers using STM32-based PX4 boards.
 

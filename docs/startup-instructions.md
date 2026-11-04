@@ -13,22 +13,24 @@ The start-up is the code reachable from the reset entry `__start` through
 direct branches and calls; calls through pointers are not followed, so it is
 a lower bound of what runs.
 
-With PX4 built in `../PX4-Autopilot` and this target built in `build` (with
-`BUILD_TESTING`, for `decode_dump`), from this checkout:
+With PX4 built in `../PX4` (as in the README) and this target built in
+`build` (with `BUILD_TESTING`, for `decode_dump`), and the toolchain image
+of [testing](testing.md) built (`docker build -t athrill-stm32-toolchain
+docker/`), from this checkout:
 
 ```bash
-docker run --rm -v "$PWD/../PX4-Autopilot/build/px4_fmu-v5_default:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -d px4_fmu-v5_default.elf > fmuv5.lst'
-python tools/insn_usage.py ../PX4-Autopilot/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start --stop=nx_start
-python tools/insn_usage.py ../PX4-Autopilot/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start
+docker run --rm -v "$PWD/../PX4/build/px4_fmu-v5_default:/w" -w /w athrill-stm32-toolchain sh -c 'arm-none-eabi-objdump -d px4_fmu-v5_default.elf > fmuv5.lst'
+python tools/insn_usage.py ../PX4/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start --stop=nx_start
+python tools/insn_usage.py ../PX4/build/px4_fmu-v5_default/fmuv5.lst build/decode_dump __start
 ```
 
 ## Result
 
-| Part | Functions | Instructions | Encodings used | Executed now |
+| Part | Functions | Instructions | Encodings used | With an executor, at the first measurement / now |
 |---|---|---|---|---|
-| Before the OS (`__start` without `nx_start`) | 30 | 1,087 | 93 | 21 |
-| With the OS start (`nx_start` and what it calls directly) | 358 | 11,637 | 184 | 26 |
-| Whole firmware | 11,628 | 483,143 | | |
+| Before the OS (`__start` without `nx_start`) | 30 | 1,087 | 93 | 21 / 93 |
+| With the OS start (`nx_start` and what it calls directly) | 358 | 11,637 | 184 | 26 / 184 |
+| Whole firmware | 11,628 | 483,143 | | 100 % now (step 9 below) |
 
 Before the OS, the code is the chip and board set-up: `__start`,
 `stm32_clockconfig`, `stm32_lowsetup`, `stm32_boardinitialize`,
