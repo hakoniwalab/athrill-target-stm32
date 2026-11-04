@@ -73,6 +73,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/device.c src/device/peripheral/stm32_uart.c
   src/device/peripheral/stm32_uart_tcp.c
   src/device/peripheral/arm_m_scs_device.c
+  src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32_tim.c
   src/device/peripheral/stm32_gpio.c
@@ -136,7 +137,8 @@ if(BUILD_TESTING)
   set_tests_properties(decoder-known PROPERTIES PASS_REGULAR_EXPRESSION
     "BX_T1.*BL_i_T1.*LDR_i_T3.*SDIV_T1.*VCVT_sd_T1.*MRS_T1_AS")
   # The timer model against RM0410, the emulator stubbed (test/device).
-  add_executable(test_stm32_tim test/device/test_stm32_tim.c src/device/peripheral/stm32_tim.c)
+  add_executable(test_stm32_tim test/device/test_stm32_tim.c test/device/test_arm_m_dwt.c
+    src/device/peripheral/stm32_tim.c src/device/peripheral/arm_m_dwt.c)
   stm32_target(test_stm32_tim)
   target_include_directories(test_stm32_tim PRIVATE src/device)
   target_link_libraries(test_stm32_tim PRIVATE athrill_stm32_config)

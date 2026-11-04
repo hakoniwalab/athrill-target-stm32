@@ -1,6 +1,7 @@
 #include "device.h"
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
+#include "peripheral/arm_m_dwt.h"
 #include "peripheral/stm32_periph_probe.h"
 #include "peripheral/stm32_tim.h"
 #include "peripheral/stm32_uart.h"
@@ -27,12 +28,15 @@ std_bool stm32_device_accessed = FALSE;
 static void uart_reset(void)
 {
 	uint32 console = 3U;
+	uint32 tx_dma = 0U;
 	char *rx_file = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_CONSOLE_UART", &console);
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_UART_TX_DMA", &tx_dma);
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_RX_FILE", &rx_file) != STD_E_OK) {
 		rx_file = NULL;
 	}
+	stm32_uart_set_tx_dma(tx_dma != 0U);
 	stm32_uart_reset(console, rx_file);
 }
 
@@ -53,6 +57,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	clock->can_skip_clock = TRUE;
 	clock->is_halt = FALSE;
 	arm_m_scs_reset();
+	arm_m_dwt_reset();
 	stm32_probe_init();
 	stm32_tim_reset();
 	uart_reset();

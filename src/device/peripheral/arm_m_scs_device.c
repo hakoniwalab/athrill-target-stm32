@@ -10,6 +10,7 @@
  * STM32, the processor clock divided by 8.
  */
 #include "arm_m_scs_device.h"
+#include "arm_m_dwt.h"
 #include "device.h"
 #include "cpu.h"
 #include "cpuemu_ops.h"
@@ -21,6 +22,10 @@ uint8 arm_m_scs_data[ARM_M_SCS_DEVICE_SIZE];
 
 static uint64 last_clock;
 static uint64 remainder;
+static uint32 demcr;
+
+#define DEMCR_OFFSET	0xDFCU
+#define DEMCR_TRCENA	(1U << 24)
 
 static TargetCoreType *scs_core(void)
 {
@@ -52,6 +57,12 @@ void arm_m_scs_reset(void)
 {
 	last_clock = 0U;
 	remainder = 0U;
+	demcr = 0U;
+}
+
+std_bool arm_m_scs_trace_enabled(void)
+{
+	return (demcr & DEMCR_TRCENA) != 0U;
 }
 
 void arm_m_scs_tick(DeviceClockType *clock)
@@ -83,6 +94,11 @@ static uint32 read_register(MpuAddressRegionType *r, AthrillAddrType a, uint32 s
 	uint32 value;
 
 	advance_to(cpuemu_get_clock());
+	if ((offset & ~3U) == DEMCR_OFFSET) {
+		uint32 mask = (size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U);
+
+		return (demcr >> (8U * (offset & 3U))) & mask;
+	}
 	value = ArmMScsRead(&core->m, &core->systick, &core->scs, offset, size);
 	ArmMScsReadSideEffects(&core->systick, offset);
 	return value;
@@ -91,9 +107,18 @@ static uint32 read_register(MpuAddressRegionType *r, AthrillAddrType a, uint32 s
 static void write_register(MpuAddressRegionType *r, AthrillAddrType a, uint32 size, uint32 value)
 {
 	TargetCoreType *core = scs_core();
+	uint32 offset = offset_of(r, a);
 
 	advance_to(cpuemu_get_clock());
-	ArmMScsWrite(core, &core->m, &core->systick, &core->scs, offset_of(r, a), size, value);
+	if ((offset & ~3U) == DEMCR_OFFSET) {
+		uint32 bytes = (size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U);
+		uint32 mask = bytes << (8U * (offset & 3U));
+
+		arm_m_dwt_trace_changed();
+		demcr = ((demcr & ~mask) | ((value << (8U * (offset & 3U))) & mask)) & DEMCR_TRCENA;
+		return;
+	}
+	ArmMScsWrite(core, &core->m, &core->systick, &core->scs, offset, size, value);
 }
 
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
