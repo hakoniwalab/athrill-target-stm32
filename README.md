@@ -1,6 +1,8 @@
 # Athrill STM32 — run PX4's Pixhawk 4 firmware without a flight controller
 
-**Run a board-target PX4 firmware build on a virtual Pixhawk 4 (FMUv5), connect QGroundControl, and take off without a physical flight controller.**
+**Unmodified `px4_fmu-v5_default.elf` — NuttX, interrupts, DMA and all — on your laptop, flown from QGroundControl, with bit-identical replays.**
+
+A virtual Pixhawk 4 (FMUv5, STM32F765): no flight controller needed.
 
 PX4's Software-in-the-Loop (SITL) is an excellent way to develop and test flight
 software. But what if we also want to run the firmware built for an actual
