@@ -250,8 +250,9 @@ and record/replay](https://www.qemu.org/docs/master/system/replay.html), and
 [ArduPilot documents firmware emulation with
 Renode](https://ardupilot.org/dev/docs/renode-emulation.html).
 
-Our focus is narrower: a **lightweight, inspectable PX4 FMUv5 firmware
-execution path** that can be connected to the Hakoniwa simulation environment,
+[docs/athrill.md](docs/athrill.md) explains what Athrill is and how it
+differs from QEMU and Renode. Our focus is narrower: a **lightweight,
+inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
 with explicit virtual time and testable functional peripheral models. We do
 not yet claim a measured speed advantage over QEMU or Renode.
 
@@ -270,6 +271,7 @@ reproduction steps, and limitations is very welcome.
 
 ## Design and license
 
+- [Athrill, and how it differs from QEMU and Renode](docs/athrill.md)
 - [Design decisions and staged goals](docs/design.md)
 - [Survey of existing approaches](docs/survey.md)
 - [Test strategy](docs/testing.md)
