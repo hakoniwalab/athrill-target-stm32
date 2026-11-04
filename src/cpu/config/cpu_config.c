@@ -53,13 +53,23 @@ COLD_PATH static void reset_core(TargetCoreType *core)
  * with no exception to take, it sleeps as at WFI. An idle loop that does not
  * sleep (NuttX's up_idle on PX4 is empty) then lets the halted CPU skip to
  * the next event instead of spinning until it.
+ * Without the clock skip (DEBUG_FUNC_ENABLE_SKIP_CLOCK not 1) the idle
+ * function is not used: a halted core would then advance one clock per
+ * main loop, ticking every device, which is slower than executing the idle
+ * loop in batches. The results are the same either way.
  */
 static uint32 idle_function(void)
 {
 	char *name = "up_idle";
 	AthrillAddrType addr;
 	uint32 size;
+	uint32 skip = 0U;
 
+	(void)cpuemu_get_devcfg_value("DEBUG_FUNC_ENABLE_SKIP_CLOCK", &skip);
+	if (skip != 1U) {
+		fprintf(stderr, "INFO: no clock skip: the idle function is not used\n");
+		return 0U;
+	}
 	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_IDLE_FUNCTION", &name);
 	if (symbol_get_func(name, (uint32)strlen(name), &addr, &size) < 0) {
 		return 0U;
@@ -72,6 +82,7 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 	uint32 sp;
 	uint32 entry;
 	uint32 boot = STM32_RESET_VTOR;
+	uint32 spin = 0U;
 
 	/* DEVICE_CONFIG_STM32_BOOT_ADDR: the vector table to boot from (BOOT_ADD0),
 	 * e.g. an application after a bootloader */
@@ -85,6 +96,10 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 	}
 	core->m.vtor = boot;	/* the boot address: the flash, aliased at 0 on the device */
 	core->idle_pc = idle_function();
+	core->spin_halt = (cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_SPIN_HALT", &spin) == STD_E_OK) && (spin != 0U);
+	if (core->spin_halt) {
+		fprintf(stderr, "INFO: a branch to itself halts the core as WFI\n");
+	}
 	if (core->idle_pc != 0U) {
 		fprintf(stderr, "INFO: idle function at 0x%08x\n", core->idle_pc);
 	}
@@ -111,6 +126,54 @@ static void record_sample(const TargetCoreType *core);
 static std_bool pc_sampling;		/* DEBUG_PC_SAMPLE_START given */
 static uint32 pc_sample_start;
 static uint64 run_steps;		/* instructions of thumb_execute_run, without sampling */
+static FILE *pc_trace;
+uint32 cpu_pc_trace_remaining;
+
+void cpu_trace_pc_record(uint32 pc)
+{
+	fprintf(pc_trace, "0x%08X\n", pc);
+	cpu_pc_trace_remaining--;
+	if (cpu_pc_trace_remaining == 0U) {
+		if (fclose(pc_trace) != 0) {
+			fprintf(stderr, "ERROR: could not finish ARM PC trace\n");
+		}
+		pc_trace = NULL;
+	}
+}
+
+static void close_pc_trace(void)
+{
+	if (pc_trace != NULL) {
+		(void)fclose(pc_trace);
+		pc_trace = NULL;
+	}
+}
+
+static void open_pc_trace(void)
+{
+	char *path = NULL;
+	uint32 count = 0U;
+	Std_ReturnType has_path;
+	Std_ReturnType has_count;
+
+	has_path = cpuemu_get_devcfg_string("DEVICE_CONFIG_ARM_PC_TRACE_FILE", &path);
+	has_count = cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_PC_TRACE_COUNT", &count);
+	if ((has_path != STD_E_OK) && (has_count != STD_E_OK)) {
+		return;
+	}
+	if ((has_path != STD_E_OK) || (has_count != STD_E_OK) || (count == 0U)) {
+		fprintf(stderr, "WARNING: ARM PC trace needs a file and a nonzero count\n");
+		return;
+	}
+	pc_trace = fopen(path, "w");
+	if (pc_trace == NULL) {
+		fprintf(stderr, "ERROR: cannot open ARM PC trace %s\n", path);
+		return;
+	}
+	cpu_pc_trace_remaining = count;
+	atexit(close_pc_trace);
+	fprintf(stderr, "INFO: tracing the first %u instruction PCs to %s\n", count, path);
+}
 
 static inline void sample_pc(const TargetCoreType *core)
 {
@@ -194,6 +257,7 @@ void cpu_init(void)
 	CoreIdType i;
 
 	read_fp_mode();
+	open_pc_trace();
 	pc_sampling = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &pc_sample_start) == STD_E_OK);
 	atexit(print_final_state);
 	for (i = 0; i < cpu_config_get_core_id_num(); i++) {

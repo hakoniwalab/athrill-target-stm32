@@ -45,6 +45,7 @@ typedef struct TargetCoreTypeTag {
     uint32 exc_return;
     std_bool wfe;		/* halted by WFE (an event also wakes it) */
     uint32 idle_pc;		/* the idle function's address (0: none), see cpu_supply_clock */
+    std_bool spin_halt;	/* a branch to itself halts as WFI (DEVICE_CONFIG_ARM_SPIN_HALT), see thumb_exec.c */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;
@@ -68,5 +69,19 @@ Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64
  * of a 32-bit one) and its length in bytes.
  */
 const char *thumb_instruction_at(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length);
+
+/*
+ * ARM PC tracing (DEVICE_CONFIG_ARM_PC_TRACE_FILE/_COUNT): the PCs still to
+ * record; zero when tracing is off, so the check per instruction stays inline.
+ */
+extern uint32 cpu_pc_trace_remaining;
+void cpu_trace_pc_record(uint32 pc);
+
+static inline void cpu_trace_pc(uint32 pc)
+{
+	if (cpu_pc_trace_remaining != 0U) {
+		cpu_trace_pc_record(pc);
+	}
+}
 
 #endif

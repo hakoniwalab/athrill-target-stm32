@@ -1,0 +1,27 @@
+# The PCs of the first 20 million instructions of ArduCopter under Renode.
+# Start Tools/renode/run.py Pixhawk4 once with the same --state-dir, so that
+# the generated platform and the flash image exist, and copy
+# ../fram-brd-io-disabled.bin to <state>/fram.img. Then, in the ArduPilot
+# checkout (the generated platform names files relative to it), with
+# ArduPilot's performance-branch Renode:
+#   cd <ardupilot-checkout>
+#   renode --disable-gui --console \
+#     -e '$repo=@<ardupilot-checkout>' -e '$state=@<state-dir>' \
+#     -e '$elf=@<arducopter.elf>' \
+#     -e '$mcu_svd=@<STM32F767.svd.gz that run.py downloaded>' \
+#     -e '$out=@<renode-pc-trace.txt>' -e 'include @<path to this trace.resc>'
+# The startup below is the one run.py generates for Pixhawk4.
+$vector_base=0x08008000
+$sdcard=$state/sdcard.img
+
+include $state/generated/Pixhawk4.resc
+sysbus LoadBinary $state/flash.img 0x08000000
+sysbus LoadBinary $state/current-mcu-id.bin 0x1FF0F420
+machine LoadPlatformDescription $state/generated/persistent.repl
+cpu PerformanceInMips 216
+emulation SetGlobalAdvanceImmediately true
+
+cpu CreateExecutionTracing "t" $out PC
+cpu Step 20000000
+cpu DisableExecutionTracing
+quit

@@ -18,6 +18,7 @@ extern uint8 arm_m_scs_data[ARM_M_SCS_DEVICE_SIZE];
 extern MpuAddressRegionOperationType arm_m_scs_ops;
 
 void arm_m_scs_reset(void);
+std_bool arm_m_scs_trace_enabled(void);
 /* SysTick up to the device clock; the clocks to its next interrupt into min_intr_interval. */
 void arm_m_scs_tick(DeviceClockType *clock);
 

@@ -47,6 +47,7 @@
 #define ISR_REACK	(1U << 22)
 
 #define CR3_DMAR	(1U << 6)
+#define CR3_DMAT	(1U << 7)
 
 #define RQR_RXFRQ	(1U << 3)
 #define ICR_TCCF	(1U << 6)
@@ -103,7 +104,11 @@ static UartType uarts[] = {
 
 static UartType *console;
 static FILE *rx_file;
+static FILE *tx_file;
 static std_bool rx_file_at_end;
+static std_bool tx_dma_enabled;
+
+static void write_tdr(UartType *u, uint8 data);
 
 static UartType *uart_of(uint32 addr)
 {
@@ -170,6 +175,9 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 	u->sending = TRUE;
 	if (u == console) {
 		(void)dbg_serial_putchar(0, data);
+		if (tx_file != NULL) {
+			(void)fputc(data, tx_file);
+		}
 	}
 	else if (u->chip_ops != NULL) {
 		u->chip_ops->transmit(u->chip, data);
@@ -220,6 +228,7 @@ static std_bool next_input(UartType *u, uint8 *data)
 static void advance_to(UartType *u, uint64 now)
 {
 	uint8 data;
+	uint32 dma_data;
 
 	if (now < u->now) {
 		return;
@@ -233,6 +242,12 @@ static void advance_to(UartType *u, uint64 now)
 	if (u->sending && !u->tdr_full && (now >= u->shift_end)) {
 		u->sending = FALSE;
 		u->tc = TRUE;
+	}
+	/* TXE requests move at most the shift-register byte and one TDR byte. */
+	if (tx_dma_enabled && enabled(u, CR1_TE) && ((reg(u, USART_CR3) & CR3_DMAT) != 0U)) {
+		while (!u->tdr_full && stm32_dma_peripheral_tx(u->base + USART_TDR, &dma_data)) {
+			write_tdr(u, (uint8)dma_data);
+		}
 	}
 	/* end of the input file: look for appended data from time to time */
 	if ((u == console) && rx_file_at_end && (now >= u->rx_next)) {
@@ -401,7 +416,7 @@ void stm32_uart_write(uint32 addr, uint32 size, uint32 value)
 	write_register(u, offset, value << shift, mask);
 }
 
-void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
+void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const char *tx_file_path)
 {
 	uint32 i;
 	uint32 k;
@@ -435,6 +450,10 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
 		fclose(rx_file);
 		rx_file = NULL;
 	}
+	if (tx_file != NULL) {
+		fclose(tx_file);
+		tx_file = NULL;
+	}
 	rx_file_at_end = FALSE;
 	if (rx_file_path != NULL) {
 		rx_file = fopen(rx_file_path, "rb");
@@ -442,6 +461,17 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path)
 			printf("WARNING: can not open UART input file %s\n", rx_file_path);
 		}
 	}
+	if (tx_file_path != NULL) {
+		tx_file = fopen(tx_file_path, "wb");
+		if (tx_file == NULL) {
+			printf("WARNING: can not open UART output file %s\n", tx_file_path);
+		}
+	}
+}
+
+void stm32_uart_set_tx_dma(std_bool enabled)
+{
+	tx_dma_enabled = enabled;
 }
 
 /* A character waiting to arrive at u; STD_E_LIMIT when its queue is full. */
@@ -515,6 +545,9 @@ void stm32_uart_tick(DeviceClockType *clock)
 		}
 		if (((cr1 & CR1_TCIE) != 0U) && (u->tdr_full || u->sending)) {
 			report_interval(clock, u, u->tdr_full ? (u->shift_end + frame_clocks(u)) : u->shift_end);
+		}
+		if (tx_dma_enabled && ((reg(u, USART_CR3) & CR3_DMAT) != 0U) && (u->tdr_full || u->sending)) {
+			report_interval(clock, u, u->shift_end);
 		}
 		if (listening(u) && !u->rxne && input_available(u)) {
 			report_interval(clock, u, u->rx_next);

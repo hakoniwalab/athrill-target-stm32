@@ -32,6 +32,8 @@ std_bool intc_irq_active(uint32 intno)
 static int failures;
 static int checks;
 
+void test_arm_m_dwt(uint64 *clock, int *checks, int *failures);
+
 #define CHECK_EQ(what, got, want) check_eq(__LINE__, what, (unsigned long long)(got), (unsigned long long)(want))
 
 static void check_eq(int line, const char *what, unsigned long long got, unsigned long long want)
@@ -483,6 +485,7 @@ int main(void)
 	test_interrupts();
 	test_registers();
 	test_pwm();
+	test_arm_m_dwt(&now, &checks, &failures);
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }
