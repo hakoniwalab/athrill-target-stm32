@@ -65,3 +65,39 @@ The console output of PX4 is identical before and after each step.
   instruction count at a fixed clock can differ by a few instructions (idle
   wake-up points), while the output stays the same; this needs a written
   rule of what "identical" means.
+
+## 4. Round 2: PX4 SIH under load (2026-11-04 afternoon)
+
+PX4 SIH hovering (`docs/sih.md`): the CPU executes about 23 % of the
+virtual clocks (2.72 G instructions in 12 G clocks, 55.6 s), the rest is
+skipped idle time. RTF is then the host's instructions per second divided by
+about 49 M (216 MHz x 0.23): 57 M/s gave RTF 1.17.
+
+| Step | Host instructions/s | RTF (SIH hover, without / with SD logging over MAVLink) |
+|---|---|---|
+| Start | 57 M | 1.17 / 1.19 |
+| Priority-only check after MSR/CPS (athrill-arm-common) | 65 M | 1.33 |
+| Code window apart from the data windows; PC sampling only on request | 67 M | 1.37 |
+| Decode cache 2^16 to 2^20 entries | 72 M | 1.48 / 1.47 |
+
+1. **MSR and CPS** (NuttX's critical sections write BASEPRI twice each) set a
+   priority-only check: the pending exception of the highest priority found
+   by the last full scan is compared with the new execution priority, and
+   with none pending nothing is scanned. Before, each MSR made the next
+   instruction scan all exceptions (`execute_slow` 11 % of the host time).
+   `ArmMExecutionPriority` also stops at the implemented interrupts instead
+   of 512.
+2. **Code window**: instruction fetch has its own memory window; with one
+   pair of windows shared with loads and stores, a fetch after a RAM access
+   missed and swapped windows.
+3. **PC sampling** (`record_sample`, a linear search) runs only with
+   `DEBUG_PC_SAMPLE_START`; the instruction count is kept.
+4. **Decode cache** of 2^20 entries (32 MB of host memory): one entry per
+   halfword of the 2 MB of flash, no conflicts in PX4's code.
+
+The host profile now: `thumb_execute` itself 22 %, the batch loop 11 %, the
+floating-point pseudo-code (`FPRoundMode`, `ArmFPArith`, `FPMulAdd`, ...)
+about 13 %, the integer executors the rest. The next steps (a host-FPU fast
+path for the floating-point instructions, specialised executors for the
+most frequent instructions) trade the closeness to the Arm pseudo-code for
+speed and are left to decide.

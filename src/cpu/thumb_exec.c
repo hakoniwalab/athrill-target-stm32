@@ -37,7 +37,7 @@ static Std_ReturnType fetch(const TargetCoreType *core, uint32 address, uint32 *
  * with the cached ones (code may change in RAM) and calls the executor
  * without the bus or the decoders. Direct-mapped by PC.
  */
-#define DECODE_CACHE_BITS	16U
+#define DECODE_CACHE_BITS	20U
 #define DECODE_CACHE_SIZE	(1U << DECODE_CACHE_BITS)
 
 typedef struct {
@@ -80,7 +80,7 @@ static Std_ReturnType undefined32(TargetCoreType *core, uint32 insn)
 /* A miss: the instruction at pc decoded into its cache entry; NULL when pc is not in memory. */
 COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32 pc)
 {
-	const uint8 *p = memory_window_pointer(pc, 2U);
+	const uint8 *p = memory_window_code_pointer(pc, 2U);
 	const uint8 *p2;
 	uint16 hw1;
 
@@ -103,7 +103,7 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 		e->exec32 = NULL;
 		return e;
 	}
-	p2 = memory_window_pointer(pc + 2U, 2U);
+	p2 = memory_window_code_pointer(pc + 2U, 2U);
 	if (p2 == NULL) {
 		return NULL;
 	}
@@ -125,7 +125,7 @@ static inline const ThumbDecodedType *decoded_at(uint32 pc)
 	const uint8 *p;
 
 	if (e->pc == pc) {
-		p = memory_window_pointer(pc, e->length);
+		p = memory_window_code_pointer(pc, e->length);
 		if ((p != NULL) && ((e->length == 2U) ? (e->insn == halfword(p))
 			: (e->insn == (((uint32)halfword(p) << 16) | halfword(p + 2U))))) {
 			return e;
@@ -250,7 +250,7 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
 	const ThumbDecodedType *decoded;
 	Std_ReturnType err;
 
-	if (core->m.pending_check || core->m.lockup || !core->m.epsr_t) {
+	if (core->m.pending_check || core->m.priority_check || core->m.lockup || !core->m.epsr_t) {
 		return execute_slow(core);
 	}
 	decoded = decoded_at(core->reg.pc);

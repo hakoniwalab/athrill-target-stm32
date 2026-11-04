@@ -94,8 +94,9 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 	return STD_E_OK;
 }
 
-/* PROVISIONAL, for investigation: a PC sample every PC_SAMPLE_INTERVAL clocks
- * (in 64-byte blocks), and halted clocks, printed when the run ends. */
+/* PROVISIONAL, for investigation: the instructions executed, and with
+ * DEBUG_PC_SAMPLE_START (the instruction count to start at) a PC sample every
+ * PC_SAMPLE_INTERVAL instructions (in 64-byte blocks), printed when the run ends. */
 #define PC_SAMPLE_INTERVAL	1000U
 #define PC_SAMPLE_MAX		4096U
 static uint32 pc_sample_block[PC_SAMPLE_MAX];
@@ -123,10 +124,15 @@ COLD_PATH static void record_sample(const TargetCoreType *core)
 	uint32 i;
 
 	static uint32 start_clocks = 0xFFFFFFFFU;
+	static std_bool enabled = FALSE;
 
 	if (start_clocks == 0xFFFFFFFFU) {
 		start_clocks = 0U;
-		(void)cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &start_clocks);
+		enabled = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &start_clocks) == STD_E_OK);
+	}
+	if (!enabled) {
+		sample_countdown = 0xFFFFFFFFU;	/* not sampling: called again only after 4 G instructions */
+		return;
 	}
 	if (sampled_clocks < start_clocks) {
 		return;

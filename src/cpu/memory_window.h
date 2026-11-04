@@ -1,10 +1,11 @@
 /*
  * Direct access to plain memory (the ROM and RAM regions of memory.txt) for
- * the hot paths: instruction fetch and data loads and stores. The last two
- * memory regions used are remembered (code in flash and data in RAM
- * alternate), and an access inside one goes to the host memory without the
- * bus and the MPU's region search. Device registers and anything else take
- * the bus as before.
+ * the hot paths: instruction fetch and data loads and stores. Instruction
+ * fetch remembers its own region (the code window), data accesses the last
+ * two they used (data in RAM, constants in flash), so neither evicts the
+ * other's; an access inside one goes to the host memory without the bus and
+ * the MPU's region search. Device registers and anything else take the bus
+ * as before.
  */
 #ifndef ATHRILL_STM32_MEMORY_WINDOW_H
 #define ATHRILL_STM32_MEMORY_WINDOW_H
@@ -18,9 +19,23 @@ typedef struct {
 } MemoryWindowType;
 
 extern MemoryWindowType memory_windows[2];
+extern MemoryWindowType memory_code_window;
 
 /* The memory region holding [addr, addr + size) in a window, or NULL; it becomes window 0. */
 uint8 *memory_window_lookup(uint32 addr, uint32 size);
+/* The same for instruction fetch: the region becomes the code window. */
+uint8 *memory_window_code_lookup(uint32 addr, uint32 size);
+
+/* The host address of instruction bytes [addr, addr + size) if they are plain memory, or NULL. */
+static inline uint8 *memory_window_code_pointer(uint32 addr, uint32 size)
+{
+	const MemoryWindowType *w = &memory_code_window;
+
+	if (((addr - w->start) < w->size) && ((w->size - (addr - w->start)) >= size)) {
+		return &w->data[addr - w->start];
+	}
+	return memory_window_code_lookup(addr, size);
+}
 
 /* The host address of [addr, addr + size) if it is plain memory, or NULL. */
 static inline uint8 *memory_window_pointer(uint32 addr, uint32 size)
