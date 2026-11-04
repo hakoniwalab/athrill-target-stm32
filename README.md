@@ -283,6 +283,22 @@ runs at RTF 1.48. Hakoniwa Drone PRO is a separate component that is **not
 publicly available**; [docs/hakoniwa.md](docs/hakoniwa.md) records the setup
 for those who have it. The SIH demonstration does not need it.
 
+## ArduPilot, and a race with Renode
+
+The unmodified ArduCopter Pixhawk 4 firmware boots on the same emulated
+board. ArduPilot also runs this firmware on Renode, so we compared the two
+emulators on one Mac with the same ELF:
+
+| | Real-time factor (mean of 3) |
+| --- | ---: |
+| **Athrill STM32** | **1.56** |
+| Renode (ArduPilot's performance branch) | 0.30 |
+
+Both executed the same instruction stream: of the first 411,872 instructions,
+411,536 were identical in lock-step. The traces differed only where the
+firmware waits on hardware timing. Conditions, caveats and how to reproduce
+are in [docs/ardupilot.md](docs/ardupilot.md).
+
 ## Related work and motivation
 
 This is not a claim that MCU emulation is new, or that other emulators cannot
@@ -322,6 +338,7 @@ reproduction steps, and limitations is very welcome.
 - [Survey of existing approaches](docs/survey.md)
 - [Test strategy](docs/testing.md)
 - [Performance measurements](docs/performance.md)
+- [ArduPilot, and a comparison with Renode](docs/ardupilot.md)
 
 `src/cpu/decoder/t32_decode16.{h,c}` and `t32_decode32.{h,c}` are generated
 from Arm's Architecture Machine Readable Specification and are provided under

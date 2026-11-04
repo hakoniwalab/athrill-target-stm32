@@ -69,7 +69,18 @@ Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64
  */
 const char *thumb_instruction_at(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length);
 
-/* Record an instruction about to execute when ARM PC tracing is configured. */
-void cpu_trace_pc(uint32 pc);
+/*
+ * ARM PC tracing (DEVICE_CONFIG_ARM_PC_TRACE_FILE/_COUNT): the PCs still to
+ * record; zero when tracing is off, so the check per instruction stays inline.
+ */
+extern uint32 cpu_pc_trace_remaining;
+void cpu_trace_pc_record(uint32 pc);
+
+static inline void cpu_trace_pc(uint32 pc)
+{
+	if (cpu_pc_trace_remaining != 0U) {
+		cpu_trace_pc_record(pc);
+	}
+}
 
 #endif

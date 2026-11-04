@@ -36,7 +36,7 @@ uint32 stm32_uart_read(uint32 addr);
 void stm32_uart_write(uint32 addr, uint32 size, uint32 value);
 /* console: UART number (1 to 8); rx_file/tx_file: its raw files or NULL. */
 void stm32_uart_reset(uint32 console, const char *rx_file, const char *tx_file);
-/* Enable memory-to-TDR DMA; kept configurable for the established PX4 trace. */
+/* Memory-to-TDR DMA (DEVICE_CONFIG_STM32_UART_TX_DMA); off by default, so PX4 runs as published. */
 void stm32_uart_set_tx_dma(std_bool enabled);
 /* The UARTs up to the device clock, input, interrupts, the clocks to the next event. */
 void stm32_uart_tick(DeviceClockType *clock);

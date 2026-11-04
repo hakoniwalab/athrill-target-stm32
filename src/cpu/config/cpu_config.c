@@ -112,16 +112,13 @@ static std_bool pc_sampling;		/* DEBUG_PC_SAMPLE_START given */
 static uint32 pc_sample_start;
 static uint64 run_steps;		/* instructions of thumb_execute_run, without sampling */
 static FILE *pc_trace;
-static uint32 pc_trace_remaining;
+uint32 cpu_pc_trace_remaining;
 
-void cpu_trace_pc(uint32 pc)
+void cpu_trace_pc_record(uint32 pc)
 {
-	if (pc_trace_remaining == 0U) {
-		return;
-	}
 	fprintf(pc_trace, "0x%08X\n", pc);
-	pc_trace_remaining--;
-	if (pc_trace_remaining == 0U) {
+	cpu_pc_trace_remaining--;
+	if (cpu_pc_trace_remaining == 0U) {
 		if (fclose(pc_trace) != 0) {
 			fprintf(stderr, "ERROR: could not finish ARM PC trace\n");
 		}
@@ -158,7 +155,7 @@ static void open_pc_trace(void)
 		fprintf(stderr, "ERROR: cannot open ARM PC trace %s\n", path);
 		return;
 	}
-	pc_trace_remaining = count;
+	cpu_pc_trace_remaining = count;
 	atexit(close_pc_trace);
 	fprintf(stderr, "INFO: tracing the first %u instruction PCs to %s\n", count, path);
 }
