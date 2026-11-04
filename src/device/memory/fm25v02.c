@@ -59,7 +59,10 @@ void fm25v02_open(Fm25v02Type *chip, const char *path)
 		printf("WARNING: can not open F-RAM file %s\n", path);
 		return;
 	}
-	(void)pread(chip->fd, chip->data, FM25V02_SIZE, 0);
+	/* a new file reads short: its contents stay blank */
+	if (pread(chip->fd, chip->data, FM25V02_SIZE, 0) < 0) {
+		printf("WARNING: can not read F-RAM file %s\n", path);
+	}
 	if (ftruncate(chip->fd, FM25V02_SIZE) != 0) {
 		printf("WARNING: can not size F-RAM file %s\n", path);
 	}

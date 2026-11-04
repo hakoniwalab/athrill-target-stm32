@@ -92,14 +92,17 @@ As a small smoke test, run the included bare-metal example:
 ./build/athrill3 -c1 -m test/hello/memory.txt -d test/hello/device_config.txt -t 100000 test/hello/hello.elf
 ```
 
-Expected console output includes `Hello, Athrill STM32!`.
+Expected console output includes `Hello, Athrill STM32!`; the run then
+stops at its clock limit (`EXIT for timeout(100000).`, exit status 1).
 
 ### 2. Build the PX4 firmware
 
 The stock Pixhawk 4 target of PX4 `main`, unmodified, at the commit the
-demonstrations used, with PX4's build image (Docker):
+demonstrations used, with PX4's build image (Docker), beside the other
+repositories:
 
 ```sh
+cd ..
 git clone https://github.com/PX4/PX4-Autopilot.git PX4
 git -C PX4 checkout 216039a12bab5a86769128f7be3e5f63dc7b4952
 git -C PX4 submodule update --init --recursive
@@ -110,7 +113,8 @@ ls -l PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 Athrill loads the **ELF** (it needs the symbols), not the `.px4` upload
 file, and starts PX4 itself at `0x08008000`, after the place of the
 bootloader, which is not run. `px4_sitl` is not a substitute: the point is
-the board-target build.
+the board-target build. On Linux the container's files under `PX4/build`
+belong to root (`sudo chown -R "$USER" PX4` if you want them back).
 
 ### 3. Run PX4 SIH
 
@@ -118,10 +122,12 @@ the board-target build.
 configuration and a script. Its first run makes the microSD card image
 (1 GB FAT32) and selects the SIH airframe (`SYS_AUTOSTART 1100`, kept in the
 emulated F-RAM, `fram.bin`); every run then boots PX4 with its console on
-the terminal:
+the terminal. On Linux the SD card image needs `mkfs.vfat`
+(`sudo apt install dosfstools`).
 
 ```sh
-examples/px4-sih/run.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+cd athrill-target-stm32
+examples/px4-sih/run.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 PX4's TELEM1 is on TCP `127.0.0.1:5760`: add a TCP link to it in
@@ -129,8 +135,9 @@ PX4's TELEM1 is on TCP `127.0.0.1:5760`: add a TCP link to it in
 `tcp:127.0.0.1:5760`, then arm and take off as usual. The vehicle starts at
 PX4's SIH home (Zurich). Stop with Ctrl+C. The ULog files are in the SD
 card image (`examples/px4-sih/sd.img`, `log/`), which macOS mounts with
-`hdiutil attach -imagekey diskimage-class=CRawDiskImage sd.img` and Linux
-with `mount -o loop`. [docs/sih.md](docs/sih.md) explains each setting.
+`hdiutil attach -imagekey diskimage-class=CRawDiskImage sd.img`; on Linux
+mtools reads it without mounting (`mdir -/ -i sd.img ::/log`,
+`mcopy -i sd.img ::/log/sess000/log100.ulg .`). [docs/sih.md](docs/sih.md) explains each setting.
 
 QGroundControl warns that HITL is enabled (`SYS_HITL=2` is how SIH runs)
 and asks for radio and flight-mode setup (no RC): both are expected.
@@ -179,7 +186,7 @@ electrical, safety, or flight validation.
 end to end with one command (about 2 minutes):
 
 ```sh
-examples/px4-sih/verify/verify.sh PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
+examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
 It needs python3 with numpy, pyulog and pymavlink, and on Linux mtools to
