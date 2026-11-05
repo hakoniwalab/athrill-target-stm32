@@ -5,7 +5,8 @@
 
 The altitude of MAV_CMD_NAV_TAKEOFF is above mean sea level: the home altitude
 plus the height to climb. PASS if the vehicle reaches 2.5 m (+-0.3 m) and stays
-within that band for the last 10 s of a 40 s hold. Needs pymavlink.
+within that band for the last 10 s of a 40 s hold. The hold is counted in the vehicle's own time (time since boot),
+so a slower host takes longer in wall time but checks the same flight. Needs pymavlink.
 """
 import sys
 import threading
@@ -15,6 +16,8 @@ from pymavlink import mavutil
 
 TARGET = 2.5
 BAND = 0.3
+HOLD_SEC = 40.0   # vehicle time after the take-off command
+TAIL_SEC = 10.0
 
 
 def main():
@@ -63,19 +66,27 @@ def main():
 
     m.mav.command_long_send(m.target_system, m.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
                             0, 0, 0, 0, float("nan"), float("nan"), float("nan"), home + TARGET)
-    t0 = time.time()
+    wall0 = time.time()
+    boot0 = None
     tail = []
     zmax = 0.0
-    while time.time() - t0 < 40:
+    while time.time() - wall0 < 600:
         r = m.recv_match(type=["GLOBAL_POSITION_INT", "STATUSTEXT"], blocking=True, timeout=1)
         if r is None:
             continue
         if r.get_type() == "STATUSTEXT":
             print("PX4:", r.text, flush=True)
             continue
+        if boot0 is None:
+            boot0 = r.time_boot_ms
+            hold_wall0 = time.time()
+        held = (r.time_boot_ms - boot0) / 1000.0
+        if held >= HOLD_SEC:
+            print(f"RTF {held / (time.time() - hold_wall0):.2f} over the hold", flush=True)
+            break
         z = r.relative_alt / 1000.0
         zmax = max(zmax, z)
-        if time.time() - t0 > 30:
+        if held >= HOLD_SEC - TAIL_SEC:
             tail.append(z)
     stop.set()
     if not tail:

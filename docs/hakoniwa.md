@@ -191,6 +191,12 @@ do not change. It does not stop the arming or the take-off.
 
 ## Results
 
+2026-11-05, after the sensor device reports Athrill's own time to Hakoniwa (athrill-device #3: before, it reported
+the HIL time, so the lockstep was paced by the data exchange only), macOS (Apple M2 Pro), released Hakoniwa Drone
+v5.0.0 `mac.zip` and this release's `athrill3` and ELF: `fly.py` 3/3 PASS, 2.48 to 2.50 m with the MuJoCo viewer at
+real time, the first boot (15 s) included. Without the viewer the whole system runs at **RTF 1.85 to 1.86** while
+hovering (`fly.py` prints it, in the vehicle's time over the wall time of the hold).
+
 2026-11-05, macOS (Apple M2 Pro), the steps above with:
 - athrill3 built from this branch with Athrill v3.0.0, the PX4 ELF of release v0.1.1 (the same PX4 v1.17.0 build);
 - the sensor device built as in step 3, against the core of step 1 (`ed26571`);
