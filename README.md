@@ -336,7 +336,9 @@ SITL physics ([docs/related-work.md](docs/related-work.md)). Athrill differs:
 - it runs faster than real time;
 - it flies PX4 too;
 - it generates its decoders from Arm's machine-readable data;
-- it has a pseudo-code-only strict mode, which a whole PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
+- it has a pseudo-code-only strict mode, which a whole PX4 flight matches bit for bit.
+
+Our focus is narrower: a **lightweight,
 inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
 with explicit virtual time and testable functional peripheral models. Against
 Renode we have one measured comparison, on ArduPilot
