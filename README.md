@@ -328,11 +328,15 @@ and record/replay](https://www.qemu.org/docs/master/system/replay.html), and
 Renode](https://ardupilot.org/dev/docs/renode-emulation.html).
 
 [docs/athrill.md](docs/athrill.md) explains what Athrill is and how it
-differs from QEMU and Renode. In one sentence, against Renode, which already
-models the STM32F7 for ArduPilot: Athrill advances in virtual-time lockstep
-with external physics (Hakoniwa), generates its decoders from Arm's
-machine-readable data, and has a pseudo-code-only strict mode that a whole
-PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
+differs from QEMU and Renode. Renode already models the STM32F7 for ArduPilot,
+and since 2026-09 flies ArduPilot firmware in lockstep with ArduPilot's own
+SITL physics ([docs/related-work.md](docs/related-work.md)). Athrill differs:
+- it runs unmodified firmware (the official ArduPilot binary; PX4 v1.17 built unmodified), against external
+  physics (Hakoniwa, MuJoCo);
+- it runs faster than real time;
+- it flies PX4 too;
+- it generates its decoders from Arm's machine-readable data;
+- it has a pseudo-code-only strict mode, which a whole PX4 flight matches bit for bit. Our focus is narrower: a **lightweight,
 inspectable PX4 FMUv5 firmware execution path** that can be connected to the Hakoniwa simulation environment,
 with explicit virtual time and testable functional peripheral models. Against
 Renode we have one measured comparison, on ArduPilot
