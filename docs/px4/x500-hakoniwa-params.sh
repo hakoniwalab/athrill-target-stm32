@@ -1,9 +1,9 @@
-# Parameters of Hakoniwa Drone PRO's x500 for PX4 px4_fmu-v5 on Athrill (docs/hakoniwa.md):
-# airframe x500 v2 with the parameters of Drone PRO's x500 PX4 SITL
-# (hakoniwa-drone-pro config/drone/x500-px4-sitl/px4-params.txt, as its
-# devices/px4/erbium-hakoniwa.patch sets them), the motors on the FMU's PWM
+# Parameters of the Hakoniwa Drone x500 for PX4 px4_fmu-v5 on Athrill (docs/hakoniwa.md):
+# airframe x500 v2 with the parameters of Hakoniwa Drone's x500 PX4 SITL
+# (config/drone/x500-px4-sitl/px4-params.txt, as athrill-device
+# board/erbium/px4/erbium-hakoniwa.patch sets them), the motors on the FMU's PWM
 # outputs AUX1-4, the emulated chips counted as calibrated (their device IDs).
-# Copy to the SD card image and run once from NSH: sh /fs/microsd/x500-hakoniwa-params.sh
+# examples/px4-hakoniwa/run.sh puts it on the SD card and runs it once.
 param set SYS_AUTOSTART 4019
 param set CA_AIRFRAME 0
 param set CA_ROTOR0_AX 0

@@ -309,5 +309,6 @@ This comparison is an overture. Next:
 - **Hakoniwa for ArduPilot.** Connect ArduPilot on Athrill to external
   physics, as [Beyond SIH](../README.md#beyond-sih-px4s-sensor-drivers-and-external-physics)
   does for PX4. It is not done yet.
-- **A full release, v0.2.0.** Then we will re-release `athrill3`, with
-  ArduPilot flying in Hakoniwa as well as PX4.
+- **Release v0.2.0** has PX4 flying in Hakoniwa (see [hakoniwa.md](hakoniwa.md)),
+  with the `athrill3` that runs this comparison. ArduPilot flying in
+  Hakoniwa is planned for v0.3.0.

@@ -7,7 +7,7 @@
 
 ![QGroundControl (left) takes off and flies "Go to location" legs with PX4 SIH on the emulated Pixhawk 4; PX4's own console (right) reports PX4 v1.17.0 on an STM32F76x, the arming, the ULog file and the takeoff. 4x speed.](docs/qgc-flight.gif)
 
-*QGroundControl flying PX4 v1.17.0 SIH on the emulated Pixhawk 4, with PX4's console on the right (4× speed). Prebuilt binaries and the ELF: [Release v0.1.1](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/v0.1.1).*
+*QGroundControl flying PX4 v1.17.0 SIH on the emulated Pixhawk 4, with PX4's console on the right (4× speed). Prebuilt binaries and the ELF: [Release v0.2.0](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/v0.2.0).*
 
 A virtual Pixhawk 4 (FMUv5, STM32F765): no flight controller needed.
 
@@ -281,7 +281,8 @@ PWM pulses on the FMU AUX outputs go back to it as motor commands, in
 lockstep. The x500 takes off and hovers at about 2.5 m; the whole system
 runs at RTF 1.48. Everything is public: Hakoniwa Drone v5.0.0 or later (free
 edition) and the sensor device of [athrill-device](https://github.com/hakoniwalab/athrill-device);
-[docs/hakoniwa.md](docs/hakoniwa.md) has the setup. The SIH demonstration does not need it.
+[docs/hakoniwa.md](docs/hakoniwa.md) has the setup, and `examples/px4-hakoniwa` runs it, with a take-off
+check. The SIH demonstration does not need it.
 
 ## ArduPilot, and a race with Renode
 
@@ -316,7 +317,7 @@ instruction is one clock.
 - [docs/time-skip.md](docs/time-skip.md): the time design, with measurements.
 
 This is a first step. Next we connect ArduPilot to Hakoniwa, as for PX4
-above, and then release v0.2.0 with a new `athrill3`.
+above (planned for v0.3.0).
 
 ## Related work and motivation
 
