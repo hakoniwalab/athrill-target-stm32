@@ -1,0 +1,8 @@
+fram.bin
+fram.bin.new
+sd.img
+sd.img.new
+memory-hakoniwa.txt
+first-boot-config-run.txt
+*.log
+log.txt

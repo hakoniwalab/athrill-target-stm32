@@ -306,9 +306,7 @@ The figures above were measured on one Mac only:
 ## What comes next
 
 This comparison is an overture. Next:
-- **Hakoniwa for ArduPilot.** Connect ArduPilot on Athrill to external
-  physics, as [Beyond SIH](../README.md#beyond-sih-px4s-sensor-drivers-and-external-physics)
-  does for PX4. It is not done yet.
-- **Release v0.2.0** has PX4 flying in Hakoniwa (see [hakoniwa.md](hakoniwa.md)),
-  with the `athrill3` that runs this comparison. ArduPilot flying in
-  Hakoniwa is planned for v0.3.0.
+- **Hakoniwa for ArduPilot: done on main** (for v0.3.0). The same ELF flies
+  the Hakoniwa Drone x500 ([hakoniwa.md](hakoniwa.md#ardupilot),
+  `examples/ardupilot-hakoniwa`). Release v0.2.0 has PX4 flying in Hakoniwa
+  and the `athrill3` of this comparison.

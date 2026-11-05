@@ -158,6 +158,83 @@ To stop, press Ctrl+C in the first two terminals, then run `/usr/local/hakoniwa/
 - `athrill3-v0.2.0-linux-x86_64.tar.gz`, checked with `sha256sum -c --ignore-missing SHA256SUMS`.
 - `LD_LIBRARY_PATH` in place of `DYLD_LIBRARY_PATH` for `run.sh`.
 
+## ArduPilot
+
+The official ArduCopter firmware for the Pixhawk 4 (`Pixhawk4`, V4.7.2, from firmware.ardupilot.org) flies the same
+x500 on the same board and the same sensor device. ArduPilot reads the emulated chips with its own drivers. This
+needs this repository after v0.2.0: `examples/ardupilot-hakoniwa` and the u-blox answers that ArduPilot's GPS driver
+needs (planned for v0.3.0). Do steps 1 to 3 above first, in the same workspace.
+
+### A1. athrill3 from main
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+git -C athrill-target-stm32 checkout main
+git clone https://github.com/hakoniwalab/athrill-arm-common.git
+git -C athrill-arm-common checkout 60d8098
+cmake -S athrill-target-stm32 -B athrill-stm32-build -DCMAKE_BUILD_TYPE=Release
+cmake --build athrill-stm32-build --parallel
+```
+
+### A2. The firmware
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+curl -LO https://firmware.ardupilot.org/Copter/stable/Pixhawk4/arducopter.elf
+shasum -a 256 arducopter.elf
+```
+
+The SHA-256 of V4.7.2 is `cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c`. The stable directory
+moves with each release: with another version the parameter names may differ (4.7 renamed many of 4.6's).
+
+### A3. Fly
+
+In the first terminal, Hakoniwa Drone's aircraft service with the ArduPilot airframe of the example. It is the
+x500 of `x500-athrill-px4` without the 4 ms soft delay of the IMU (PX4 SITL's) and with the GPS accuracy ArduPilot
+SITL reports.
+
+```bash
+cd "$HOME/athrill-hakoniwa/hakoniwa-drone-core"
+mac/mac-main_hako_aircraft_service_px4 127.0.0.1 4560 \
+  "$HOME/athrill-hakoniwa/athrill-target-stm32/examples/ardupilot-hakoniwa/x500-athrill-ardupilot" \
+  config/pdudef/drone-pdudef-athrill-px4.json --mujoco-viewer --real-sleep-msec 1
+```
+
+In the second, ArduCopter on Athrill:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-hakoniwa/run.sh \
+  arducopter.elf athrill-stm32-build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+```
+
+The first run boots ArduCopter on the test vehicle and writes the x500 parameters over MAVLink
+(`load-params.py`): it prints `set ... of ...` and keeps them in `fram.bin`. Wait for
+`ArduCopter on Athrill with Hakoniwa`.
+
+In the third, start the simulation, then take off to 2.5 m and check the hover:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+/usr/local/hakoniwa/bin/hako-cmd start
+python3 athrill-target-stm32/examples/ardupilot-hakoniwa/fly.py
+```
+
+`fly.py` waits for the EKF (about 100 s with the viewer, once the GPS is used), sets GUIDED, arms, takes off and
+prints `PASS` when the x500 holds 2.5 m (within 0.3 m) for the last 10 s of a 40 s hover, counted in the vehicle's
+time. Mission Planner or QGroundControl can connect to TCP `127.0.0.1:5760` instead.
+
+What the example sets (`x500-hakoniwa-ardupilot.parm`):
+- the x500's PID tuning result for ArduPilot from Hakoniwa Drone PRO (sensor model v2), as flown in ArduPilot SITL
+  4.6.3, converted to 4.7 names and units;
+- `BRD_IO_ENABLE 0` (no IO co-processor: the FMU outputs are SERVO1 to 8, the motors on SERVO1 to 4 = AUX1 to 4);
+- `COMPASS_DEC` for the x500's place with `COMPASS_AUTODEC 0`;
+- the checks as in ArduPilot SITL (`ARMING_SKIPCHK -1`, the 4.7 form of SITL's `ARMING_CHECK 0`), no safety switch
+  (`BRD_SAFETY_DEFLT 0`) and no RC failsafe (`FS_THR_ENABLE 0`), as the simulation has no RC and no switch.
+
+The board configuration (`device_config.txt`) lets a branch to itself wait like `WFI` (`DEVICE_CONFIG_ARM_SPIN_HALT`,
+[ardupilot.md](ardupilot.md)): ArduCopter's idle loop is `b .`, and the virtual clock then skips it.
+
 ## How it is set up
 
 - **Memory**: ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB, and the sensor device at `0x60000000`, out of the
@@ -190,6 +267,12 @@ airframe is below the IST8310's resolution, so the readings of a vehicle at rest
 do not change. It does not stop the arming or the take-off.
 
 ## Results
+
+2026-11-05, **ArduPilot** (the steps of [ArduPilot](#ardupilot)), macOS (Apple M2 Pro), released Hakoniwa Drone
+v5.0.0 `mac.zip`, athrill3 from main, the sensor device from athrill-device main: from no `fram.bin` and `sd.img`,
+the parameter write took 96 s (97 of 97 set and read back). Then `fly.py` passed three times in a row with the MuJoCo
+viewer at real time: EKF ready, GUIDED take-off, 2.48 to 2.52 m in the last 10 s. Without the viewer: PASS, **RTF
+1.15**.
 
 2026-11-05, after the sensor device reports Athrill's own time to Hakoniwa (athrill-device #3: before, it reported
 the HIL time, so the lockstep was paced by the data exchange only), macOS (Apple M2 Pro), released Hakoniwa Drone
