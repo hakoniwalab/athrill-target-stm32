@@ -1,17 +1,20 @@
-# PX4 on the emulated Pixhawk 4 with Hakoniwa Drone PRO
+# PX4 on the emulated Pixhawk 4 with Hakoniwa Drone
 
-**Hakoniwa Drone PRO is not publicly available.** This page records the
-setup for those who have it; PX4 developers without it can run everything
-else in this repository, starting with [PX4 SIH](sih.md).
+The stock `px4_fmu-v5_default` firmware flies the Hakoniwa Drone x500 in MuJoCo:
+- **Hakoniwa Drone** computes the vehicle and writes its sensor samples to Hakoniwa (`hil_sensor`, `hil_gps`).
+- **The emulated chips** of the board (ICM-20689, MS5611, IST8310, u-blox M8) give them to PX4's own drivers.
+- **The PWM pulses** of the FMU outputs go back to Hakoniwa Drone as motor commands (`hil_actuator`).
 
-The stock `px4_fmu-v5_default` firmware flies Hakoniwa Drone PRO's x500 in
-MuJoCo: Drone PRO computes the vehicle and writes its sensor samples to
-Hakoniwa (`hil_sensor`, `hil_gps`); the emulated chips of the board (ICM-20689,
-MS5611, IST8310, u-blox M8) give them to PX4's own drivers; the PWM pulses of
-the FMU outputs go back to Drone PRO as motor commands (`hil_actuator`). Both
-sides move in lockstep on the data: Athrill runs the CPU up to the time of
-each sensor sample (the Hakoniwa sensor device of hakoniwa-drone-pro,
-`devices/athrill`, as for the RISC-V target).
+Both sides move in lockstep on the data: Athrill runs the CPU up to the time of each sensor sample.
+
+What you need, all public:
+- [Hakoniwa Drone](https://github.com/toppers/hakoniwa-drone-core) v5.0.0 or later: the free edition, or
+  Hakoniwa Drone PRO. It provides the aircraft service, the airframe `config/drone/x500-athrill-px4` and the PDU
+  definition `config/pdudef/drone-pdudef-athrill-px4.json`.
+- The Hakoniwa sensor device, from [athrill-device](https://github.com/hakoniwalab/athrill-device)
+  (`board/common`, built for this board as described in its
+  [board/stm32f7xx](https://github.com/hakoniwalab/athrill-device/blob/main/board/stm32f7xx/README.md)).
+- This repository's `athrill3` and the PX4 ELF.
 
 ## What the board adds
 
@@ -22,15 +25,16 @@ each sensor sample (the Hakoniwa sensor device of hakoniwa-drone-pro,
   latest ones with each sensor sample. Without the PX4IO co-processor (not
   modelled) the motors are on AUX1 to AUX4 (`PWM_AUX_FUNC1..4`).
 - **MS5611 noise**: the ADC noise of the datasheet (RMS 0.012 mbar at
-  OSR 4096). Drone PRO's barometer noise is below the chip's resolution, so
+  OSR 4096). Hakoniwa Drone's barometer noise is below the chip's resolution, so
   without it the readings at rest never change and PX4 takes the barometer
   as stale ("BARO #0 failed: STALE!", arming denied).
 
 ## Files
 
 - Memory (`memory.txt`): ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB, and
-  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (`.so` on Linux; built with
-  `ATHRILL_ADDRESS_WIDTH=32` against the same Hakoniwa Foundation as Drone PRO).
+  `DEV, 0x60000000, <libhako_sensor_device.dylib>` (`.so` on Linux), the sensor
+  device of athrill-device built with `ATHRILL_ADDRESS_WIDTH=32` against the same
+  Hakoniwa Foundation as Hakoniwa Drone.
 - Device configuration:
 
 ```
@@ -79,7 +83,7 @@ The calibration IDs in the script are those of the emulated chips
 
 ## Run
 
-In this order (as for the RISC-V target): Drone PRO with the conductor
+In this order (as for the RISC-V target): Hakoniwa Drone's aircraft service, the only conductor
 (`hako_aircraft_service_px4 127.0.0.1 4560 config/drone/x500-athrill-px4
 config/pdudef/drone-pdudef-athrill-px4.json`), Athrill (`athrill3 -c1 -m
 memory.txt -d device_config.txt -t -1 px4_fmu-v5_default.elf`), `hako-cmd
@@ -87,7 +91,21 @@ start`. Run all three without the old Hakoniwa Core on `DYLD_LIBRARY_PATH`;
 Athrill with the Foundation's `lib` there. QGroundControl or pymavlink on
 `tcp:127.0.0.1:5760`.
 
-## Results (2026-11-04, Apple M-series host, no viewer)
+**Take-off over MAVLink:** the altitude of `MAV_CMD_NAV_TAKEOFF` is above mean
+sea level. Give the home altitude plus the height to climb: 2.5 alone makes PX4
+answer "Already higher than takeoff altitude" and stay on the ground.
+QGroundControl does this for you.
+
+**At rest, "MAG #0 failed: STALE!"** can appear: the magnetometer noise of the
+airframe is below the IST8310's resolution, so the readings of a vehicle at rest
+do not change. It does not stop the arming or the take-off.
+
+## Results
+
+2026-11-05, Hakoniwa Drone v5.0.0 (sensor model v2), the device from
+athrill-device: arm, then take-off to 2.51 m (target 2.5 m).
+
+2026-11-04, Hakoniwa Drone PRO (Apple M-series host, no viewer):
 
 - Arm and `MAV_CMD_NAV_TAKEOFF` over MAVLink, and from QGroundControl: the
   x500 climbs and hovers at 2.50 to 2.51 m of relative altitude (takeoff
@@ -95,6 +113,6 @@ Athrill with the Foundation's `lib` there. QGroundControl or pymavlink on
   held 2.31 to 2.33 m; later flights with the same files held 2.5 m. That
   first run was not looked into further.
 - RTF 1.48 for the whole system while hovering (Athrill 91 % of a core,
-  Drone PRO 111 %); PX4 SIH alone runs at 1.94 (`docs/sih.md`): here the
+  Hakoniwa Drone 111 %); PX4 SIH alone runs at 1.94 (`docs/sih.md`): here the
   chips' drivers run (IMU data ready at 8 kHz with SPI DMA) and the lockstep
-  waits for Drone PRO's physics.
+  waits for Hakoniwa Drone's physics.

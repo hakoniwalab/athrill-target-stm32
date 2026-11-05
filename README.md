@@ -276,12 +276,12 @@ boots the same setup for QGroundControl on TCP 127.0.0.1:5760.
 
 **Flying, with external physics.** A further experiment flies with them. PX4's own
 drivers read the emulated ICM-20689, MS5611, IST8310 and u-blox chips, whose
-samples come from **Hakoniwa Drone PRO** (the x500 in MuJoCo), and PX4's
+samples come from **Hakoniwa Drone** (the x500 in MuJoCo), and PX4's
 PWM pulses on the FMU AUX outputs go back to it as motor commands, in
 lockstep. The x500 takes off and hovers at about 2.5 m; the whole system
-runs at RTF 1.48. Hakoniwa Drone PRO is a separate component that is **not
-publicly available**; [docs/hakoniwa.md](docs/hakoniwa.md) records the setup
-for those who have it. The SIH demonstration does not need it.
+runs at RTF 1.48. Everything is public: Hakoniwa Drone v5.0.0 or later (free
+edition) and the sensor device of [athrill-device](https://github.com/hakoniwalab/athrill-device);
+[docs/hakoniwa.md](docs/hakoniwa.md) has the setup. The SIH demonstration does not need it.
 
 ## ArduPilot, and a race with Renode
 
