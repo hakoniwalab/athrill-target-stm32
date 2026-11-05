@@ -316,8 +316,14 @@ instruction is one clock.
   reproduce.
 - [docs/time-skip.md](docs/time-skip.md): the time design, with measurements.
 
-This is a first step. Next we connect ArduPilot to Hakoniwa, as for PX4
-above (planned for v0.3.0).
+**ArduPilot flies in Hakoniwa too** (on main, for v0.3.0). The same official
+ArduCopter V4.7.2 binary reads the emulated chips with its own drivers and
+flies the Hakoniwa Drone x500: EKF3 uses the GPS, then GUIDED take-off to
+2.5 m and hover, 3/3 runs, faster than real time without the viewer.
+[docs/hakoniwa.md](docs/hakoniwa.md#ardupilot) has the steps, and
+`examples/ardupilot-hakoniwa` runs it. ArduPilot's Renode emulation also flies
+ArduPilot with physics; [docs/related-work.md](docs/related-work.md) says how
+this differs.
 
 ## Related work and motivation
 
