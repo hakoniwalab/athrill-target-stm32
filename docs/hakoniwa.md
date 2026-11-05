@@ -104,6 +104,16 @@ tar xzf athrill3-v0.2.0-macos-arm64.tar.gz
 
 ### 5. Fly
 
+If a Hakoniwa core of another version ran on this machine before, its runtime files are still in
+`/var/lib/hakoniwa/mmap`. Clear them once, with no Hakoniwa process running:
+
+```bash
+/usr/local/hakoniwa/bin/hako-cmd recover
+```
+
+Otherwise the aircraft service stops at start with `HAKONIWA_FAIL_STOP ... (legacy flock.bin)`.
+
+
 Three terminals. In the first, Hakoniwa Drone's aircraft service: the only conductor, with the MuJoCo viewer
 at real time.
 
@@ -190,6 +200,10 @@ do not change. It does not stop the arming or the take-off.
 Starting from no `fram.bin` and `sd.img`, the first boot took 17 s. Then `fly.py` passed three times in a row,
 with the MuJoCo viewer at real time: 2.48 to 2.50 m in the last 10 s, the first flight included. The parameters
 read over MAVLink at the 2nd and 3rd boots were identical. Ctrl+C stops Athrill and the aircraft service.
+
+2026-11-05, Linux (WSL2, Ubuntu 24.04), the steps above with the released Hakoniwa Drone v5.0.0 `lnx.zip` and this
+release's `athrill3` and ELF: first boot 52 s; `fly.py` 3/3 PASS, 2.35 to 2.48 m in the last 10 s, MuJoCo viewer at
+real time. Ctrl+C stops Athrill and the aircraft service.
 
 2026-11-04, Hakoniwa Drone PRO (no viewer): RTF 1.48 for the whole system while hovering (Athrill 91 % of a
 core, Hakoniwa Drone 111 %); PX4 SIH alone runs at 1.94 (`docs/sih.md`): here the chips' drivers run (IMU data
