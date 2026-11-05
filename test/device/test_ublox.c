@@ -127,6 +127,85 @@ static uint32 u32(const uint8 *p)
 	return (uint32)p[0] | ((uint32)p[1] << 8) | ((uint32)p[2] << 16) | ((uint32)p[3] << 24);
 }
 
+static void check_pvt_rate(const char *what, uint8 want)
+{
+	uint8 poll[2] = { 0x01U, 0x07U };
+	uint8 cls;
+	uint8 id;
+	const uint8 *p;
+	uint32 len;
+
+	out_len = 0U;
+	host_send(0x06U, 0x01U, poll, sizeof(poll));
+	CHECK_EQ(what, frame(0U, &cls, &id, &p, &len), TRUE);
+	CHECK_EQ("CFG-MSG poll: class", cls, 0x06U);
+	CHECK_EQ("CFG-MSG poll: id", id, 0x01U);
+	CHECK_EQ("CFG-MSG poll: length", len, 8U);
+	CHECK_EQ("CFG-MSG poll: message class", p[0], 0x01U);
+	CHECK_EQ("CFG-MSG poll: message id", p[1], 0x07U);
+	CHECK_EQ("CFG-MSG poll: DDC rate", p[2], 0U);
+	CHECK_EQ("CFG-MSG poll: UART1 rate", p[3], want);
+	CHECK_EQ("CFG-MSG poll: UART2 rate", p[4], 0U);
+	CHECK_EQ("CFG-MSG poll: USB rate", p[5], 0U);
+	CHECK_EQ("CFG-MSG poll: SPI rate", p[6], 0U);
+	CHECK_EQ("CFG-MSG poll: reserved rate", p[7], 0U);
+	CHECK_EQ("CFG-MSG poll: no ACK", frame(1U, &cls, &id, &p, &len), FALSE);
+}
+
+static void test_poll_responses(void)
+{
+	uint8 cls;
+	uint8 id;
+	const uint8 *p;
+	uint32 len;
+	uint8 msg_pvt[3] = { 0x01U, 0x07U, 2U };
+	uint8 msg_pvt_ports[8] = { 0x01U, 0x07U, 0U, 3U, 0U, 0U, 0U, 0U };
+	uint8 msg_unknown[2] = { 0x01U, 0x35U };
+	uint8 valset[8] = { 0 };
+
+	ublox_reset(&gps, 1U, CPU_HZ);
+	out_len = 0U;
+	host_send(0x06U, 0x00U, NULL, 0U);
+	CHECK_EQ("CFG-PRT poll: frame", frame(0U, &cls, &id, &p, &len), TRUE);
+	CHECK_EQ("CFG-PRT poll: class", cls, 0x06U);
+	CHECK_EQ("CFG-PRT poll: id", id, 0x00U);
+	CHECK_EQ("CFG-PRT poll: length", len, 20U);
+	CHECK_EQ("CFG-PRT poll: portID", p[0], 1U);
+	CHECK_EQ("CFG-PRT poll: reserved0", p[1], 0U);
+	CHECK_EQ("CFG-PRT poll: txReady", p[2] | (p[3] << 8), 0U);
+	CHECK_EQ("CFG-PRT poll: mode", u32(&p[4]), 0x000008D0U);
+	CHECK_EQ("CFG-PRT poll: baudRate", u32(&p[8]), 230400U);
+	CHECK_EQ("CFG-PRT poll: inProtoMask", p[12] | (p[13] << 8), 1U);
+	CHECK_EQ("CFG-PRT poll: outProtoMask", p[14] | (p[15] << 8), 1U);
+	CHECK_EQ("CFG-PRT poll: flags", p[16] | (p[17] << 8), 0U);
+	CHECK_EQ("CFG-PRT poll: reserved5", p[18] | (p[19] << 8), 0U);
+	CHECK_EQ("CFG-PRT poll: no ACK", frame(1U, &cls, &id, &p, &len), FALSE);
+
+	check_pvt_rate("CFG-MSG poll: initial frame", 0U);
+	out_len = 0U;
+	host_send(0x06U, 0x01U, msg_pvt, sizeof(msg_pvt));
+	check_pvt_rate("CFG-MSG poll: frame after 3-byte set", 2U);
+
+	ublox_reset(&gps, 1U, CPU_HZ);
+	check_pvt_rate("CFG-MSG poll: reset before 8-byte set", 0U);
+	out_len = 0U;
+	host_send(0x06U, 0x01U, msg_pvt_ports, sizeof(msg_pvt_ports));
+	check_pvt_rate("CFG-MSG poll: frame after 8-byte set", 3U);
+
+	ublox_reset(&gps, 1U, CPU_HZ);
+	out_len = 0U;
+	host_send(0x06U, 0x8AU, valset, sizeof(valset));
+	CHECK_EQ("CFG-VALSET remains NAKed", frame(0U, &cls, &id, &p, &len) && (cls == 0x05U) && (id == 0x00U), TRUE);
+	check_pvt_rate("CFG-MSG poll: VALSET cannot enable M8 output", 0U);
+
+	out_len = 0U;
+	host_send(0x06U, 0x01U, msg_unknown, sizeof(msg_unknown));
+	CHECK_EQ("CFG-MSG unknown poll: frame", frame(0U, &cls, &id, &p, &len), TRUE);
+	CHECK_EQ("CFG-MSG unknown poll: length", len, 8U);
+	CHECK_EQ("CFG-MSG unknown poll: UART1 rate", p[3], 0U);
+	CHECK_EQ("CFG-MSG unknown poll: no ACK", frame(1U, &cls, &id, &p, &len), FALSE);
+}
+
 static void test_configuration(void)
 {
 	uint8 cls;
@@ -220,6 +299,7 @@ static void test_measurements(void)
 int main(void)
 {
 	test_configuration();
+	test_poll_responses();
 	test_measurements();
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;

@@ -16,15 +16,23 @@
 #define ID_NAV_PVT	0x07U
 #define ID_ACK_NAK	0x00U
 #define ID_ACK_ACK	0x01U
+#define ID_CFG_PRT	0x00U
 #define ID_CFG_MSG	0x01U
 #define ID_CFG_RATE	0x08U
 #define ID_CFG_VALSET	0x8AU
 #define ID_MON_VER	0x04U
 #define PORT_UART1	1U	/* the rate of CFG-MSG's 8-byte form for UART1 */
 
+#define CFG_PRT_LEN	20U
+#define CFG_MSG_LEN	8U
 #define NAV_PVT_LEN	92U
 #define NAV_DOP_LEN	18U
 #define MON_VER_LEN	(30U + 10U + 30U)
+
+#define PORT_ID		1U
+#define PORT_MODE	0x000008D0U
+#define PORT_BAUD	230400U
+#define PORT_PROTO_UBX	0x0001U
 
 /* The receiver's clock starts on 2026-11-04 00:00:00 UTC, a Wednesday (day 3 of the GPS week). */
 #define START_YEAR	2026U
@@ -94,12 +102,60 @@ static void mon_ver(const UbloxType *gps)
 	send(gps, CLASS_MON, ID_MON_VER, payload, MON_VER_LEN);
 }
 
+/* UBX-13003221 32.10.25.2: the UART configuration returned for the active port. */
+static void cfg_prt(const UbloxType *gps)
+{
+	uint8 payload[CFG_PRT_LEN];
+
+	memset(payload, 0, sizeof(payload));
+	payload[0] = PORT_ID;
+	put16(&payload[2], 0U);
+	put32(&payload[4], PORT_MODE);
+	put32(&payload[8], PORT_BAUD);
+	put16(&payload[12], PORT_PROTO_UBX);
+	put16(&payload[14], PORT_PROTO_UBX);
+	put16(&payload[16], 0U);
+	send(gps, CLASS_CFG, ID_CFG_PRT, payload, CFG_PRT_LEN);
+}
+
+static uint32 message_rate(const UbloxType *gps, uint8 cls, uint8 id)
+{
+	if ((cls == CLASS_NAV) && (id == ID_NAV_PVT)) {
+		return gps->pvt_rate;
+	}
+	if ((cls == CLASS_NAV) && (id == ID_NAV_DOP)) {
+		return gps->dop_rate;
+	}
+	return 0U;
+}
+
+/* UBX-13003221 32.10.18.1-.2: poll response with one rate for each port. */
+static void cfg_msg(const UbloxType *gps, uint8 cls, uint8 id)
+{
+	uint8 payload[CFG_MSG_LEN];
+
+	memset(payload, 0, sizeof(payload));
+	payload[0] = cls;
+	payload[1] = id;
+	payload[2U + PORT_UART1] = (uint8)message_rate(gps, cls, id);
+	send(gps, CLASS_CFG, ID_CFG_MSG, payload, CFG_MSG_LEN);
+}
+
 /* A complete frame from the host (checked). */
 static void handle(UbloxType *gps, uint8 cls, uint8 id, const uint8 *payload, uint32 len)
 {
 	uint32 rate;
 
 	if (cls == CLASS_CFG) {
+		/* The zero-length form selects the active UART; the M8 reply is 32.10.25.2. */
+		if ((id == ID_CFG_PRT) && (len == 0U)) {
+			cfg_prt(gps);
+			return;
+		}
+		if ((id == ID_CFG_MSG) && (len == 2U)) {
+			cfg_msg(gps, payload[0], payload[1]);
+			return;
+		}
 		if (id == ID_CFG_VALSET) {
 			acknowledge(gps, FALSE, cls, id);
 			return;
