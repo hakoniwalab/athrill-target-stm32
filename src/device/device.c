@@ -91,11 +91,8 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
-	/* The legacy board model is the Gate-1 behaviour adapter selected by the DT graph. */
-	if (stm32_device_tree_build()) {
-		board_attach();
-	}
-	else {
+	/* A DT build attaches its named board adapter while connecting the graph. */
+	if (!stm32_device_tree_build()) {
 		board_attach();
 	}
 	stm32_uart_tcp_attach();
