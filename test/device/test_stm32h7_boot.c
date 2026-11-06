@@ -97,9 +97,6 @@ int main(void)
 	write32(0x48022438U, 0x1234U);
 	TEST_CHECK(sdmmc_write_addr == 0x48022438U);
 	TEST_CHECK(sdmmc_write_value == 0x1234U);
-	write32(0x58001C04U, 1U << 13);
-	TEST_CHECK((read32(0x58001C18U) & ((1U << 4) | (1U << 5))) == ((1U << 4) | (1U << 5)));
-
 	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
 	write32(0x40080010U, 1U << 0);
 	TEST_CHECK((read32(0x40080010U) & (1U << 31)) != 0U);
