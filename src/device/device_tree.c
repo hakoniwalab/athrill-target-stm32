@@ -12,7 +12,6 @@
 #include "device.h"
 #include "mpu.h"
 #include "peripheral/stm32_gpio.h"
-#include "peripheral/stm32_exti.h"
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_uart.h"
@@ -31,7 +30,7 @@
 #define MAX_I2C_ENDPOINTS 32U
 #define MAX_UART_ENDPOINTS 16U
 #define MAX_GPIO_LINES 192U
-#define MAX_GPIO_SUBSCRIBERS 192U
+#define MAX_GPIO_SUBSCRIBERS 384U
 #define MAX_DMA_CHANNELS 64U
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 16U
@@ -756,7 +755,11 @@ static sint32 target_gpio_resolve(void *context, const AthrillDeviceSpecifier *s
 		return -1;
 	}
 	/* GPIO flags describe the consumer and are not part of a physical line. */
-	line->value = ((uint64)spec->provider << 32) ^ spec->cells[0];
+	if (node_path_address(spec->provider_path, &address) == 0) {
+		line->value = ((uint64)address << 16) ^ spec->cells[0];
+	} else {
+		line->value = ((uint64)spec->provider << 32) ^ spec->cells[0];
+	}
 	if (line->value == 0U) {
 		line->value = 1U;
 	}
@@ -765,10 +768,14 @@ static sint32 target_gpio_resolve(void *context, const AthrillDeviceSpecifier *s
 		return -1;
 	}
 	if (node_path_address(spec->provider_path, &address) == 0 &&
-	    address >= 0x40020000U && address <= 0x40022800U &&
-	    (address - 0x40020000U) % 0x400U == 0U &&
+	    (((address >= 0x40020000U && address <= 0x40022800U &&
+	       (address - 0x40020000U) % 0x400U == 0U) ||
+	      (address >= 0x58020000U && address <= 0x58022800U &&
+	       (address - 0x58020000U) % 0x400U == 0U))) &&
 	    spec->cells[0] < 16U) {
-		gpio->port = (address - 0x40020000U) / 0x400U;
+		gpio->port = address >= 0x58020000U ?
+			(address - 0x58020000U) / 0x400U :
+			(address - 0x40020000U) / 0x400U;
 		gpio->pin = spec->cells[0];
 		gpio->stm32_pin = TRUE;
 	}
@@ -799,7 +806,6 @@ static sint32 target_gpio_drive(void *context, AthrillDeviceGpioLine line, std_b
 		uint32 bit = 1U << g->pin;
 		stm32_spi_pins_changed(g->port, level ? 0U : bit,
 			level ? bit : 0U);
-		stm32_exti_pin_edge(g->port, g->pin, level);
 	}
 	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
 		if (target->gpio_subscribers[i].used &&
@@ -895,8 +901,6 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-exti") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-exti") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-dma") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-spi") == 0 &&
