@@ -25,10 +25,19 @@ set(ATHRILL_DEVICE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-device" CACHE PAT
     "hakoniwalab/athrill-device checkout with the Devicetree framework")
 get_filename_component(ATHRILL_DEVICE_DIR "${ATHRILL_DEVICE_DIR}" ABSOLUTE
     BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-if(NOT EXISTS "${ATHRILL_DEVICE_DIR}/include/athrill_device_if.h")
-  message(FATAL_ERROR "athrill-device Devicetree framework not found: set ATHRILL_DEVICE_DIR")
+set(ATHRILL_DEVICE_AVAILABLE OFF)
+if(EXISTS "${ATHRILL_DEVICE_DIR}/include/athrill_device_if.h")
+  set(ATHRILL_DEVICE_AVAILABLE ON)
 endif()
-add_subdirectory("${ATHRILL_DEVICE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/athrill-device")
+option(ATHRILL_ENABLE_DEVICE_TREE "Enable athrill-device Devicetree support"
+  ${ATHRILL_DEVICE_AVAILABLE})
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  if(NOT ATHRILL_DEVICE_AVAILABLE)
+    message(FATAL_ERROR
+      "ATHRILL_ENABLE_DEVICE_TREE requires athrill-device: set ATHRILL_DEVICE_DIR or disable the option")
+  endif()
+  add_subdirectory("${ATHRILL_DEVICE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/athrill-device")
+endif()
 
 # Batched execution (cpu_supply_clocks): the core runs up to this many instructions between device ticks.
 add_compile_definitions(ATHRILL_TARGET_BATCH_CLOCKS=1024U)
@@ -87,7 +96,7 @@ if(ATHRILL_STM32_COVERAGE)
 endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
-  src/device/device.c src/device/device_tree.c src/device/peripheral/stm32_uart.c
+  src/device/device.c src/device/peripheral/stm32_uart.c
   src/device/peripheral/stm32_uart_tcp.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
@@ -117,6 +126,9 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  list(APPEND DEVICE_SOURCES src/device/device_tree.c)
+endif()
 if(ATHRILL_ENABLE_EXDEV)
   list(APPEND DEVICE_SOURCES ${ATHRILL_DEVICE_EXDEV_SOURCES} ${ATHRILL_DEVICE_EXDEV_POSIX_SOURCES})
 endif()
@@ -125,7 +137,10 @@ target_include_directories(athrill_stm32_device PRIVATE
   "${ATHRILL_SRC_DIR}/device/peripheral/target" "${ATHRILL_SRC_DIR}/device/peripheral/serial/fifo"
   "${ATHRILL_APL_DIR}/include")
 stm32_target(athrill_stm32_device)
-target_link_libraries(athrill_stm32_device PRIVATE athrill_device)
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  target_compile_definitions(athrill_stm32_device PRIVATE ATHRILL_ENABLE_DEVICE_TREE)
+  target_link_libraries(athrill_stm32_device PRIVATE athrill_device)
+endif()
 
 add_library(athrill_bus STATIC ${ATHRILL_BUS_SOURCES})
 stm32_target(athrill_bus)
@@ -276,5 +291,14 @@ if(BUILD_TESTING)
   # Every instruction test also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE and _EXEC_MODE strict).
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t}-strict COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t} strict)
+  endforeach()
+
+  # Runtime files such as log.txt and model images belong to the build tree.
+  # A separate directory per test also keeps parallel CTest runs independent.
+  get_property(ATHRILL_STM32_TESTS DIRECTORY PROPERTY TESTS)
+  foreach(test_name IN LISTS ATHRILL_STM32_TESTS)
+    set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/test-work/${test_name}")
+    file(MAKE_DIRECTORY "${test_work_dir}")
+    set_tests_properties(${test_name} PROPERTIES WORKING_DIRECTORY "${test_work_dir}")
   endforeach()
 endif()
