@@ -101,6 +101,21 @@ int main(void)
 	TEST_CHECK((read32(0x58001C18U) & ((1U << 4) | (1U << 5))) == ((1U << 4) | (1U << 5)));
 
 	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
+	write32(0x40080010U, 1U << 0);
+	TEST_CHECK((read32(0x40080010U) & (1U << 31)) != 0U);
+	write32(0x51008108U, 1U);
+	TEST_CHECK(read32(0x51008108U) == 1U);
+	write32(0x58004800U, 0xAAAAU);
+	TEST_CHECK(read32(0x58004800U) == 0xAAAAU);
+	write32(0x58025408U, 0xFFU);
+	TEST_CHECK(read32(0x58025408U) == 0xFFU);
+	write32(0x4000A018U, 0x3U);
+	TEST_CHECK(read32(0x4000A018U) == 0x3U);
+	TEST_CHECK(stm32h7_boot_read(0x40022400U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x48020000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x51000000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x52000000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x58024C00U, 4U, &value) == STD_E_SEGV);
 	TEST_CHECK(stm32h7_boot_read(0x40023800U, 4U, &value) == STD_E_SEGV);
 
 	configured_board = "unknown";
