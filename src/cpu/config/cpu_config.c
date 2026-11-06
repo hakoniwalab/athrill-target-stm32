@@ -256,6 +256,7 @@ void cpu_init(void)
 {
 	CoreIdType i;
 
+	stm32_host_function_init();
 	read_fp_mode();
 	open_pc_trace();
 	pc_sampling = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &pc_sample_start) == STD_E_OK);

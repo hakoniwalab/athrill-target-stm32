@@ -63,6 +63,8 @@ Std_ReturnType thumb_execute(TargetCoreType *core);
  * instruction that returns an error. *executed: the instructions executed.
  */
 Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed);
+void thumb_invalidate_code(AthrillAddrType address, uint32 size);
+void stm32_host_function_init(void);
 /*
  * The instruction at address as the generated decoders name it (for
  * messages); *insn and *length get its encoding (first halfword in bits 31:16
