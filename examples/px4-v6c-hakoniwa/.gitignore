@@ -8,3 +8,4 @@ x500-v6c.sh.tmp
 *.log
 *.raw
 *.trace
+__pycache__/
