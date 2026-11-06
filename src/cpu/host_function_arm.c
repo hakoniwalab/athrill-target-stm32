@@ -1,6 +1,7 @@
 #include "athrill_host_function_internal.h"
 #include "cpu.h"
 #include "target_cpu.h"
+#include <stdint.h>
 
 static Std_ReturnType arm_argument(CoreIdType core_id, uint32 index, uint64 *value)
 {
