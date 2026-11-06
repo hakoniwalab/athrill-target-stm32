@@ -4,6 +4,7 @@
  */
 #include "stm32_sdmmc.h"
 #include "stm32_dma.h"
+#include "athrill_protocol_sd.h"
 #include "cpuemu_ops.h"
 #include "device.h"
 #include <stdlib.h>
@@ -60,7 +61,7 @@ typedef struct {
 	uint32 sta;		/* the static flags (the FIFO flags are worked out) */
 	uint64 cpu_hz;
 	uint64 now;
-	SdcardType *card;
+	AthrillSdProtocol *protocol;
 	SdcardDataType pending;	/* a data command waits for its data path */
 	uint64 done_at;		/* the clock the scheduled transfer ends; 0: none */
 	uint8 *fifo;		/* the bytes of a transfer through the FIFO register */
@@ -70,6 +71,48 @@ typedef struct {
 } SdmmcType;
 
 static SdmmcType sd;
+
+static sint32 card_command(void *context, uint32 index, uint32 argument,
+	AthrillSdResponse *response)
+{
+	SdcardResponse backend;
+	SdcardType *card = context;
+	uint32 i;
+
+	sdcard_command(card, index, argument, &backend);
+	response->kind = (AthrillSdResponseKind)backend.kind;
+	response->has_index = backend.has_index;
+	for (i = 0U; i < 4U; i++) {
+		response->words[i] = backend.resp[i];
+	}
+	response->data = (AthrillSdDataDirection)backend.data;
+	return 0;
+}
+
+static sint32 card_read(void *context, uint8 *data, uint32 length)
+{
+	sdcard_read(context, data, length);
+	return 0;
+}
+
+static sint32 card_write(void *context, const uint8 *data, uint32 length)
+{
+	sdcard_write(context, data, length);
+	return 0;
+}
+
+static sint32 card_transfer_done(void *context)
+{
+	sdcard_transfer_done(context);
+	return 0;
+}
+
+static const AthrillSdCardOps card_ops = {
+	.command = card_command,
+	.read = card_read,
+	.write = card_write,
+	.transfer_done = card_transfer_done,
+};
 
 std_bool stm32_sdmmc_owns(uint32 addr)
 {
@@ -170,7 +213,7 @@ static void finish(void)
 
 	if (sd.pending == SDCARD_DATA_READ) {
 		data = (uint8 *)calloc(len + 4U, 1U);
-		sdcard_read(sd.card, data, len);
+		(void)athrill_sd_read(sd.protocol, data, len);
 		if ((dctrl & DCTRL_DMAEN) != 0U) {
 			(void)stm32_dma_peripheral_block_rx(SDMMC_BASE + R_FIFO, data, len);
 			free(data);
@@ -184,14 +227,14 @@ static void finish(void)
 	else if ((dctrl & DCTRL_DMAEN) != 0U) {
 		data = (uint8 *)calloc(len + 4U, 1U);
 		(void)stm32_dma_peripheral_block_tx(SDMMC_BASE + R_FIFO, data, len);
-		sdcard_write(sd.card, data, len);
+		(void)athrill_sd_write(sd.protocol, data, len);
 		free(data);
 	}
 	else {
-		sdcard_write(sd.card, sd.fifo, len);
+		(void)athrill_sd_write(sd.protocol, sd.fifo, len);
 		drop_fifo();
 	}
-	sdcard_transfer_done(sd.card);
+	(void)athrill_sd_transfer_done(sd.protocol);
 	sd.pending = SDCARD_DATA_NONE;
 	sd.done_at = 0U;
 	set_reg(R_DCOUNT, 0U);
@@ -214,30 +257,31 @@ static void advance_to(uint64 now)
 
 static void command(uint32 cmd)
 {
-	SdcardResponse response;
+	AthrillSdResponse response;
 	uint32 wait = (cmd >> CMD_WAITRESP_SHIFT) & 3U;
 	uint32 i;
 
 	memset(&response, 0, sizeof(response));
-	if (sd.card != NULL) {
-		sdcard_command(sd.card, cmd & 0x3FU, reg(R_ARG), &response);
+	if (sd.protocol != NULL) {
+		(void)athrill_sd_command(sd.protocol, cmd & 0x3FU, reg(R_ARG),
+			&response);
 	}
 	if ((wait == 0U) || (wait == 2U)) {
 		sd.sta |= STA_CMDSENT;
 	}
-	else if (response.kind == SDCARD_RESP_NONE) {
+	else if (response.kind == ATHRILL_SD_RESPONSE_NONE) {
 		sd.sta |= STA_CTIMEOUT;
 	}
 	else {
 		set_reg(R_RESPCMD, response.has_index ? (cmd & 0x3FU) : 0x3FU);
 		for (i = 0U; i < 4U; i++) {
-			set_reg(R_RESP1 + (4U * i), response.resp[i]);
+			set_reg(R_RESP1 + (4U * i), response.words[i]);
 		}
 		sd.sta |= STA_CMDREND;
 	}
-	if (response.data != SDCARD_DATA_NONE) {
+	if (response.data != ATHRILL_SD_DATA_NONE) {
 		drop_fifo();
-		sd.pending = response.data;
+		sd.pending = (SdcardDataType)response.data;
 		set_reg(R_DCOUNT, reg(R_DLEN));
 		try_start();
 	}
@@ -337,13 +381,18 @@ void stm32_sdmmc_write(uint32 addr, uint32 size, uint32 value)
 void stm32_sdmmc_reset(uint64 cpu_hz)
 {
 	drop_fifo();
+	athrill_sd_protocol_destroy(sd.protocol);
 	memset(&sd, 0, sizeof(sd));
 	sd.cpu_hz = cpu_hz;
 }
 
 void stm32_sdmmc_attach(SdcardType *card)
 {
-	sd.card = card;
+	athrill_sd_protocol_destroy(sd.protocol);
+	sd.protocol = NULL;
+	if (card != NULL) {
+		(void)athrill_sd_protocol_create(&card_ops, card, &sd.protocol);
+	}
 }
 
 void stm32_sdmmc_tick(DeviceClockType *clock)
