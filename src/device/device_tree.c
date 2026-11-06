@@ -977,7 +977,7 @@ static sint32 target_model_adapter_connect(void *context,
 	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-sdmmc") == 0 &&
+	    (strcmp(adapter_name, "stm32-sdmmc") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-flash-controller") == 0 ||
