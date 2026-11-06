@@ -12,6 +12,7 @@ set(ATHRILL_ARM_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-arm-common" C
 get_filename_component(ATHRILL_ARM_COMMON_DIR "${ATHRILL_ARM_COMMON_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(ATHRILL_ADDRESS_WIDTH 32 CACHE STRING "Athrill bus address width" FORCE)
 include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
+add_subdirectory(examples/host-functions)
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 option(ATHRILL_ENABLE_EXDEV "Enable external device loading" ON)
 
@@ -197,6 +198,19 @@ if(BUILD_TESTING)
     src/cpu/decoder/t32_decode16.c src/cpu/decoder/t32_decode32.c)
   stm32_target(test_thumb_fast)
   add_test(NAME cpu-thumb-fast COMMAND test_thumb_fast)
+  add_library(test_host_function_library SHARED test/cpu/test_host_function_library.c)
+  target_include_directories(test_host_function_library PRIVATE "${ATHRILL_SRC_DIR}/inc")
+  add_executable(test_host_function
+    test/cpu/test_host_function.c
+    src/cpu/host_function_arm.c
+    "${ATHRILL_SRC_DIR}/main/athrill_host_function.c"
+    "${ATHRILL_SRC_DIR}/lib/shared_library.c")
+  stm32_target(test_host_function)
+  target_compile_definitions(test_host_function PRIVATE
+    TEST_HOST_LIBRARY="$<TARGET_FILE:test_host_function_library>")
+  target_link_libraries(test_host_function PRIVATE ${CMAKE_DL_LIBS})
+  add_dependencies(test_host_function test_host_function_library)
+  add_test(NAME cpu-host-function COMMAND test_host_function)
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"
