@@ -72,12 +72,14 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	uart_reset();
 	stm32_gpio_set_h7(stm32_board_is_h7());
 	stm32_gpio_reset();
+	stm32_exti_set_h7(stm32_board_is_h7());
 	stm32_exti_reset();
 	stm32_dma_set_h7(stm32_board_is_h7());
 	stm32_dma_reset();
 	stm32_dmamux_reset();
 	stm32_spi_reset();
 	stm32h7_spi_reset();
+	stm32_i2c_set_h7(stm32_board_is_h7());
 	stm32_i2c_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
