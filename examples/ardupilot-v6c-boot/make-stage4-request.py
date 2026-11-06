@@ -41,6 +41,12 @@ def main():
                     mavlink.param_set_send(1, 1, name, value,
                                            mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
             if args.mode == "bench":
+                if iteration in (10, 30, 50):
+                    mavlink.command_long_send(
+                        1, 1, mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
+                        mavutil.mavlink.MAVLINK_MSG_ID_RAW_IMU,
+                        100_000, 0, 0, 0, 0, 0,
+                    )
                 if iteration % 8 == 7:
                     mavlink.param_request_read_send(1, 1, b"WP_SPD", -1)
                 if iteration in (80, 100, 120, 140):

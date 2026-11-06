@@ -154,20 +154,37 @@ static void test_ist8310(void)
 	transfer(0x0BU, &v, 1U, NULL, 0U);
 	transfer(0x0BU, NULL, 0U, buf, 1U);
 	CHECK_EQ("CNTL2: SRST done", buf[0], 0U);
-	v = 0x70U;
-	transfer(0x0DU, &v, 1U, NULL, 0U);
 	transfer(0x0DU, NULL, 0U, buf, 1U);
-	CHECK_EQ("CNTL3 read back", buf[0], 0x70U);
+	CHECK_EQ("CNTL3 reset default", buf[0], 0U);
 	transfer(0x02U, NULL, 0U, buf, 7U);
 	CHECK_EQ("no measurement: no DRDY", buf[0] & 1U, 0U);
+	v = 0x01U;	/* single measurement at reset/default resolution */
+	transfer(0x0AU, &v, 1U, NULL, 0U);
+	transfer(0x02U, NULL, 0U, buf, 7U);
+	CHECK_EQ("default x = body right", le16(&buf[1]), -17);
+	CHECK_EQ("default y = body forward", le16(&buf[3]), 67);
+	CHECK_EQ("default z = body down", le16(&buf[5]), 133);
+
+	v = 0xD0U;	/* 16-bit X/Z; reset/default Y; bit 7 is reserved */
+	transfer(0x0DU, &v, 1U, NULL, 0U);
+	transfer(0x0DU, NULL, 0U, buf, 1U);
+	CHECK_EQ("CNTL3 read back", buf[0], 0x50U);
 	v = 0x01U;	/* single measurement */
 	transfer(0x0AU, &v, 1U, NULL, 0U);
 	transfer(0x02U, NULL, 0U, buf, 7U);
 	CHECK_EQ("DRDY", buf[0] & 1U, 1U);
 	/* roll 180 yaw 90: raw x = body y, raw y = body x, raw z = body z (PX4 flips z) */
-	CHECK_EQ("x = body right", le16(&buf[1]), (sint16)(-0.05F * 1320.0F - 0.5F));
-	CHECK_EQ("y = body forward", le16(&buf[3]), (sint16)(0.2F * 1320.0F + 0.5F));
-	CHECK_EQ("z = body down", le16(&buf[5]), (sint16)(0.4F * 1320.0F + 0.5F));
+	CHECK_EQ("16-bit x = body right", le16(&buf[1]), -66);
+	CHECK_EQ("default y = body forward", le16(&buf[3]), 67);
+	CHECK_EQ("16-bit z = body down", le16(&buf[5]), 528);
+	v = 0x70U;	/* PX4 selects 16-bit resolution for all axes */
+	transfer(0x0DU, &v, 1U, NULL, 0U);
+	v = 0x01U;
+	transfer(0x0AU, &v, 1U, NULL, 0U);
+	transfer(0x02U, NULL, 0U, buf, 7U);
+	CHECK_EQ("PX4 16-bit x", le16(&buf[1]), -66);
+	CHECK_EQ("PX4 16-bit y", le16(&buf[3]), 264);
+	CHECK_EQ("PX4 16-bit z", le16(&buf[5]), 528);
 	transfer(0x02U, NULL, 0U, buf, 1U);
 	CHECK_EQ("data read: DRDY cleared", buf[0] & 1U, 0U);
 	transfer(0x0AU, NULL, 0U, buf, 1U);

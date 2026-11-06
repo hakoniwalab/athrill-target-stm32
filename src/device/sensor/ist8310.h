@@ -1,10 +1,11 @@
 /*
  * The iSentek IST8310 3-axis magnetometer on I2C (address 0x0E): WAI 0x10,
- * single measurement (CNTL1), soft reset (CNTL2), the control registers
- * read back as written, STAT1.DRDY and the data registers. A measurement
+ * single measurement (CNTL1), soft reset (CNTL2), CNTL3 resolution control,
+ * STAT1.DRDY and the data registers. A measurement
  * takes the sensor source's field at the time it is commanded, in the
- * chip's axes (x forward, y right, z up, and the board's mounting) at
- * 1320 LSB/gauss. Lightweight: the result is ready at once; no
+ * chip's axes (x forward, y right, z up, and the board's mounting). CNTL3
+ * selects the reset/default 0.3 uT/LSB or 16-bit 1320 LSB/gauss resolution
+ * independently for each axis. Lightweight: the result is ready at once; no
  * temperature, no self-test, no cross-axis data (reads 0).
  */
 #ifndef ATHRILL_STM32_IST8310_H
