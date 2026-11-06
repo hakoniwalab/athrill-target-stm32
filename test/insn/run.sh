@@ -7,8 +7,8 @@
 set -e
 athrill="$1"
 dir="$(cd "$(dirname "$0")" && pwd)"
-out="$(mktemp)"
-config="$(mktemp)"
+out="$(mktemp "${PWD}/insn-output.XXXXXX")"
+config="$(mktemp "${PWD}/device-config.XXXXXX")"
 trap 'rm -f "$out" "$config"' EXIT
 cp "$dir/device_config.txt" "$config"
 if [ -n "$3" ]; then
