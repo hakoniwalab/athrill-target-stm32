@@ -1,0 +1,10 @@
+fram.bin
+sd.img
+sd.img.blank
+memory-hakoniwa.txt
+memory-inproc.txt
+device_config-inproc.txt
+x500-v6c.sh.tmp
+*.log
+*.raw
+*.trace
