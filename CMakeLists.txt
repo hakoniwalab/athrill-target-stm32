@@ -234,7 +234,7 @@ if(BUILD_TESTING)
     src/device/peripheral/stm32_dma.c src/device/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
-  target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config)
+  target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
   add_executable(test_stm32h7_sdmmc test/device/test_stm32h7_sdmmc.c
     src/device/peripheral/stm32h7_sdmmc.c src/device/memory/sdcard.c)
