@@ -1,6 +1,6 @@
 /*
- * The STM32F7 timers TIM1 to TIM14 (RM0410 chapters 18 to 21): the register
- * files of the advanced, general-purpose and basic timers, with what
+ * The register-compatible STM32F7/H7 timers: the register files of the
+ * advanced, general-purpose and basic timers, with what
  * software sees of their time base and channels:
  *   - the counter: up, down and the three center-aligned modes, prescaler,
  *     auto-reload, repetition counter, one-pulse mode, the preloads
@@ -27,6 +27,8 @@
 std_bool stm32_tim_owns(uint32 addr);
 uint32 stm32_tim_read(uint32 addr);
 void stm32_tim_write(uint32 addr, uint32 size, uint32 value);
+/* Selects the immutable board descriptor table used by the shared engine. */
+void stm32_tim_set_h7(std_bool h7);
 void stm32_tim_reset(void);
 /* The counters up to the device clock, their interrupts, the clocks to the next interrupt. */
 void stm32_tim_tick(DeviceClockType *clock);
@@ -38,7 +40,7 @@ typedef struct {
 	uint64 high_clocks;	/* the pin's high time within a period */
 } Stm32TimPwmType;
 
-/* The output of channel (1 to 4) of TIMtimer (1 to 14); FALSE if there is no such channel. */
+/* The output of channel (1 to 4) of TIMtimer; FALSE if there is no such channel. */
 std_bool stm32_tim_pwm(uint32 timer, uint32 channel, Stm32TimPwmType *pwm);
 
 #endif

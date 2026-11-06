@@ -1,6 +1,6 @@
 /*
- * The STM32F7 timers (see stm32_tim.h). Register offsets and bits from
- * RM0410; the counter moves in segments, each ending at the next update
+ * The STM32 timers shared by the register-compatible F7 and H7 front ends
+ * (see stm32_tim.h). The counter moves in segments, each ending at the next update
  * boundary (overflow or underflow), so a catch-up costs one step per
  * boundary crossed, and whole periods that change nothing are skipped.
  */
@@ -92,7 +92,7 @@ typedef struct {
  * half the CPU clock and the APB2 timers (TIM1, TIM8 to TIM11) at the CPU
  * clock.
  */
-static TimType tims[] = {
+static const TimType f7_tim_table[] = {
 	{ .number = 1U,  .base = 0x40010000U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 1U,
 	  .irq_update = 25U, .irq_cc = 27U, .irq_trg_com = 26U, .irq_brk = 24U },
 	{ .number = 2U,  .base = 0x40000000U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
@@ -123,13 +123,26 @@ static TimType tims[] = {
 	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
 };
 
-#define TIM_NUM	(sizeof(tims) / sizeof(tims[0]))
+#define TIM_MAX	(sizeof(f7_tim_table) / sizeof(f7_tim_table[0]))
+
+static const TimType *selected_tim_table = f7_tim_table;
+static uint32 selected_tim_count = TIM_MAX;
+static TimType tims[TIM_MAX];
+static uint32 tim_count;
+
+void stm32_tim_set_h7(std_bool h7)
+{
+	/* The shared-table refactor deliberately retains the F7 table. */
+	(void)h7;
+	selected_tim_table = f7_tim_table;
+	selected_tim_count = TIM_MAX;
+}
 
 static TimType *tim_of(uint32 addr)
 {
 	uint32 i;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		if ((addr >= tims[i].base) && (addr < (tims[i].base + TIM_BLOCK_SIZE))) {
 			return &tims[i];
 		}
@@ -619,8 +632,11 @@ void stm32_tim_reset(void)
 	uint32 i;
 	uint32 k;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	tim_count = selected_tim_count;
+	for (i = 0U; i < tim_count; i++) {
 		TimType *t = &tims[i];
+
+		*t = selected_tim_table[i];
 
 		for (k = 0U; k < (TIM_REGS_SIZE / 4U); k++) {
 			t->regs[k] = 0U;
@@ -639,7 +655,7 @@ void stm32_tim_tick(DeviceClockType *clock)
 {
 	uint32 i;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		TimType *t = &tims[i];
 		uint64 until;
 
@@ -666,7 +682,7 @@ std_bool stm32_tim_pwm(uint32 timer, uint32 channel, Stm32TimPwmType *pwm)
 	uint64 active;
 	std_bool active_high;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		if (tims[i].number == timer) {
 			t = &tims[i];
 		}

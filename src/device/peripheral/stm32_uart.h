@@ -1,5 +1,5 @@
 /*
- * The STM32F7 USART/UARTs USART1 to UART8 (RM0410 chapter 34) in
+ * The register-compatible STM32F7/H7 USART/UARTs USART1 to UART8 in
  * asynchronous mode: the register file, the transmitter (TDR and the shift
  * register) and the receiver (RDR) timed by the baud rate and frame format,
  * the status flags and the interrupt.
@@ -36,6 +36,8 @@ uint32 stm32_uart_read(uint32 addr);
 void stm32_uart_write(uint32 addr, uint32 size, uint32 value);
 /* console: UART number (1 to 8); rx_file/tx_file: its raw files or NULL. */
 void stm32_uart_reset(uint32 console, const char *rx_file, const char *tx_file);
+/* Selects the immutable board descriptor table used by the shared engine. */
+void stm32_uart_set_h7(std_bool h7);
 /* Memory-to-TDR DMA (DEVICE_CONFIG_STM32_UART_TX_DMA); off by default, so PX4 runs as published. */
 void stm32_uart_set_tx_dma(std_bool enabled);
 /* The UARTs up to the device clock, input, interrupts, the clocks to the next event. */

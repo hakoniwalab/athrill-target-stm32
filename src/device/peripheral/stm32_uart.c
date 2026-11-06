@@ -1,6 +1,6 @@
 /*
- * The STM32F7 USART/UARTs (see stm32_uart.h). Register offsets and bits
- * from RM0410 34.8. Like the timers, a UART is brought up to the virtual
+ * The STM32 USART/UART engine shared by the register-compatible F7 and H7
+ * front ends (see stm32_uart.h). Like the timers, a UART is brought up to the virtual
  * clock when its registers are accessed and at each device tick:
  *   - transmit: TDR feeds the shift register; a frame takes frame_clocks();
  *     TXE is "TDR empty", TC "TDR empty and the last frame sent". A
@@ -89,7 +89,7 @@ typedef struct {
  * clock tree PX4 and the STM32Cube defaults use: APB1 = HCLK/4 (USART2, 3,
  * UART4, 5, 7, 8), APB2 = HCLK/2 (USART1, 6).
  */
-static UartType uarts[] = {
+static const UartType f7_uart_table[] = {
 	{ .number = 1U, .base = 0x40011000U, .divider = 2U, .irq = 37U },
 	{ .number = 2U, .base = 0x40004400U, .divider = 4U, .irq = 38U },
 	{ .number = 3U, .base = 0x40004800U, .divider = 4U, .irq = 39U },
@@ -100,7 +100,12 @@ static UartType uarts[] = {
 	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
 };
 
-#define UART_NUM	(sizeof(uarts) / sizeof(uarts[0]))
+#define UART_MAX	(sizeof(f7_uart_table) / sizeof(f7_uart_table[0]))
+
+static const UartType *selected_uart_table = f7_uart_table;
+static uint32 selected_uart_count = UART_MAX;
+static UartType uarts[UART_MAX];
+static uint32 uart_count;
 
 static UartType *console;
 static FILE *rx_file;
@@ -114,7 +119,7 @@ static UartType *uart_of(uint32 addr)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if ((addr >= uarts[i].base) && (addr < (uarts[i].base + USART_BLOCK_SIZE))) {
 			return &uarts[i];
 		}
@@ -422,8 +427,11 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 	uint32 k;
 
 	console = NULL;
-	for (i = 0U; i < UART_NUM; i++) {
+	uart_count = selected_uart_count;
+	for (i = 0U; i < uart_count; i++) {
 		UartType *u = &uarts[i];
+
+		*u = selected_uart_table[i];
 
 		for (k = 0U; k < (USART_REGS_SIZE / 4U); k++) {
 			u->regs[k] = 0U;
@@ -474,6 +482,14 @@ void stm32_uart_set_tx_dma(std_bool enabled)
 	tx_dma_enabled = enabled;
 }
 
+void stm32_uart_set_h7(std_bool h7)
+{
+	/* The shared-table refactor deliberately retains the F7 table. */
+	(void)h7;
+	selected_uart_table = f7_uart_table;
+	selected_uart_count = UART_MAX;
+}
+
 /* A character waiting to arrive at u; STD_E_LIMIT when its queue is full. */
 static Std_ReturnType push_input(UartType *u, uint8 data)
 {
@@ -497,7 +513,7 @@ Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
 			return push_input(&uarts[i], data);
 		}
@@ -509,7 +525,7 @@ void stm32_uart_attach(uint32 number, const Stm32UartChipOps *ops, void *chip)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
 			uarts[i].chip_ops = ops;
 			uarts[i].chip = chip;
@@ -530,7 +546,7 @@ void stm32_uart_tick(DeviceClockType *clock)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		UartType *u = &uarts[i];
 		uint32 cr1 = reg(u, USART_CR1);
 
