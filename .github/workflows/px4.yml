@@ -34,6 +34,12 @@ jobs:
           ref: 60d8098cfcbbda5489c74843c15d3d2742e6c3bb
           path: athrill-arm-common
           fetch-depth: 0
+      - name: athrill-device
+        uses: actions/checkout@v4
+        with:
+          repository: hakoniwalab/athrill-device
+          ref: b53de1685f1254c2b05c3a15345fc627af63f09b
+          path: athrill-device
       - name: build athrill3
         working-directory: athrill-target-stm32
         run: |
