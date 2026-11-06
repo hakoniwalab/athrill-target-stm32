@@ -11,9 +11,9 @@
 #include "thumb_fast.h"
 #include "device.h"
 #include "athrill_idle_spin_halt.h"
+#include "board/board_profile.h"
 
-/* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
-#define STM32_NUM_IRQ		110U
+/* STM32F76x/H743: 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
 #define STM32_PRIORITY_BITS	4U
 #define STM32_CPUID		0x411FC270U
 #define STM32_CCR_WRITABLE	0x0007031BU
@@ -38,7 +38,7 @@ COLD_PATH static void reset_core(TargetCoreType *core)
 	memset(core, 0, sizeof(*core));
 	core->core_id = id;
 	core->reset_pending = TRUE;
-	ArmMReset(&core->m, STM32_NUM_IRQ, STM32_PRIORITY_BITS, TRUE);
+	ArmMReset(&core->m, stm32_board_num_irq(), STM32_PRIORITY_BITS, TRUE);
 	core->scs.cpuid = STM32_CPUID;
 	core->scs.ccr_writable = STM32_CCR_WRITABLE;
 }
@@ -218,6 +218,8 @@ void cpu_init(void)
 {
 	CoreIdType i;
 
+	/* The NVIC size and the device map must agree before the first reset. */
+	stm32_board_profile_select();
 	stm32_host_function_init();
 	stm32_idle_spin_halt_init();
 	read_fp_mode();

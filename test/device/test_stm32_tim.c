@@ -1,6 +1,6 @@
 /*
- * Unit tests of the STM32F7 timer model (src/device/peripheral/stm32_tim.c)
- * against the behaviour RM0410 describes, with the CPU clock and the NVIC
+ * Unit tests of the shared STM32F7/H7 timer engine
+ * (src/device/peripheral/stm32_tim.c), with the CPU clock and the NVIC
  * stubbed. Expected values are worked out by hand from the manual.
  */
 #include <stdio.h>
@@ -50,6 +50,9 @@ static void check_eq(int line, const char *what, unsigned long long got, unsigne
 #define TIM3	0x40000400U
 #define TIM6	0x40001000U
 #define TIM8	0x40010400U
+#define TIM15	0x40014000U
+#define TIM16	0x40014400U
+#define TIM17	0x40014800U
 
 #define CR1	0x00U
 #define DIER	0x0CU
@@ -75,6 +78,7 @@ static void setup(void)
 		raised[i] = 0U;
 		active_irq[i] = 0U;
 	}
+	stm32_tim_set_h7(FALSE);
 	stm32_tim_reset();
 }
 
@@ -474,6 +478,45 @@ static void test_pwm(void)
 	CHECK_EQ("center PWM: high", pwm.high_clocks, 2U * 50U);
 }
 
+static void test_h7_table(void)
+{
+	Stm32TimPwmType pwm;
+	static const uint32 timer[] = { TIM15, TIM16, TIM17 };
+	static const uint32 irq[] = { 116U, 117U, 118U };
+	static const char *const irq_check[] = {
+		"H7 TIM15 global IRQ 116",
+		"H7 TIM16 global IRQ 117",
+		"H7 TIM17 global IRQ 118",
+	};
+	uint32 i;
+
+	setup();
+	stm32_tim_set_h7(TRUE);
+	stm32_tim_reset();
+	CHECK_EQ("H7 has TIM17", stm32_tim_owns(0x40014800U), TRUE);
+	CHECK_EQ("H7 has no TIM9", stm32_tim_pwm(9U, 1U, &pwm), FALSE);
+	CHECK_EQ("H7 TIM17 channel 1", stm32_tim_pwm(17U, 1U, &pwm), TRUE);
+	CHECK_EQ("H7 TIM5 remains 32-bit", rd(0x40000C00U, ARR), 0xFFFFFFFFU);
+	/* PX4 HRT: 240 MHz TIM8 / (PSC + 1) = 1 MHz. */
+	wr(TIM8, PSC, 239U);
+	wr(TIM8, ARR, 0xFFFFU);
+	wr(TIM8, EGR, 1U);
+	wr(TIM8, CR1, 1U);
+	now = 480U * 1000U;
+	CHECK_EQ("H7 TIM8 counts microseconds", rd(TIM8, CNT), 1000U);
+
+	/* RM0433 gives TIM15/16/17 independent global IRQs 116/117/118. */
+	for (i = 0U; i < 3U; i++) {
+		wr(timer[i], DIER, 1U);
+		wr(timer[i], EGR, 1U);
+		(void)tick();
+		CHECK_EQ(irq_check[i], raised[irq[i]], 1U);
+		CHECK_EQ("H7 timer does not use the F7 TIM1 shared IRQ", raised[24U + i], 0U);
+		wr(timer[i], SR, 0U);
+		(void)tick();
+	}
+}
+
 int main(void)
 {
 	test_up_counting();
@@ -485,6 +528,7 @@ int main(void)
 	test_interrupts();
 	test_registers();
 	test_pwm();
+	test_h7_table();
 	test_arm_m_dwt(&now, &checks, &failures);
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;

@@ -2,6 +2,7 @@
  * The boards (see board.h).
  */
 #include "board.h"
+#include "fmu_v6c.h"
 #include "std_errno.h"
 #include "cpuemu_ops.h"
 #include "peripheral/stm32_gpio.h"
@@ -38,29 +39,34 @@ static std_bool has_imu;
 #define PULSE_MIN_US	1000.0F
 #define PULSE_MAX_US	2000.0F
 
-typedef struct {
-	uint32 timer;
-	uint32 channel;
-} PwmOutputType;
-
-static const PwmOutputType fmu_v5_outputs[MOTORS] = {
+static const BoardPwmOutputType fmu_v5_outputs[MOTORS] = {
 	{ 1U, 4U }, { 1U, 3U }, { 1U, 2U }, { 1U, 1U }, { 4U, 2U }, { 4U, 3U }, { 12U, 1U }, { 12U, 2U },
 };
-static const PwmOutputType *motor_outputs;
+static const BoardPwmOutputType *motor_outputs;
+static uint32 motor_output_count;
 static float32 motor_commands[MOTORS];
+static uint64 motor_pulses[MOTORS];
 static uint32 clocks_per_us = 216U;
+static FILE *actuator_trace;
 
-static float32 motor_command(const PwmOutputType *output)
+static uint64 motor_pulse(const BoardPwmOutputType *output)
 {
 	Stm32TimPwmType pwm;
-	float32 us;
-	float32 command;
 
 	if (!stm32_tim_pwm(output->timer, output->channel, &pwm) || !pwm.enabled || (pwm.period_clocks == 0U)) {
+		return 0U;
+	}
+	return pwm.high_clocks / clocks_per_us;
+}
+
+static float32 motor_command(uint64 pulse_us)
+{
+	float32 command;
+
+	if (pulse_us == 0U) {
 		return 0.0F;
 	}
-	us = (float32)pwm.high_clocks / (float32)clocks_per_us;
-	command = (us - PULSE_MIN_US) / (PULSE_MAX_US - PULSE_MIN_US);
+	command = ((float32)pulse_us - PULSE_MIN_US) / (PULSE_MAX_US - PULSE_MIN_US);
 	if (command < 0.0F) {
 		return 0.0F;
 	}
@@ -72,8 +78,19 @@ static void update_motors(void)
 	std_bool changed = FALSE;
 	uint32 k;
 
-	for (k = 0U; k < MOTORS; k++) {
-		float32 command = motor_command(&motor_outputs[k]);
+	for (k = 0U; k < motor_output_count; k++) {
+		uint64 pulse_us = motor_pulse(&motor_outputs[k]);
+		float32 command = motor_command(pulse_us);
+
+		if (pulse_us != motor_pulses[k]) {
+			motor_pulses[k] = pulse_us;
+			if (actuator_trace != NULL) {
+				fprintf(actuator_trace, "output=%u timer=%u channel=%u pulse_us=%llu command=%.6f\n",
+					k + 1U, motor_outputs[k].timer, motor_outputs[k].channel,
+					(unsigned long long)pulse_us, command);
+				fflush(actuator_trace);
+			}
+		}
 
 		if (command != motor_commands[k]) {
 			motor_commands[k] = command;
@@ -81,7 +98,31 @@ static void update_motors(void)
 		}
 	}
 	if (changed) {
-		sensor_source_actuators(motor_commands, MOTORS);
+		sensor_source_actuators(motor_commands, motor_output_count);
+	}
+}
+
+void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz)
+{
+	char *trace_file = NULL;
+	uint32 k;
+
+	motor_outputs = outputs;
+	motor_output_count = (count > MOTORS) ? MOTORS : count;
+	clocks_per_us = cpu_mhz;
+	memset(motor_commands, 0, sizeof(motor_commands));
+	for (k = 0U; k < MOTORS; k++) {
+		motor_pulses[k] = (uint64)-1;
+	}
+	if (actuator_trace != NULL) {
+		fclose(actuator_trace);
+		actuator_trace = NULL;
+	}
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_ACTUATOR_FILE", &trace_file) == STD_E_OK) {
+		actuator_trace = fopen(trace_file, "w");
+		if (actuator_trace == NULL) {
+			printf("WARNING: can not open actuator trace file %s\n", trace_file);
+		}
 	}
 }
 
@@ -93,9 +134,7 @@ static void attach_fmu_v5(void)
 	char *sd_image = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
-	clocks_per_us = mhz;
-	motor_outputs = fmu_v5_outputs;
-	memset(motor_commands, 0, sizeof(motor_commands));
+	board_pwm_outputs(fmu_v5_outputs, MOTORS, mhz);
 	icm20689_reset(&imu, (uint64)mhz * 1000000U, ICM20689_ROTATION_YAW_90, STM32_GPIO_PORT('B'), 4U);
 	stm32_spi_attach(1U, STM32_GPIO_PORT('F'), 2U, &icm20689_ops, &imu);
 	has_imu = TRUE;
@@ -128,11 +167,15 @@ void board_attach(void)
 
 	has_imu = FALSE;
 	motor_outputs = NULL;
+	motor_output_count = 0U;
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_BOARD", &name) != STD_E_OK) {
 		return;
 	}
 	if (strcmp(name, "fmu-v5") == 0) {
 		attach_fmu_v5();
+	}
+	else if (strcmp(name, "fmu-v6c") == 0) {
+		fmu_v6c_attach();
 	}
 	else {
 		printf("WARNING: unknown board %s (DEVICE_CONFIG_STM32_BOARD)\n", name);
@@ -141,6 +184,7 @@ void board_attach(void)
 
 void board_tick(DeviceClockType *clock)
 {
+	fmu_v6c_tick(clock);
 	if (has_imu) {
 		icm20689_tick(&imu, clock);
 		ublox_tick(&gps, clock);

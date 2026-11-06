@@ -15,10 +15,14 @@
 #include "stm32_uart.h"
 #include "stm32_gpio.h"
 #include "stm32_spi.h"
+#include "stm32h7_spi.h"
+#include "stm32_dmamux.h"
 #include "stm32_exti.h"
 #include "stm32_dma.h"
 #include "stm32_i2c.h"
 #include "stm32_sdmmc.h"
+#include "stm32h7_boot.h"
+#include "board/board_profile.h"
 #include <stdio.h>
 #include "std_device_ops.h"
 
@@ -32,6 +36,10 @@ void stm32_probe_init(void)
 	static const uint8 uid[12] = { 0x41, 0x54, 0x48, 0x52, 0x49, 0x4C, 0x4C, 0x20, 0x53, 0x54, 0x4D, 0x37 };
 	uint32 i;
 
+	if (stm32_board_is_h7()) {
+		stm32h7_boot_reset();
+		return;
+	}
 	for (i = 0U; i < sizeof(uid); i++) {
 		stm32_probe_sysmem_data[0xF420U + i] = uid[i];
 	}
@@ -183,9 +191,98 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	}
 }
 
+/* Common-address peripherals whose existing engines are valid for H7. */
+static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
+{
+	uint32 aligned = addr & ~3U;
+
+	if (stm32_uart_owns(addr)) {
+		stm32_device_accessed = TRUE;
+		*value = stm32_uart_read(aligned);
+		return TRUE;
+	}
+	if (stm32_tim_owns(addr)) {
+		*value = stm32_tim_read(aligned);
+		return TRUE;
+	}
+	if (stm32_gpio_owns(addr)) {
+		*value = stm32_gpio_read(aligned);
+		return TRUE;
+	}
+	if (stm32_exti_owns(addr)) {
+		*value = stm32_exti_read(addr);
+		return TRUE;
+	}
+	if (stm32_dma_owns(addr)) {
+		*value = stm32_dma_read(aligned);
+		return TRUE;
+	}
+	if (stm32_dmamux_owns(addr)) {
+		*value = stm32_dmamux_read(aligned);
+		return TRUE;
+	}
+	if (stm32_i2c_owns(addr)) {
+		stm32_device_accessed = TRUE;
+		*value = stm32_i2c_read(addr);
+		return TRUE;
+	}
+	if (stm32h7_spi_owns(addr)) {
+		stm32_device_accessed = TRUE;
+		*value = stm32h7_spi_read(addr, size) << (8U * (addr & 3U));
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
+{
+	if (stm32_uart_owns(addr)) {
+		stm32_uart_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_tim_owns(addr)) {
+		stm32_tim_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_gpio_owns(addr)) {
+		stm32_gpio_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_exti_owns(addr)) {
+		stm32_exti_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_dma_owns(addr)) {
+		stm32_dma_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_dmamux_owns(addr)) {
+		stm32_dmamux_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_i2c_owns(addr)) {
+		stm32_i2c_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32h7_spi_owns(addr)) {
+		stm32h7_spi_write(addr, size, value);
+		return TRUE;
+	}
+	return FALSE;
+}
+
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
+	uint32 value;
 	(void)c;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_read((uint32)a, 1U, &value)) {
+			*d = (uint8)(value >> (8U * ((uint32)a & 3U)));
+			return STD_E_OK;
+		}
+		return stm32h7_boot_read((uint32)a, 1U, &value) == STD_E_OK
+			? (*d = (uint8)value, STD_E_OK) : STD_E_SEGV;
+	}
 	if (stm32_spi_owns((uint32)a)) {
 		/* DR: a read takes from the RX FIFO as many frames as its size */
 		stm32_device_accessed = TRUE;
@@ -202,7 +299,16 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 
 static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
 {
+	uint32 value;
 	(void)c;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_read((uint32)a, 2U, &value)) {
+			*d = (uint16)(value >> (8U * ((uint32)a & 2U)));
+			return STD_E_OK;
+		}
+		return stm32h7_boot_read((uint32)a, 2U, &value) == STD_E_OK
+			? (*d = (uint16)value, STD_E_OK) : STD_E_SEGV;
+	}
 	if (stm32_spi_owns((uint32)a)) {
 		/* DR: a read takes from the RX FIFO as many frames as its size */
 		stm32_device_accessed = TRUE;
@@ -220,6 +326,12 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_read((uint32)a, 4U, d)) {
+			return STD_E_OK;
+		}
+		return stm32h7_boot_read((uint32)a, 4U, d);
+	}
 	if (stm32_spi_owns((uint32)a)) {
 		/* DR: a read takes from the RX FIFO as many frames as its size */
 		stm32_device_accessed = TRUE;
@@ -238,6 +350,12 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 {
 	(void)c;
 	stm32_device_accessed = TRUE;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_write((uint32)a, 1U, d)) {
+			return STD_E_OK;
+		}
+		return stm32h7_boot_write((uint32)a, 1U, d);
+	}
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 1U, d);
 	return STD_E_OK;
@@ -247,6 +365,12 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 {
 	(void)c;
 	stm32_device_accessed = TRUE;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_write((uint32)a, 2U, d)) {
+			return STD_E_OK;
+		}
+		return stm32h7_boot_write((uint32)a, 2U, d);
+	}
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 2U, d);
 	return STD_E_OK;
@@ -256,6 +380,12 @@ static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 {
 	(void)c;
 	stm32_device_accessed = TRUE;
+	if (stm32_board_is_h7()) {
+		if (h7_shared_write((uint32)a, 4U, d)) {
+			return STD_E_OK;
+		}
+		return stm32h7_boot_write((uint32)a, 4U, d);
+	}
 	report((uint32)a, "write");
 	write_bytes(r, (uint32)a, 4U, d);
 	return STD_E_OK;
@@ -264,9 +394,11 @@ static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get_pointer(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 **d)
 {
 	(void)c;
+	if (stm32_board_is_h7()) {
+		return STD_E_INVALID;
+	}
 	*d = &r->data[a - r->start];
 	return STD_E_OK;
 }
 
 MpuAddressRegionOperationType stm32_probe_ops = { get8, get16, get32, put8, put16, put32, get_pointer };
-

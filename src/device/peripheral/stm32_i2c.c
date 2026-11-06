@@ -1,6 +1,7 @@
 /*
- * The STM32F7 I2C controllers (see stm32_i2c.h). Offsets and bits from
- * RM0410 33.7.
+ * The STM32F7/H7 I2C controllers (see stm32_i2c.h). Offsets and bits from
+ * RM0410 33.7 and RM0433 47.4. The register layout is shared; only the
+ * board-selected bases differ.
  */
 #include "stm32_i2c.h"
 #include "cpu.h"
@@ -70,8 +71,26 @@ static I2cType i2cs[] = {
 
 #define I2C_NUM	(sizeof(i2cs) / sizeof(i2cs[0]))
 
+static const uint32 f7_bases[I2C_NUM] = {
+	0x40005400U, 0x40005800U, 0x40005C00U, 0x40006000U,
+};
+
+static const uint32 h7_bases[I2C_NUM] = {
+	0x40005400U, 0x40005800U, 0x40005C00U, 0x58001C00U,
+};
+
 static I2cChipType chips[CHIPS_MAX];
 static uint32 chip_count;
+
+void stm32_i2c_set_h7(std_bool h7)
+{
+	const uint32 *bases = h7 ? h7_bases : f7_bases;
+	uint32 i;
+
+	for (i = 0U; i < I2C_NUM; i++) {
+		i2cs[i].base = bases[i];
+	}
+}
 
 static I2cType *i2c_of(uint32 addr)
 {

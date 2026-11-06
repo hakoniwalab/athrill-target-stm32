@@ -1,15 +1,18 @@
 /*
- * The STM32F7 DMA controllers (see stm32_dma.h). Offsets and bits from
- * RM0410 8.5.
+ * The STM32F7/H7 DMA controllers (see stm32_dma.h). Offsets and bits from
+ * RM0410 8.5 and RM0433 16.5.
  */
 #include "stm32_dma.h"
 #include "stm32_spi.h"
+#include "stm32h7_spi.h"
 #include "bus.h"
 #include "cpu.h"
 #include "std_device_ops.h"
 
-#define DMA1_BASE	0x40026000U
-#define DMA2_BASE	0x40026400U
+#define F7_DMA1_BASE	0x40026000U
+#define F7_DMA2_BASE	0x40026400U
+#define H7_DMA1_BASE	0x40020000U
+#define H7_DMA2_BASE	0x40020400U
 #define DMA_SIZE	0x400U
 
 #define DMA_LISR	0x00U
@@ -56,9 +59,18 @@ static DmaType dmas[2] = {
 	{ .irq = { 56U, 57U, 58U, 59U, 60U, 68U, 69U, 70U } },
 };
 
+static uint32 dma1_base = F7_DMA1_BASE;
+static uint32 dma2_base = F7_DMA2_BASE;
+
+void stm32_dma_set_h7(std_bool h7)
+{
+	dma1_base = h7 ? H7_DMA1_BASE : F7_DMA1_BASE;
+	dma2_base = h7 ? H7_DMA2_BASE : F7_DMA2_BASE;
+}
+
 std_bool stm32_dma_owns(uint32 addr)
 {
-	return (addr >= DMA1_BASE) && (addr < (DMA2_BASE + DMA_SIZE));
+	return (addr >= dma1_base) && (addr < (dma2_base + DMA_SIZE));
 }
 
 /* The bit position of stream s's flags in LISR/HISR. */
@@ -71,8 +83,8 @@ static uint32 flag_shift(uint32 s)
 
 uint32 stm32_dma_read(uint32 addr)
 {
-	DmaType *d = &dmas[(addr >= DMA2_BASE) ? 1 : 0];
-	uint32 offset = (addr - ((addr >= DMA2_BASE) ? DMA2_BASE : DMA1_BASE)) & ~3U;
+	DmaType *d = &dmas[(addr >= dma2_base) ? 1 : 0];
+	uint32 offset = (addr - ((addr >= dma2_base) ? dma2_base : dma1_base)) & ~3U;
 	uint32 shift = 8U * (addr & 3U);
 
 	if (offset <= DMA_HISR) {
@@ -192,12 +204,18 @@ static void start(DmaType *d, uint32 s)
 	uint32 tx_size;
 	uint32 rx_size = 1U;
 	uint32 i;
+	uint32 rx_par = par;
+	uint32 response;
+	std_bool h7_spi;
 
-	if ((((tx[SxCR] >> CR_DIR_SHIFT) & 3U) != DIR_M2P) || !stm32_spi_owns(par)
-		|| ((par & 0x3FFU) != SPI_DR_OFFSET)) {
+	if (((tx[SxCR] >> CR_DIR_SHIFT) & 3U) != DIR_M2P) {
 		return;
 	}
-	if (find_rx(par, &rd, &rs)) {
+	h7_spi = stm32h7_spi_dma_exchange(par, 0U, 0U, &rx_par, &response);
+	if (!h7_spi && (!stm32_spi_owns(par) || ((par & 0x3FFU) != SPI_DR_OFFSET))) {
+		return;
+	}
+	if (find_rx(rx_par, &rd, &rs)) {
 		rx = rd->stream[rs];
 		rx_size = unit(rx[SxCR], CR_MSIZE_SHIFT);
 	}
@@ -205,11 +223,18 @@ static void start(DmaType *d, uint32 s)
 	for (i = 0U; i < n; i++) {
 		uint32 from = tx[SxM0AR] + (((tx[SxCR] & CR_MINC) != 0U) ? (i * tx_size) : 0U);
 
-		stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), mem_read(from, tx_size));
+		if (h7_spi) {
+			(void)stm32h7_spi_dma_exchange(par, unit(tx[SxCR], CR_PSIZE_SHIFT),
+				mem_read(from, tx_size), &rx_par, &response);
+		}
+		else {
+			stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), mem_read(from, tx_size));
+			response = stm32_spi_read(par, (rx != NULL) ? unit(rx[SxCR], CR_PSIZE_SHIFT) : 1U);
+		}
 		if (rx != NULL) {
 			uint32 to = rx[SxM0AR] + (((rx[SxCR] & CR_MINC) != 0U) ? (i * rx_size) : 0U);
 
-			mem_write(to, rx_size, stm32_spi_read(par, unit(rx[SxCR], CR_PSIZE_SHIFT)));
+			mem_write(to, rx_size, response);
 		}
 	}
 	if (rx != NULL) {
@@ -220,8 +245,8 @@ static void start(DmaType *d, uint32 s)
 
 void stm32_dma_write(uint32 addr, uint32 size, uint32 value)
 {
-	DmaType *d = &dmas[(addr >= DMA2_BASE) ? 1 : 0];
-	uint32 offset = (addr - ((addr >= DMA2_BASE) ? DMA2_BASE : DMA1_BASE)) & ~3U;
+	DmaType *d = &dmas[(addr >= dma2_base) ? 1 : 0];
+	uint32 offset = (addr - ((addr >= dma2_base) ? dma2_base : dma1_base)) & ~3U;
 	uint32 shift = 8U * (addr & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 

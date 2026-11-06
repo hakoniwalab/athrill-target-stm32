@@ -1,0 +1,11 @@
+fram.bin
+fram.bin.new
+sd.img
+memory-hakoniwa.txt
+memory-inproc.txt
+device_config-inproc.txt
+first-boot-config-run.txt
+*.log
+*.raw
+*.trace
+__pycache__/

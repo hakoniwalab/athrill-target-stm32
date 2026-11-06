@@ -85,9 +85,8 @@ static uint32 frame_bits(const SpiType *s)
 }
 
 /* The byte the selected chip of the bus answers to mosi (0xFF: no chip drives MISO). */
-static uint8 exchange(const SpiType *s, uint8 mosi)
+uint8 stm32_spi_chip_exchange(uint32 bus, uint8 mosi)
 {
-	uint32 bus = (uint32)(s - spis) + 1U;
 	uint32 i;
 
 	for (i = 0U; i < chip_count; i++) {
@@ -121,6 +120,7 @@ static uint8 rx_pop(SpiType *s)
 /* A write to DR: frames of up to 8 bits are packed two per halfword access; a wider frame goes MSB first. */
 static void transmit(SpiType *s, uint32 size, uint32 value)
 {
+	uint32 bus = (uint32)(s - spis) + 1U;
 	uint8 hi;
 	uint8 lo;
 
@@ -128,15 +128,15 @@ static void transmit(SpiType *s, uint32 size, uint32 value)
 		return;
 	}
 	if (frame_bits(s) > 8U) {
-		hi = exchange(s, (uint8)(value >> 8));
-		lo = exchange(s, (uint8)value);
+		hi = stm32_spi_chip_exchange(bus, (uint8)(value >> 8));
+		lo = stm32_spi_chip_exchange(bus, (uint8)value);
 		rx_push(s, lo);
 		rx_push(s, hi);
 		return;
 	}
-	rx_push(s, exchange(s, (uint8)value));
+	rx_push(s, stm32_spi_chip_exchange(bus, (uint8)value));
 	if (size >= 2U) {
-		rx_push(s, exchange(s, (uint8)(value >> 8)));
+		rx_push(s, stm32_spi_chip_exchange(bus, (uint8)(value >> 8)));
 	}
 }
 

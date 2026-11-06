@@ -1,6 +1,7 @@
 /*
- * The STM32F7 I2C controllers I2C1 to I2C4 (RM0410 chapter 33) as masters
- * with 7-bit addresses, and the chips on their buses.
+ * The STM32F7/H7 I2C controllers I2C1 to I2C4 (RM0410 chapter 33 and
+ * RM0433 chapter 47) as masters with 7-bit addresses, and the chips on
+ * their buses. The register engine is shared; a board table selects bases.
  *
  * The registers are those of the hardware and the transfer follows its
  * flags: START sends the address (ACK from a chip at it, else NACKF and an
@@ -24,6 +25,7 @@ typedef struct {
 	void (*stop)(void *chip);
 } Stm32I2cChipOps;
 
+void stm32_i2c_set_h7(std_bool h7);
 std_bool stm32_i2c_owns(uint32 addr);
 uint32 stm32_i2c_read(uint32 addr);
 void stm32_i2c_write(uint32 addr, uint32 size, uint32 value);

@@ -1,6 +1,6 @@
 /*
- * The STM32F7 USART/UARTs (see stm32_uart.h). Register offsets and bits
- * from RM0410 34.8. Like the timers, a UART is brought up to the virtual
+ * The STM32 USART/UART engine shared by the register-compatible F7 and H7
+ * front ends (see stm32_uart.h). Like the timers, a UART is brought up to the virtual
  * clock when its registers are accessed and at each device tick:
  *   - transmit: TDR feeds the shift register; a frame takes frame_clocks();
  *     TXE is "TDR empty", TC "TDR empty and the last frame sent". A
@@ -89,7 +89,7 @@ typedef struct {
  * clock tree PX4 and the STM32Cube defaults use: APB1 = HCLK/4 (USART2, 3,
  * UART4, 5, 7, 8), APB2 = HCLK/2 (USART1, 6).
  */
-static UartType uarts[] = {
+static const UartType f7_uart_table[] = {
 	{ .number = 1U, .base = 0x40011000U, .divider = 2U, .irq = 37U },
 	{ .number = 2U, .base = 0x40004400U, .divider = 4U, .irq = 38U },
 	{ .number = 3U, .base = 0x40004800U, .divider = 4U, .irq = 39U },
@@ -100,13 +100,31 @@ static UartType uarts[] = {
 	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
 };
 
-#define UART_NUM	(sizeof(uarts) / sizeof(uarts[0]))
+/* H743 D2PCLK1 and D2PCLK2 are both 120 MHz with the 480 MHz CPU clock. */
+static const UartType h7_uart_table[] = {
+	{ .number = 1U, .base = 0x40011000U, .divider = 4U, .irq = 37U },
+	{ .number = 2U, .base = 0x40004400U, .divider = 4U, .irq = 38U },
+	{ .number = 3U, .base = 0x40004800U, .divider = 4U, .irq = 39U },
+	{ .number = 4U, .base = 0x40004C00U, .divider = 4U, .irq = 52U },
+	{ .number = 5U, .base = 0x40005000U, .divider = 4U, .irq = 53U },
+	{ .number = 6U, .base = 0x40011400U, .divider = 4U, .irq = 71U },
+	{ .number = 7U, .base = 0x40007800U, .divider = 4U, .irq = 82U },
+	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
+};
+
+#define UART_MAX	(sizeof(f7_uart_table) / sizeof(f7_uart_table[0]))
+
+static const UartType *selected_uart_table = f7_uart_table;
+static uint32 selected_uart_count = UART_MAX;
+static UartType uarts[UART_MAX];
+static uint32 uart_count;
 
 static UartType *console;
 static FILE *rx_file;
 static FILE *tx_file;
 static std_bool rx_file_at_end;
 static std_bool tx_dma_enabled;
+static uint64 rx_file_start;
 
 static void write_tdr(UartType *u, uint8 data);
 
@@ -114,7 +132,7 @@ static UartType *uart_of(uint32 addr)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if ((addr >= uarts[i].base) && (addr < (uarts[i].base + USART_BLOCK_SIZE))) {
 			return &uarts[i];
 		}
@@ -179,7 +197,8 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 			(void)fputc(data, tx_file);
 		}
 	}
-	else if (u->chip_ops != NULL) {
+	/* A console/file sink and a TCP attachment may observe the same line. */
+	if (u->chip_ops != NULL) {
 		u->chip_ops->transmit(u->chip, data);
 	}
 }
@@ -252,6 +271,11 @@ static void advance_to(UartType *u, uint64 now)
 	/* end of the input file: look for appended data from time to time */
 	if ((u == console) && rx_file_at_end && (now >= u->rx_next)) {
 		rx_file_at_end = FALSE;
+	}
+	/* A DMA request stays asserted while RDR is full, including when its stream is enabled later. */
+	if (u->rxne && ((reg(u, USART_CR3) & CR3_DMAR) != 0U)
+		&& stm32_dma_peripheral_rx(u->base + USART_RDR, u->rdr)) {
+		u->rxne = FALSE;
 	}
 	if (listening(u) && !u->rxne && (now >= u->rx_next) && input_available(u)) {
 		if (next_input(u, &data)) {
@@ -422,8 +446,11 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 	uint32 k;
 
 	console = NULL;
-	for (i = 0U; i < UART_NUM; i++) {
+	uart_count = selected_uart_count;
+	for (i = 0U; i < uart_count; i++) {
 		UartType *u = &uarts[i];
+
+		*u = selected_uart_table[i];
 
 		for (k = 0U; k < (USART_REGS_SIZE / 4U); k++) {
 			u->regs[k] = 0U;
@@ -444,6 +471,7 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 		u->chip = NULL;
 		if (u->number == console_number) {
 			console = u;
+			u->rx_next = rx_file_start;
 		}
 	}
 	if (rx_file != NULL) {
@@ -474,6 +502,17 @@ void stm32_uart_set_tx_dma(std_bool enabled)
 	tx_dma_enabled = enabled;
 }
 
+void stm32_uart_set_rx_file_start(uint64 clock)
+{
+	rx_file_start = clock;
+}
+
+void stm32_uart_set_h7(std_bool h7)
+{
+	selected_uart_table = h7 ? h7_uart_table : f7_uart_table;
+	selected_uart_count = h7 ? (sizeof(h7_uart_table) / sizeof(h7_uart_table[0])) : UART_MAX;
+}
+
 /* A character waiting to arrive at u; STD_E_LIMIT when its queue is full. */
 static Std_ReturnType push_input(UartType *u, uint8 data)
 {
@@ -497,7 +536,7 @@ Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
 			return push_input(&uarts[i], data);
 		}
@@ -509,7 +548,7 @@ void stm32_uart_attach(uint32 number, const Stm32UartChipOps *ops, void *chip)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
 			uarts[i].chip_ops = ops;
 			uarts[i].chip = chip;
@@ -530,7 +569,7 @@ void stm32_uart_tick(DeviceClockType *clock)
 {
 	uint32 i;
 
-	for (i = 0U; i < UART_NUM; i++) {
+	for (i = 0U; i < uart_count; i++) {
 		UartType *u = &uarts[i];
 		uint32 cr1 = reg(u, USART_CR1);
 

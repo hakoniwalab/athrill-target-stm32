@@ -1,6 +1,6 @@
 /*
- * Unit tests of the STM32F7 USART model (src/device/peripheral/stm32_uart.c)
- * against the behaviour RM0410 describes, with the CPU clock, the NVIC and
+ * Unit tests of the shared STM32F7/H7 USART engine
+ * (src/device/peripheral/stm32_uart.c), with the CPU clock, the NVIC and
  * the console stubbed. Frame times are worked out by hand: USART3 runs on
  * APB1 (4 CPU clocks per kernel clock), USART1 on APB2 (2).
  */
@@ -42,6 +42,19 @@ static char dma_got[16];
 static uint32 dma_len;
 static const char *dma_tx_data;
 static uint32 dma_tx_pos;
+static char chip_out[16];
+static uint32 chip_len;
+
+static void chip_transmit(void *chip, uint8 data)
+{
+	(void)chip;
+	if (chip_len < (sizeof(chip_out) - 1U)) {
+		chip_out[chip_len++] = (char)data;
+		chip_out[chip_len] = '\0';
+	}
+}
+
+static const Stm32UartChipOps chip_ops = { chip_transmit };
 
 std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 {
@@ -138,8 +151,11 @@ static void setup(const char *rx_file)
 	}
 	console_len = 0U;
 	console_out[0] = '\0';
+	chip_len = 0U;
+	chip_out[0] = '\0';
 	dma_tx_data = NULL;
 	dma_tx_pos = 0U;
+	stm32_uart_set_h7(FALSE);
 	stm32_uart_set_tx_dma(TRUE);
 	stm32_uart_reset(3U, rx_file, NULL);
 }
@@ -260,6 +276,23 @@ static void test_frame_formats(void)
 	CHECK_EQ("USART1 on APB2", frame_of(USART1, 0U, 0U, 938U), 10U * 938U * 2U);
 }
 
+static void test_h7_clock_table(void)
+{
+	now = 0U;
+	console_len = 0U;
+	console_out[0] = '\0';
+	stm32_uart_set_h7(TRUE);
+	stm32_uart_reset(1U, NULL, NULL);
+	wr(USART1, BRR, 100U);
+	wr(USART1, CR1, UE | TE);
+	wr(USART1, TDR, 'a');
+	wr(USART1, TDR, 'b');
+	now = (10U * 100U * 4U) - 1U;
+	CHECK_EQ("H7 USART1 frame not early", rd(USART1, ISR) & TXE, 0U);
+	now++;
+	CHECK_EQ("H7 USART1 uses 120 MHz PCLK", rd(USART1, ISR) & TXE, TXE);
+}
+
 static void test_transmit_interrupts(void)
 {
 	uint64 until;
@@ -344,6 +377,18 @@ static void test_receive(void)
 	wr(USART3, CR3, 1U << 6);
 	wr(USART3, CR1, UE | RE);
 	CHECK_EQ("DMAR, no stream enabled: input in RDR", rd(USART3, RDR), 'd');
+	/* A pending RDR request is serviced when its DMA stream is enabled later. */
+	setup(NULL);
+	dma_enabled = FALSE;
+	dma_len = 0U;
+	(void)stm32_uart_console_input('p');
+	wr(USART3, CR3, 1U << 6);
+	wr(USART3, CR1, UE | RE);
+	(void)rd(USART3, ISR);
+	dma_enabled = TRUE;
+	(void)tick();
+	CHECK_STR("DMA enabled after RXNE takes pending RDR", dma_got, "p");
+	CHECK_EQ("late DMA clears RXNE", rd(USART3, ISR) & RXNE, 0U);
 	/* DMAR with an enabled stream: the stream takes each character a frame apart, RDR stays empty */
 	setup(NULL);
 	dma_enabled = TRUE;
@@ -430,6 +475,20 @@ static void test_transmit_file(void)
 	remove(path);
 }
 
+static void test_console_attachment(void)
+{
+	setup(NULL);
+	stm32_uart_attach(3U, &chip_ops, NULL);
+	wr(USART3, BRR, 469U);
+	wr(USART3, CR1, UE | TE);
+	wr(USART3, TDR, 'A');
+	wr(USART3, TDR, 'B');
+	now = FRAME_115200;
+	(void)rd(USART3, ISR);
+	CHECK_STR("console still receives attached UART", console_out, "AB");
+	CHECK_STR("TCP-style attachment mirrors console", chip_out, "AB");
+}
+
 int main(void)
 {
 	test_transmit();
@@ -438,6 +497,8 @@ int main(void)
 	test_receive();
 	test_receive_file();
 	test_transmit_file();
+	test_console_attachment();
+	test_h7_clock_table();
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }

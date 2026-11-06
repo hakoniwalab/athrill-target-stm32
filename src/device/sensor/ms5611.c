@@ -216,3 +216,41 @@ static uint8 chip_exchange(void *p, uint8 mosi)
 }
 
 const Stm32SpiChipOps ms5611_ops = { chip_select, chip_exchange };
+
+static std_bool i2c_start(void *p, std_bool read)
+{
+	Ms5611Type *chip = (Ms5611Type *)p;
+
+	if (read) {
+		chip->out_pos = 0U;
+	}
+	else {
+		chip->command = 0xFFU;
+		chip->out_len = 0U;
+		chip->out_pos = 0U;
+	}
+	return TRUE;
+}
+
+static void i2c_write(void *p, uint8 data)
+{
+	Ms5611Type *chip = (Ms5611Type *)p;
+
+	if (chip->command == 0xFFU) {
+		command(chip, data);
+	}
+}
+
+static uint8 i2c_read(void *p)
+{
+	Ms5611Type *chip = (Ms5611Type *)p;
+
+	return (chip->out_pos < chip->out_len) ? chip->out[chip->out_pos++] : 0U;
+}
+
+static void i2c_stop(void *p)
+{
+	(void)p;
+}
+
+const Stm32I2cChipOps ms5611_i2c_ops = { i2c_start, i2c_write, i2c_read, i2c_stop };

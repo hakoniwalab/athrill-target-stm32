@@ -1,6 +1,6 @@
 /*
- * The STM32F7 timers (see stm32_tim.h). Register offsets and bits from
- * RM0410; the counter moves in segments, each ending at the next update
+ * The STM32 timers shared by the register-compatible F7 and H7 front ends
+ * (see stm32_tim.h). The counter moves in segments, each ending at the next update
  * boundary (overflow or underflow), so a catch-up costs one step per
  * boundary crossed, and whole periods that change nothing are skipped.
  */
@@ -92,7 +92,7 @@ typedef struct {
  * half the CPU clock and the APB2 timers (TIM1, TIM8 to TIM11) at the CPU
  * clock.
  */
-static TimType tims[] = {
+static const TimType f7_tim_table[] = {
 	{ .number = 1U,  .base = 0x40010000U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 1U,
 	  .irq_update = 25U, .irq_cc = 27U, .irq_trg_com = 26U, .irq_brk = 24U },
 	{ .number = 2U,  .base = 0x40000000U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
@@ -123,13 +123,60 @@ static TimType tims[] = {
 	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
 };
 
-#define TIM_NUM	(sizeof(tims) / sizeof(tims[0]))
+/*
+ * H743: CPU 480 MHz, HCLK 240 MHz and both APB timer kernels 240 MHz.
+ * TIM15/16/17 occupy the addresses used by TIM9/10/11 on F7.  On H743 each
+ * has its own global interrupt line (RM0433 vector table, IRQs 116..118).
+ */
+static const TimType h7_tim_table[] = {
+	{ .number = 1U,  .base = 0x40010000U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 25U, .irq_cc = 27U, .irq_trg_com = 26U, .irq_brk = 24U },
+	{ .number = 2U,  .base = 0x40000000U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
+	  .irq_update = 28U, .irq_cc = 28U, .irq_trg_com = 28U, .irq_brk = 28U },
+	{ .number = 3U,  .base = 0x40000400U, .kind = TIM_GENERAL, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 29U, .irq_cc = 29U, .irq_trg_com = 29U, .irq_brk = 29U },
+	{ .number = 4U,  .base = 0x40000800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 30U, .irq_cc = 30U, .irq_trg_com = 30U, .irq_brk = 30U },
+	{ .number = 5U,  .base = 0x40000C00U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
+	  .irq_update = 50U, .irq_cc = 50U, .irq_trg_com = 50U, .irq_brk = 50U },
+	{ .number = 6U,  .base = 0x40001000U, .kind = TIM_BASIC, .bits = 16U, .channels = 0U, .divider = 2U,
+	  .irq_update = 54U, .irq_cc = 54U, .irq_trg_com = 54U, .irq_brk = 54U },
+	{ .number = 7U,  .base = 0x40001400U, .kind = TIM_BASIC, .bits = 16U, .channels = 0U, .divider = 2U,
+	  .irq_update = 55U, .irq_cc = 55U, .irq_trg_com = 55U, .irq_brk = 55U },
+	{ .number = 8U,  .base = 0x40010400U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 44U, .irq_cc = 46U, .irq_trg_com = 45U, .irq_brk = 43U },
+	{ .number = 12U, .base = 0x40001800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 2U, .divider = 2U,
+	  .irq_update = 43U, .irq_cc = 43U, .irq_trg_com = 43U, .irq_brk = 43U },
+	{ .number = 13U, .base = 0x40001C00U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 44U, .irq_cc = 44U, .irq_trg_com = 44U, .irq_brk = 44U },
+	{ .number = 14U, .base = 0x40002000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
+	{ .number = 15U, .base = 0x40014000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 2U, .divider = 2U,
+	  .irq_update = 116U, .irq_cc = 116U, .irq_trg_com = 116U, .irq_brk = 116U },
+	{ .number = 16U, .base = 0x40014400U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 117U, .irq_cc = 117U, .irq_trg_com = 117U, .irq_brk = 117U },
+	{ .number = 17U, .base = 0x40014800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 118U, .irq_cc = 118U, .irq_trg_com = 118U, .irq_brk = 118U },
+};
+
+#define TIM_MAX	(sizeof(f7_tim_table) / sizeof(f7_tim_table[0]))
+
+static const TimType *selected_tim_table = f7_tim_table;
+static uint32 selected_tim_count = TIM_MAX;
+static TimType tims[TIM_MAX];
+static uint32 tim_count;
+
+void stm32_tim_set_h7(std_bool h7)
+{
+	selected_tim_table = h7 ? h7_tim_table : f7_tim_table;
+	selected_tim_count = h7 ? (sizeof(h7_tim_table) / sizeof(h7_tim_table[0])) : TIM_MAX;
+}
 
 static TimType *tim_of(uint32 addr)
 {
 	uint32 i;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		if ((addr >= tims[i].base) && (addr < (tims[i].base + TIM_BLOCK_SIZE))) {
 			return &tims[i];
 		}
@@ -619,8 +666,11 @@ void stm32_tim_reset(void)
 	uint32 i;
 	uint32 k;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	tim_count = selected_tim_count;
+	for (i = 0U; i < tim_count; i++) {
 		TimType *t = &tims[i];
+
+		*t = selected_tim_table[i];
 
 		for (k = 0U; k < (TIM_REGS_SIZE / 4U); k++) {
 			t->regs[k] = 0U;
@@ -639,7 +689,7 @@ void stm32_tim_tick(DeviceClockType *clock)
 {
 	uint32 i;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		TimType *t = &tims[i];
 		uint64 until;
 
@@ -666,7 +716,7 @@ std_bool stm32_tim_pwm(uint32 timer, uint32 channel, Stm32TimPwmType *pwm)
 	uint64 active;
 	std_bool active_high;
 
-	for (i = 0U; i < TIM_NUM; i++) {
+	for (i = 0U; i < tim_count; i++) {
 		if (tims[i].number == timer) {
 			t = &tims[i];
 		}
