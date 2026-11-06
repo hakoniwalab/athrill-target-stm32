@@ -124,6 +124,7 @@ static FILE *rx_file;
 static FILE *tx_file;
 static std_bool rx_file_at_end;
 static std_bool tx_dma_enabled;
+static uint64 rx_file_start;
 
 static void write_tdr(UartType *u, uint8 data);
 
@@ -470,6 +471,7 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 		u->chip = NULL;
 		if (u->number == console_number) {
 			console = u;
+			u->rx_next = rx_file_start;
 		}
 	}
 	if (rx_file != NULL) {
@@ -498,6 +500,11 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 void stm32_uart_set_tx_dma(std_bool enabled)
 {
 	tx_dma_enabled = enabled;
+}
+
+void stm32_uart_set_rx_file_start(uint64 clock)
+{
+	rx_file_start = clock;
 }
 
 void stm32_uart_set_h7(std_bool h7)
