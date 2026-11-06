@@ -1,7 +1,7 @@
 /*
  * Example Arm host implementations for Athrill.
  *
- * Copyright (c) 2026 TOPPERS Project
+ * Copyright (c) 2026 Hakoniwa Lab, LLC
  * SPDX-License-Identifier: MIT
  */
 #include "athrill_host_function.h"
