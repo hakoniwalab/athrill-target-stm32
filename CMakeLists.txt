@@ -103,6 +103,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/memory/fm25v02.c
   src/device/memory/sdcard.c
   src/device/peripheral/stm32_sdmmc.c
+  src/device/peripheral/stm32h7_sdmmc.c
   src/device/board/board_profile.c
   src/device/board/fmu_v6c.c
   src/device/board/board.c
@@ -206,6 +207,12 @@ if(BUILD_TESTING)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
+  add_executable(test_stm32h7_sdmmc test/device/test_stm32h7_sdmmc.c
+    src/device/peripheral/stm32h7_sdmmc.c src/device/memory/sdcard.c)
+  stm32_target(test_stm32h7_sdmmc)
+  target_include_directories(test_stm32h7_sdmmc PRIVATE src/device)
+  target_link_libraries(test_stm32h7_sdmmc PRIVATE athrill_stm32_config)
+  add_test(NAME device-stm32h7-sdmmc COMMAND test_stm32h7_sdmmc)
   add_executable(test_stm32h7_boot test/device/test_stm32h7_boot.c
     src/device/peripheral/stm32h7_boot.c src/device/board/board_profile.c)
   stm32_target(test_stm32h7_boot)

@@ -17,6 +17,7 @@
 #include "peripheral/stm32_dma.h"
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
+#include "peripheral/stm32h7_sdmmc.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -87,6 +88,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_i2c_set_h7(stm32_board_is_h7());
 	stm32_i2c_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
+	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
 	board_attach();
 	stm32_uart_tcp_attach();
@@ -102,6 +104,7 @@ void device_supply_clock(DeviceClockType *clock)
 	stm32_uart_tick(clock);
 	stm32_i2c_tick();
 	stm32_sdmmc_tick(clock);
+	stm32h7_sdmmc_tick(clock);
 	board_tick(clock);
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */

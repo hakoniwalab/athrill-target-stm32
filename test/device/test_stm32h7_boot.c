@@ -3,6 +3,28 @@
 #include "device.h"
 #include "cpuemu_ops.h"
 #include <stdio.h>
+
+/* The SDMMC2 behavior is tested separately; these stubs check boot-region routing. */
+static uint32 sdmmc_write_addr;
+static uint32 sdmmc_write_value;
+
+std_bool stm32h7_sdmmc_owns(uint32 addr)
+{
+	return (addr >= 0x48022400U) && (addr < 0x48022800U);
+}
+
+uint32 stm32h7_sdmmc_read(uint32 addr)
+{
+	(void)addr;
+	return 0x44332211U;
+}
+
+void stm32h7_sdmmc_write(uint32 addr, uint32 size, uint32 value)
+{
+	sdmmc_write_addr = addr;
+	(void)size;
+	sdmmc_write_value = value;
+}
 #include <string.h>
 
 std_bool stm32_device_accessed;
@@ -78,7 +100,10 @@ int main(void)
 	CHECK((read32(0x58026008U) & (1U << 31)) == 0U);
 	CHECK((read32(0x58026000U) & 1U) != 0U);
 	CHECK(read32(0x58026040U) == 0U);
-	CHECK((read32(0x48022434U) & ((1U << 2) | (1U << 7))) == ((1U << 2) | (1U << 7)));
+	CHECK(read32(0x48022434U) == 0x44332211U);
+	write32(0x48022438U, 0x1234U);
+	CHECK(sdmmc_write_addr == 0x48022438U);
+	CHECK(sdmmc_write_value == 0x1234U);
 	write32(0x58001C04U, 1U << 13);
 	CHECK((read32(0x58001C18U) & ((1U << 4) | (1U << 5))) == ((1U << 4) | (1U << 5)));
 

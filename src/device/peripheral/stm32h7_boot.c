@@ -5,6 +5,7 @@
  * reported as an H7-STUB entry for the next implementation stage.
  */
 #include "stm32h7_boot.h"
+#include "stm32h7_sdmmc.h"
 #include "board/board_profile.h"
 #include "device.h"
 #include <stdio.h>
@@ -204,6 +205,12 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 	if (!stm32_board_is_h7() || f7_only_address(addr)) {
 		return STD_E_SEGV;
 	}
+	if (stm32h7_sdmmc_owns(addr)) {
+		v = stm32h7_sdmmc_read(addr);
+		*value = (v >> (8U * (addr & 3U)))
+			& ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U));
+		return STD_E_OK;
+	}
 	region = region_of(addr, size);
 	if (region == NULL) {
 		return STD_E_SEGV;
@@ -271,6 +278,10 @@ Std_ReturnType stm32h7_boot_write(uint32 addr, uint32 size, uint32 value)
 
 	if (!stm32_board_is_h7() || f7_only_address(addr)) {
 		return STD_E_SEGV;
+	}
+	if (stm32h7_sdmmc_owns(addr)) {
+		stm32h7_sdmmc_write(addr, size, value);
+		return STD_E_OK;
 	}
 	region = region_of(addr, size);
 	if (region == NULL) {

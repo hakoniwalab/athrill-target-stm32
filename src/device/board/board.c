@@ -45,19 +45,28 @@ static const BoardPwmOutputType fmu_v5_outputs[MOTORS] = {
 static const BoardPwmOutputType *motor_outputs;
 static uint32 motor_output_count;
 static float32 motor_commands[MOTORS];
+static uint64 motor_pulses[MOTORS];
 static uint32 clocks_per_us = 216U;
+static FILE *actuator_trace;
 
-static float32 motor_command(const BoardPwmOutputType *output)
+static uint64 motor_pulse(const BoardPwmOutputType *output)
 {
 	Stm32TimPwmType pwm;
-	float32 us;
-	float32 command;
 
 	if (!stm32_tim_pwm(output->timer, output->channel, &pwm) || !pwm.enabled || (pwm.period_clocks == 0U)) {
+		return 0U;
+	}
+	return pwm.high_clocks / clocks_per_us;
+}
+
+static float32 motor_command(uint64 pulse_us)
+{
+	float32 command;
+
+	if (pulse_us == 0U) {
 		return 0.0F;
 	}
-	us = (float32)pwm.high_clocks / (float32)clocks_per_us;
-	command = (us - PULSE_MIN_US) / (PULSE_MAX_US - PULSE_MIN_US);
+	command = ((float32)pulse_us - PULSE_MIN_US) / (PULSE_MAX_US - PULSE_MIN_US);
 	if (command < 0.0F) {
 		return 0.0F;
 	}
@@ -70,7 +79,18 @@ static void update_motors(void)
 	uint32 k;
 
 	for (k = 0U; k < motor_output_count; k++) {
-		float32 command = motor_command(&motor_outputs[k]);
+		uint64 pulse_us = motor_pulse(&motor_outputs[k]);
+		float32 command = motor_command(pulse_us);
+
+		if (pulse_us != motor_pulses[k]) {
+			motor_pulses[k] = pulse_us;
+			if (actuator_trace != NULL) {
+				fprintf(actuator_trace, "output=%u timer=%u channel=%u pulse_us=%llu command=%.6f\n",
+					k + 1U, motor_outputs[k].timer, motor_outputs[k].channel,
+					(unsigned long long)pulse_us, command);
+				fflush(actuator_trace);
+			}
+		}
 
 		if (command != motor_commands[k]) {
 			motor_commands[k] = command;
@@ -84,10 +104,26 @@ static void update_motors(void)
 
 void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz)
 {
+	char *trace_file = NULL;
+	uint32 k;
+
 	motor_outputs = outputs;
 	motor_output_count = (count > MOTORS) ? MOTORS : count;
 	clocks_per_us = cpu_mhz;
 	memset(motor_commands, 0, sizeof(motor_commands));
+	for (k = 0U; k < MOTORS; k++) {
+		motor_pulses[k] = (uint64)-1;
+	}
+	if (actuator_trace != NULL) {
+		fclose(actuator_trace);
+		actuator_trace = NULL;
+	}
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_ACTUATOR_FILE", &trace_file) == STD_E_OK) {
+		actuator_trace = fopen(trace_file, "w");
+		if (actuator_trace == NULL) {
+			printf("WARNING: can not open actuator trace file %s\n", trace_file);
+		}
+	}
 }
 
 /* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
