@@ -83,10 +83,11 @@ AUX1–AUX4 rather than PX4IO's MAIN outputs.
 ### 1. Build Athrill STM32
 
 Place three repositories side by side, at the versions these results come
-from (Athrill 3.0.0; athrill-arm-common moves on):
+from (Athrill after 3.0.0, with host functions; athrill-arm-common moves on):
 
 ```sh
-git clone --branch v3.0.0 --depth 1 https://github.com/toppers/athrill.git
+git clone https://github.com/toppers/athrill.git
+git -C athrill checkout 9195c71
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git

@@ -22,11 +22,11 @@ jobs:
         with:
           path: athrill-target-stm32
       # the core and the shared Arm pseudo-code, at the commits the README pins
-      - name: athrill 3.0.0
+      - name: athrill (after 3.0.0, host functions)
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: v3.0.0
+          ref: 9195c71f80baa35ae1ffcc7a051a551a2fbb820a
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4
