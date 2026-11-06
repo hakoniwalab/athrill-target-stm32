@@ -18,6 +18,8 @@
 std_bool stm32_gpio_owns(uint32 addr);
 uint32 stm32_gpio_read(uint32 addr);
 void stm32_gpio_write(uint32 addr, uint32 size, uint32 value);
+/* Selects the immutable board address table used by the shared engine. */
+void stm32_gpio_set_h7(std_bool h7);
 void stm32_gpio_reset(void);
 
 /* The level of an output pin (its ODR bit). */

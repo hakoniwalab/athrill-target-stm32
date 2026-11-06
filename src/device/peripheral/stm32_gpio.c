@@ -6,7 +6,7 @@
 #include "stm32_spi.h"
 #include "stm32_exti.h"
 
-#define GPIO_BASE	0x40020000U
+#define F7_GPIO_BASE	0x40020000U
 #define GPIO_STRIDE	0x400U
 #define GPIO_PORTS	11U	/* A to K */
 
@@ -24,15 +24,23 @@ typedef struct {
 } GpioType;
 
 static GpioType ports[GPIO_PORTS];
+static uint32 gpio_base = F7_GPIO_BASE;
+
+void stm32_gpio_set_h7(std_bool h7)
+{
+	/* The shared-table refactor deliberately retains the F7 base. */
+	(void)h7;
+	gpio_base = F7_GPIO_BASE;
+}
 
 std_bool stm32_gpio_owns(uint32 addr)
 {
-	return (addr >= GPIO_BASE) && (addr < (GPIO_BASE + (GPIO_PORTS * GPIO_STRIDE)));
+	return (addr >= gpio_base) && (addr < (gpio_base + (GPIO_PORTS * GPIO_STRIDE)));
 }
 
 static GpioType *port_of(uint32 addr)
 {
-	return &ports[(addr - GPIO_BASE) / GPIO_STRIDE];
+	return &ports[(addr - gpio_base) / GPIO_STRIDE];
 }
 
 /* The output pins: MODER 01. */
@@ -52,7 +60,7 @@ static uint32 output_pins(const GpioType *g)
 uint32 stm32_gpio_read(uint32 addr)
 {
 	GpioType *g = port_of(addr);
-	uint32 offset = (addr - GPIO_BASE) % GPIO_STRIDE;
+	uint32 offset = (addr - gpio_base) % GPIO_STRIDE;
 	uint32 shift = 8U * (offset & 3U);
 	uint32 value;
 
@@ -85,7 +93,7 @@ static void set_odr(GpioType *g, uint32 odr)
 void stm32_gpio_write(uint32 addr, uint32 size, uint32 value)
 {
 	GpioType *g = port_of(addr);
-	uint32 offset = (addr - GPIO_BASE) % GPIO_STRIDE;
+	uint32 offset = (addr - gpio_base) % GPIO_STRIDE;
 	uint32 shift = 8U * (offset & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 	uint32 odr;

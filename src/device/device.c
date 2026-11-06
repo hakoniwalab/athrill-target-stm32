@@ -68,6 +68,7 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_tim_reset();
 	stm32_uart_set_h7(stm32_board_is_h7());
 	uart_reset();
+	stm32_gpio_set_h7(stm32_board_is_h7());
 	stm32_gpio_reset();
 	stm32_exti_reset();
 	stm32_dma_set_h7(stm32_board_is_h7());
