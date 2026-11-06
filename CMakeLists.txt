@@ -194,6 +194,8 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32-uart COMMAND test_stm32_uart)
+  add_test(NAME device-stm32-uart-spec-gaps COMMAND test_stm32_uart spec-gaps)
+  set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
   # USART transmit DMA with the real DMA model
   add_executable(test_uart_dma_tx test/device/test_uart_dma_tx.c src/device/peripheral/stm32_uart.c
     src/device/peripheral/stm32_dma.c)
