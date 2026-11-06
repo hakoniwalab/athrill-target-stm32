@@ -3,6 +3,11 @@
  * (src/device/peripheral/stm32_uart.c), with the CPU clock, the NVIC and
  * the console stubbed. Frame times are worked out by hand: USART3 runs on
  * APB1 (4 CPU clocks per kernel clock), USART1 on APB2 (2).
+ *
+ * Register and flag expectations come from RM0410 Rev 5 sections 34.5.2
+ * (transmitter), 34.5.3 (receiver), 34.5.15 (DMA), and 34.8.8-34.8.11
+ * (ISR/ICR/RDR/TDR), and RM0433 Rev 8 sections 48.5.4-48.5.6
+ * (FIFO, transmitter, receiver), 48.5.19 (DMA), and 48.8.9-48.8.13.
  */
 #include <stdio.h>
 #include <string.h>
@@ -133,14 +138,17 @@ static void check_str(int line, const char *what, const char *got, const char *w
 #define RXNEIE	(1U << 5)
 #define TCIE	(1U << 6)
 #define TXEIE	(1U << 7)
+#define ORE	(1U << 3)
 #define RXNE	(1U << 5)
 #define TC	(1U << 6)
 #define TXE	(1U << 7)
+#define DMAR	(1U << 6)
+#define ORECF	(1U << 3)
 
 /* 54 MHz / 469: 115200 baud; 10 bits of 469 kernel clocks of 4 CPU clocks */
 #define FRAME_115200	(10U * 469U * 4U)
 
-static void setup(const char *rx_file)
+static void setup_family(const char *rx_file, std_bool h7, uint64 rx_start)
 {
 	uint32 i;
 
@@ -155,9 +163,15 @@ static void setup(const char *rx_file)
 	chip_out[0] = '\0';
 	dma_tx_data = NULL;
 	dma_tx_pos = 0U;
-	stm32_uart_set_h7(FALSE);
+	stm32_uart_set_h7(h7);
 	stm32_uart_set_tx_dma(TRUE);
+	stm32_uart_set_rx_file_start(rx_start);
 	stm32_uart_reset(3U, rx_file, NULL);
+}
+
+static void setup(const char *rx_file)
+{
+	setup_family(rx_file, FALSE, 0U);
 }
 
 static void wr(uint32 base, uint32 offset, uint32 value)
@@ -450,6 +464,162 @@ static void test_receive_file(void)
 	remove(path);
 }
 
+static void test_f7_h7_front_ends(void)
+{
+	uint32 family;
+
+	for (family = 0U; family < 2U; family++) {
+		std_bool h7 = (family != 0U) ? TRUE : FALSE;
+
+		/* RXNE on F7 and RXFNE with H7 FIFO disabled are both ISR bit 5. */
+		setup_family(NULL, h7, 0U);
+		(void)stm32_uart_console_input('A');
+		(void)stm32_uart_console_input('B');
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR1, UE | RE | RXNEIE);
+		(void)tick();
+		CHECK_EQ(h7 ? "H7 RXFNE" : "F7 RXNE", rd(USART3, ISR) & RXNE, RXNE);
+		CHECK_EQ(h7 ? "H7 RX interrupt" : "F7 RX interrupt", raised[39], 1U);
+		CHECK_EQ(h7 ? "H7 first RDR" : "F7 first RDR", rd(USART3, RDR), 'A');
+		now = FRAME_115200;
+		CHECK_EQ(h7 ? "H7 second RDR" : "F7 second RDR", rd(USART3, RDR), 'B');
+
+		/* DMAR requests consume RDR in arrival order for both layouts. */
+		setup_family(NULL, h7, 0U);
+		dma_enabled = TRUE;
+		dma_len = 0U;
+		dma_got[0] = '\0';
+		(void)stm32_uart_console_input('C');
+		(void)stm32_uart_console_input('D');
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR3, DMAR);
+		wr(USART3, CR1, UE | RE);
+		(void)tick();
+		now = FRAME_115200;
+		(void)tick();
+		CHECK_STR(h7 ? "H7 RX DMA order" : "F7 RX DMA order", dma_got, "CD");
+		CHECK_EQ(h7 ? "H7 RX DMA address" : "F7 RX DMA address",
+			dma_par, USART3 + RDR);
+		dma_enabled = FALSE;
+
+		/* TXE/TXFNF is bit 7; TC is bit 6 in both register layouts. */
+		setup_family(NULL, h7, 0U);
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR1, UE | TE);
+		wr(USART3, TDR, 'X');
+		CHECK_EQ(h7 ? "H7 TXFNF set, TC clear" : "F7 TXE set, TC clear",
+			rd(USART3, ISR) & (TXE | TC), TXE);
+		wr(USART3, TDR, 'Y');
+		CHECK_EQ(h7 ? "H7 TXFNF clears for full TDR" : "F7 TXE clears for full TDR",
+			rd(USART3, ISR) & TXE, 0U);
+		now = 2U * FRAME_115200;
+		CHECK_EQ(h7 ? "H7 TC after last frame" : "F7 TC after last frame",
+			rd(USART3, ISR) & (TXE | TC), TXE | TC);
+	}
+}
+
+static void test_delayed_rx_file(void)
+{
+	const char *path = "test_stm32_uart_delayed_rx.txt";
+	FILE *f = fopen(path, "wb");
+	uint32 family;
+	const uint64 start = 2U * FRAME_115200;
+
+	CHECK_EQ("delayed RX file opened", f != NULL, 1U);
+	if (f == NULL) {
+		return;
+	}
+	fputs("ab", f);
+	fclose(f);
+	for (family = 0U; family < 2U; family++) {
+		std_bool h7 = (family != 0U) ? TRUE : FALSE;
+
+		setup_family(path, h7, start);
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR1, UE | RE | RXNEIE);
+		now = start - 1U;
+		CHECK_EQ(h7 ? "H7 file waits for delay" : "F7 file waits for delay",
+			rd(USART3, ISR) & RXNE, 0U);
+		now = start;
+		CHECK_EQ(h7 ? "H7 delayed file first" : "F7 delayed file first",
+			rd(USART3, RDR), 'a');
+		now += FRAME_115200;
+		CHECK_EQ(h7 ? "H7 delayed file second" : "F7 delayed file second",
+			rd(USART3, RDR), 'b');
+
+		setup_family(path, h7, start);
+		dma_enabled = TRUE;
+		dma_len = 0U;
+		dma_got[0] = '\0';
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR3, DMAR);
+		wr(USART3, CR1, UE | RE);
+		now = start - 1U;
+		(void)tick();
+		CHECK_STR(h7 ? "H7 file DMA waits" : "F7 file DMA waits", dma_got, "");
+		now = start;
+		(void)tick();
+		now += FRAME_115200;
+		(void)tick();
+		CHECK_STR(h7 ? "H7 delayed file DMA order" : "F7 delayed file DMA order",
+			dma_got, "ab");
+		dma_enabled = FALSE;
+	}
+	setup(NULL);
+	remove(path);
+}
+
+/*
+ * Known front-end defects, kept as a CTest WILL_FAIL case:
+ * - RM0410 34.5.3 and RM0433 48.5.6 set RXNE/RXFNE on reception independent
+ *   of RXNEIE, so a polling driver needs no interrupt enable.
+ * - RM0410 34.5.3/34.8.8 and RM0433 48.5.6/48.8.9 require ORE when a
+ *   second character completes while unread data is still in RDR (FIFO off).
+ */
+static void test_spec_gaps(void)
+{
+	const char *path = "test_stm32_uart_poll_rx.txt";
+	FILE *f = fopen(path, "wb");
+	uint32 family;
+
+	CHECK_EQ("poll RX file opened", f != NULL, 1U);
+	if (f == NULL) {
+		return;
+	}
+	fputs("p", f);
+	fclose(f);
+	for (family = 0U; family < 2U; family++) {
+		std_bool h7 = (family != 0U) ? TRUE : FALSE;
+
+		setup_family(path, h7, FRAME_115200);
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR1, UE | RE); /* polling: RXNEIE deliberately clear */
+		now = FRAME_115200;
+		CHECK_EQ(h7 ? "H7 polling sets RXFNE" : "F7 polling sets RXNE",
+			rd(USART3, ISR) & RXNE, RXNE);
+		CHECK_EQ(h7 ? "H7 polling reads file byte" : "F7 polling reads file byte",
+			rd(USART3, RDR), 'p');
+
+		setup_family(NULL, h7, 0U);
+		(void)stm32_uart_console_input('1');
+		(void)stm32_uart_console_input('2');
+		wr(USART3, BRR, 469U);
+		wr(USART3, CR1, UE | RE | RXNEIE);
+		(void)tick();
+		now = FRAME_115200;
+		(void)tick();
+		CHECK_EQ(h7 ? "H7 unread RDR sets ORE" : "F7 unread RDR sets ORE",
+			rd(USART3, ISR) & ORE, ORE);
+		CHECK_EQ(h7 ? "H7 overrun preserves RDR" : "F7 overrun preserves RDR",
+			rd(USART3, RDR), '1');
+		wr(USART3, ICR, ORECF);
+		CHECK_EQ(h7 ? "H7 ORECF clears ORE" : "F7 ORECF clears ORE",
+			rd(USART3, ISR) & ORE, 0U);
+	}
+	setup(NULL);
+	remove(path);
+}
+
 static void test_transmit_file(void)
 {
 	const char *path = "test_stm32_uart_tx.bin";
@@ -489,8 +659,13 @@ static void test_console_attachment(void)
 	CHECK_STR("TCP-style attachment mirrors console", chip_out, "AB");
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+	if ((argc == 2) && (strcmp(argv[1], "spec-gaps") == 0)) {
+		test_spec_gaps();
+		printf("%d checks, %d failures\n", checks, failures);
+		return (failures == 0) ? 0 : 1;
+	}
 	test_transmit();
 	test_frame_formats();
 	test_transmit_interrupts();
@@ -499,6 +674,8 @@ int main(void)
 	test_transmit_file();
 	test_console_attachment();
 	test_h7_clock_table();
+	test_f7_h7_front_ends();
+	test_delayed_rx_file();
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }

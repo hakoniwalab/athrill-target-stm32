@@ -3,6 +3,7 @@
 #include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_dmamux.h"
 #include "memory/fm25v02.h"
+#include "../test_check.h"
 #include <stdio.h>
 
 #define GPIOD 0x58020C00U
@@ -15,10 +16,7 @@ uint64 cpuemu_get_clock(void)
 	return clock_now++;
 }
 
-static int failures;
 static uint32 raised[128];
-
-#define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); failures++; } } while (0)
 
 int intc_raise_intr(uint32 intno)
 {
@@ -51,19 +49,17 @@ int main(void)
 		id[i] = (uint8)stm32h7_spi_read(SPI2 + 0x30U, 1U);
 	}
 	stm32_gpio_write(GPIOD + 0x18U, 2U, 1U << 4);
-	CHECK(id[0] == 0x7FU && id[6] == 0xC2U && id[7] == 0x22U && id[8] == 0x08U);
-	CHECK((stm32h7_spi_read(SPI2 + 0x14U, 4U) & ((1U << 1) | (1U << 12)))
+	TEST_CHECK(id[0] == 0x7FU && id[6] == 0xC2U && id[7] == 0x22U && id[8] == 0x08U);
+	TEST_CHECK((stm32h7_spi_read(SPI2 + 0x14U, 4U) & ((1U << 1) | (1U << 12)))
 		== ((1U << 1) | (1U << 12)));
 	stm32h7_spi_write(SPI2 + 0x10U, 4U, 1U << 3); /* EOTIE after DMA completion */
-	CHECK(raised[36] == 1U); /* SPI2 global IRQ wakes NuttX's TX-complete wait */
+	TEST_CHECK(raised[36] == 1U); /* SPI2 global IRQ wakes NuttX's TX-complete wait */
 
 	stm32_dmamux_write(0x4002080CU, 4U, 39U); /* SPI2_RX request */
 	stm32_dmamux_write(0x5802581CU, 4U, 80U); /* D3 request selector */
-	CHECK(stm32_dmamux_read(0x4002080CU) == 39U);
-	CHECK(stm32_dmamux_read(0x5802581CU) == 80U);
+	TEST_CHECK(stm32_dmamux_read(0x4002080CU) == 39U);
+	TEST_CHECK(stm32_dmamux_read(0x5802581CU) == 80U);
 
-	if (failures == 0) {
-		puts("STM32H7 SPI/DMAMUX tests passed");
-	}
-	return failures != 0;
+	puts("STM32H7 SPI/DMAMUX tests passed");
+	return 0;
 }
