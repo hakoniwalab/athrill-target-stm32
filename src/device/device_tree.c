@@ -11,6 +11,11 @@
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
+#include "peripheral/stm32_gpio.h"
+#include "peripheral/stm32_i2c.h"
+#include "peripheral/stm32_spi.h"
+#include "peripheral/stm32_uart.h"
+#include "sensor/sensor_source.h"
 #include "std_errno.h"
 #include "target_cpu.h"
 
@@ -50,6 +55,10 @@ typedef struct {
 	void *instance;
 	AthrillDeviceNodeId controller;
 	uint16 address;
+	uint8 pending[256];
+	uint32 pending_count;
+	std_bool reading;
+	std_bool failed;
 	std_bool active;
 } I2cEndpoint;
 
@@ -57,12 +66,17 @@ typedef struct {
 	const AthrillDeviceUartPeripheralOps *ops;
 	void *instance;
 	AthrillDeviceNodeId controller;
+	AthrillDeviceNodeId peripheral;
+	uint32 number;
 	std_bool active;
 } UartEndpoint;
 
 typedef struct {
 	uint64 handle;
+	uint32 port;
+	uint32 pin;
 	std_bool level;
+	std_bool stm32_pin;
 	std_bool used;
 } GpioLine;
 
@@ -266,8 +280,10 @@ static uint64 target_time_now(void *context)
 }
 static uint64 target_time_frequency(void *context)
 {
+	uint32 mhz = 216U;
 	(void)context;
-	return (uint64)cpuemu_get_cpu_frequency() * 1000000U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
+	return (uint64)mhz * 1000000U;
 }
 static sint32 target_clock_frequency(void *context, AthrillDeviceNodeId node,
                                      const char *clock_name, uint64 *frequency)
@@ -337,6 +353,78 @@ static SpiEndpoint *spi_endpoint(Stm32DeviceTreeTarget *target, AthrillDeviceSpi
 	return endpoint.value > 0U && endpoint.value <= MAX_SPI_ENDPOINTS &&
 	       target->spi[endpoint.value - 1U].active ? &target->spi[endpoint.value - 1U] : NULL;
 }
+
+static void target_spi_bridge_select(void *instance, std_bool selected)
+{
+	SpiEndpoint *endpoint = instance;
+	endpoint->ops->set_chip_select(endpoint->instance, selected);
+}
+
+static uint8 target_spi_bridge_exchange(void *instance, uint8 mosi)
+{
+	SpiEndpoint *endpoint = instance;
+	return endpoint->ops->exchange_byte(endpoint->instance, mosi);
+}
+
+static const Stm32SpiChipOps target_spi_bridge_ops = {
+	target_spi_bridge_select, target_spi_bridge_exchange
+};
+
+static sint32 node_path_address(const char *path, uint32 *address)
+{
+	const char *at;
+	char *end;
+	unsigned long value;
+	if (path == NULL || (at = strrchr(path, '@')) == NULL || at[1] == 0) {
+		return -1;
+	}
+	value = strtoul(at + 1, &end, 16);
+	if (*end != 0 || value > 0xffffffffUL) {
+		return -1;
+	}
+	*address = (uint32)value;
+	return 0;
+}
+
+static sint32 target_spi_bind_node(void *context,
+	const AthrillDeviceNode *controller, uint32 chip_select,
+	const AthrillDeviceSpecifier *gpio,
+	const AthrillDeviceSpiPeripheralOps *ops, void *instance,
+	AthrillDeviceSpiEndpoint *endpoint)
+{
+	Stm32DeviceTreeTarget *target = context;
+	SpiEndpoint *bound;
+	uint32 controller_address, gpio_address, bus, port, pin;
+	if (controller == NULL || gpio == NULL || gpio->cell_count < 1U ||
+	    node_path_address(controller->path, &controller_address) != 0 ||
+	    node_path_address(gpio->provider_path, &gpio_address) != 0 ||
+	    gpio_address < 0x40020000U || gpio_address > 0x40022800U ||
+	    (gpio_address - 0x40020000U) % 0x400U != 0U) {
+		return -1;
+	}
+	switch (controller_address) {
+	case 0x40013000U: bus = 1U; break;
+	case 0x40003800U: bus = 2U; break;
+	case 0x40003c00U: bus = 3U; break;
+	case 0x40013400U: bus = 4U; break;
+	case 0x40015000U: bus = 5U; break;
+	case 0x40015400U: bus = 6U; break;
+	default: return -1;
+	}
+	port = (gpio_address - 0x40020000U) / 0x400U;
+	pin = gpio->cells[0];
+	if (port > STM32_GPIO_PORT('K') || pin >= 16U ||
+	    target_spi_bind(context, controller->id, chip_select, gpio, ops,
+		instance, endpoint) != 0) {
+		return -1;
+	}
+	bound = spi_endpoint(target, *endpoint);
+	if (bound == NULL) {
+		return -1;
+	}
+	stm32_spi_attach(bus, port, pin, &target_spi_bridge_ops, bound);
+	return 0;
+}
 static sint32 target_spi_select(void *context, AthrillDeviceSpiEndpoint endpoint, std_bool asserted)
 {
 	SpiEndpoint *e = spi_endpoint(context, endpoint);
@@ -396,6 +484,134 @@ static sint32 target_i2c_transfer(void *context, AthrillDeviceI2cEndpoint endpoi
 	return t->i2c[i - 1U].ops->transfer(t->i2c[i - 1U].instance, messages, count);
 }
 
+static I2cEndpoint *i2c_endpoint(Stm32DeviceTreeTarget *target,
+	AthrillDeviceI2cEndpoint endpoint)
+{
+	return endpoint.value > 0U && endpoint.value <= MAX_I2C_ENDPOINTS &&
+		target->i2c[endpoint.value - 1U].active ?
+		&target->i2c[endpoint.value - 1U] : NULL;
+}
+
+static sint32 target_i2c_bridge_flush(I2cEndpoint *endpoint,
+	std_bool stop)
+{
+	AthrillDeviceI2cMessage message;
+	if (endpoint->pending_count == 0U) {
+		return 0;
+	}
+	message.data = endpoint->pending;
+	message.size = endpoint->pending_count;
+	message.read = FALSE;
+	message.stop = stop;
+	endpoint->pending_count = 0U;
+	return endpoint->ops->transfer(endpoint->instance, &message, 1U);
+}
+
+static std_bool target_i2c_bridge_start(void *instance, std_bool read)
+{
+	I2cEndpoint *endpoint = instance;
+	if (endpoint->ops->start != NULL) {
+		return endpoint->ops->start(endpoint->instance, read);
+	}
+	if (target_i2c_bridge_flush(endpoint, FALSE) != 0) {
+		endpoint->failed = TRUE;
+		return FALSE;
+	}
+	endpoint->reading = read;
+	return TRUE;
+}
+
+static void target_i2c_bridge_write(void *instance, uint8 data)
+{
+	I2cEndpoint *endpoint = instance;
+	if (endpoint->ops->write_byte != NULL) {
+		endpoint->ops->write_byte(endpoint->instance, data);
+		return;
+	}
+	if (endpoint->pending_count >= sizeof(endpoint->pending)) {
+		endpoint->failed = TRUE;
+		return;
+	}
+	endpoint->pending[endpoint->pending_count++] = data;
+}
+
+static uint8 target_i2c_bridge_read(void *instance)
+{
+	I2cEndpoint *endpoint = instance;
+	AthrillDeviceI2cMessage message;
+	uint8 data = 0xffU;
+	if (endpoint->ops->read_byte != NULL) {
+		return endpoint->ops->read_byte(endpoint->instance);
+	}
+	message.data = &data;
+	message.size = 1U;
+	message.read = TRUE;
+	message.stop = FALSE;
+	if (endpoint->ops->transfer(endpoint->instance, &message, 1U) != 0) {
+		endpoint->failed = TRUE;
+	}
+	return data;
+}
+
+static void target_i2c_bridge_stop(void *instance)
+{
+	I2cEndpoint *endpoint = instance;
+	AthrillDeviceI2cMessage message;
+	if (endpoint->ops->stop != NULL) {
+		endpoint->ops->stop(endpoint->instance);
+		return;
+	}
+	if (endpoint->reading) {
+		message.data = NULL;
+		message.size = 0U;
+		message.read = TRUE;
+		message.stop = TRUE;
+		if (endpoint->ops->transfer(endpoint->instance, &message, 1U) != 0) {
+			endpoint->failed = TRUE;
+		}
+	} else if (target_i2c_bridge_flush(endpoint, TRUE) != 0) {
+		endpoint->failed = TRUE;
+	}
+	endpoint->reading = FALSE;
+}
+
+static const Stm32I2cChipOps target_i2c_bridge_ops = {
+	target_i2c_bridge_start, target_i2c_bridge_write,
+	target_i2c_bridge_read, target_i2c_bridge_stop
+};
+
+static sint32 target_i2c_bind_node(void *context,
+	const AthrillDeviceNode *controller, uint16 address,
+	const AthrillDeviceI2cPeripheralOps *ops, void *instance,
+	AthrillDeviceI2cEndpoint *endpoint)
+{
+	Stm32DeviceTreeTarget *target = context;
+	I2cEndpoint *bound;
+	uint32 controller_address, bus;
+	if (controller == NULL ||
+	    node_path_address(controller->path, &controller_address) != 0) {
+		return -1;
+	}
+	switch (controller_address) {
+	case 0x40005400U: bus = 1U; break;
+	case 0x40005800U: bus = 2U; break;
+	case 0x40005c00U: bus = 3U; break;
+	case 0x40006000U:
+	case 0x58001c00U: bus = 4U; break;
+	default: return -1;
+	}
+	if (target_i2c_bind(context, controller->id, address, ops, instance,
+		endpoint) != 0) {
+		return -1;
+	}
+	bound = i2c_endpoint(target, *endpoint);
+	if (bound == NULL) {
+		return -1;
+	}
+	stm32_i2c_attach(bus, address, &target_i2c_bridge_ops, bound);
+	return 0;
+}
+
 static sint32 target_uart_bind(void *context, AthrillDeviceNodeId controller,
                                const AthrillDeviceUartPeripheralOps *ops, void *instance, AthrillDeviceUartEndpoint *endpoint)
 {
@@ -433,6 +649,76 @@ static sint32 target_uart_controller(void *context, AthrillDeviceUartEndpoint en
 	return 0;
 }
 
+static UartEndpoint *uart_endpoint(Stm32DeviceTreeTarget *target,
+	AthrillDeviceUartEndpoint endpoint)
+{
+	return endpoint.value > 0U && endpoint.value <= MAX_UART_ENDPOINTS &&
+		target->uart[endpoint.value - 1U].active ?
+		&target->uart[endpoint.value - 1U] : NULL;
+}
+
+static void target_uart_bridge_transmit(void *instance, uint8 data)
+{
+	UartEndpoint *endpoint = instance;
+	(void)endpoint->ops->receive_byte(endpoint->instance, data);
+}
+
+static const Stm32UartChipOps target_uart_bridge_ops = {
+	target_uart_bridge_transmit
+};
+
+static sint32 target_uart_bind_nodes(void *context,
+	const AthrillDeviceNode *controller,
+	const AthrillDeviceNode *peripheral,
+	const AthrillDeviceUartPeripheralOps *ops, void *instance,
+	AthrillDeviceUartEndpoint *endpoint)
+{
+	Stm32DeviceTreeTarget *target = context;
+	UartEndpoint *bound;
+	uint32 address, number;
+	if (controller == NULL || peripheral == NULL ||
+	    node_path_address(controller->path, &address) != 0) {
+		return -1;
+	}
+	switch (address) {
+	case 0x40011000U: number = 1U; break;
+	case 0x40004400U: number = 2U; break;
+	case 0x40004800U: number = 3U; break;
+	case 0x40004c00U: number = 4U; break;
+	case 0x40005000U: number = 5U; break;
+	case 0x40011400U: number = 6U; break;
+	case 0x40007800U: number = 7U; break;
+	case 0x40007c00U: number = 8U; break;
+	default: return -1;
+	}
+	if (target_uart_bind(context, controller->id, ops, instance, endpoint) != 0) {
+		return -1;
+	}
+	bound = uart_endpoint(target, *endpoint);
+	if (bound == NULL) {
+		return -1;
+	}
+	bound->peripheral = peripheral->id;
+	bound->number = number;
+	stm32_uart_attach(number, &target_uart_bridge_ops, bound);
+	return 0;
+}
+
+static sint32 target_uart_send_from_node(void *context,
+	AthrillDeviceNodeId peripheral, uint8 data)
+{
+	Stm32DeviceTreeTarget *target = context;
+	uint32 i;
+	for (i = 0U; i < MAX_UART_ENDPOINTS; i++) {
+		if (target->uart[i].active &&
+		    target->uart[i].peripheral == peripheral) {
+			return stm32_uart_chip_send(target->uart[i].number, data) ==
+				STD_E_OK ? 0 : -1;
+		}
+	}
+	return -1;
+}
+
 static uint64 spec_handle(const AthrillDeviceSpecifier *spec)
 {
 	uint64 value = (uint64)spec->provider << 32;
@@ -463,11 +749,25 @@ static GpioLine *gpio_line(Stm32DeviceTreeTarget *target, uint64 handle, std_boo
 static sint32 target_gpio_resolve(void *context, const AthrillDeviceSpecifier *spec,
                                   AthrillDeviceGpioLine *line)
 {
+	GpioLine *gpio;
+	uint32 address;
 	if (spec == NULL || spec->cell_count == 0U) {
 		return -1;
 	}
 	line->value = spec_handle(spec);
-	return gpio_line(context, line->value, TRUE) != NULL ? 0 : -1;
+	gpio = gpio_line(context, line->value, TRUE);
+	if (gpio == NULL) {
+		return -1;
+	}
+	if (node_path_address(spec->provider_path, &address) == 0 &&
+	    address >= 0x40020000U && address <= 0x40022800U &&
+	    (address - 0x40020000U) % 0x400U == 0U &&
+	    spec->cells[0] < 16U) {
+		gpio->port = (address - 0x40020000U) / 0x400U;
+		gpio->pin = spec->cells[0];
+		gpio->stm32_pin = TRUE;
+	}
+	return 0;
 }
 static sint32 target_gpio_read(void *context, AthrillDeviceGpioLine line, std_bool *level)
 {
@@ -490,6 +790,9 @@ static sint32 target_gpio_drive(void *context, AthrillDeviceGpioLine line, std_b
 		return 0;
 	}
 	g->level = level;
+	if (g->stm32_pin) {
+		stm32_gpio_drive(g->port, g->pin, level);
+	}
 	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
 		if (target->gpio_subscribers[i].used &&
 		    target->gpio_subscribers[i].handle == line.value) {
@@ -557,17 +860,129 @@ static sint32 target_model_adapter_connect(void *context,
 	const AthrillDeviceNode *node, const char *adapter_name)
 {
 	(void)context;
-	if (node == NULL || node->matched_compatible == NULL ||
-	    adapter_name == NULL || strcmp(adapter_name, "pixhawk4-fmu-v5") != 0 ||
-	    strcmp(node->matched_compatible, "holybro,pixhawk4") != 0) {
+	if (node == NULL || node->matched_compatible == NULL || adapter_name == NULL) {
 		return -1;
 	}
 	/*
-	 * The adapter is selected by the DT registry, but deliberately reuses the
-	 * established stateful FMUv5 construction until its individual models are
-	 * fully source-migrated.  The no-DT caller below remains unchanged.
+	 * Each exact DT model delegates to the existing C model independently.
+	 * Controllers are reset before the graph is built, so their adapters only
+	 * assert that the matching legacy model is already active.  Leaf adapters
+	 * attach one chip each.  The no-DT board_attach path remains unchanged.
 	 */
-	board_attach();
+	if (strcmp(adapter_name, "pixhawk4-board") == 0 &&
+	    strcmp(node->matched_compatible, "holybro,pixhawk4") == 0) {
+		board_fmu_v5_begin();
+		return 0;
+	}
+	if (strcmp(adapter_name, "pwm-actuator-map") == 0 &&
+	    strcmp(node->matched_compatible, "athrill,pwm-actuator-map") == 0) {
+		board_fmu_v5_pwm_attach();
+		return 0;
+	}
+	if (strcmp(adapter_name, "sdcard") == 0 &&
+	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
+		board_fmu_v5_sdcard_attach();
+		return 0;
+	}
+	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
+	    (strcmp(adapter_name, "stm32f7-gpio") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-gpio") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-exti") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-exti") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-dma") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-spi") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32-spi-fifo") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32-spi") == 0)) ||
+	    (strcmp(adapter_name, "stm32f7-i2c") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-i2c-v2") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-timer") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-timers") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-pwm") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-pwm") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
+	    (strcmp(adapter_name, "stm32f7-sdmmc") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32-flash-controller") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32f7-flash-controller") == 0 ||
+	      strcmp(node->matched_compatible, "zephyr,flash-controller") == 0)) ||
+	    (strcmp(adapter_name, "stm32f7-rtc") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-rtc") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-adc") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-adc") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-rng") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32-rng") == 0 ||
+	      strcmp(node->matched_compatible, "zephyr,entropy") == 0)) ||
+	    (strcmp(adapter_name, "stm32f7-otgfs") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-otgfs") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-crc") == 0 &&
+	     strcmp(node->matched_compatible, "zephyr,crc") == 0) ||
+	    (strcmp(adapter_name, "stm32f7-backup-sram") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-backup-sram") == 0) ||
+	    (strcmp(adapter_name, "bench-sensor-source") == 0 &&
+	     strcmp(node->matched_compatible, "athrill,bench-sensor-source") == 0)) {
+		return 0;
+	}
+	return -1;
+}
+
+static Std_ReturnType config_string_silent(const char *key, char **value);
+
+static sint32 target_host_value(void *context, const char *key,
+	const char **value)
+{
+	char *configured = NULL;
+	(void)context;
+	if (key == NULL || value == NULL ||
+	    config_string_silent(key, &configured) != STD_E_OK) {
+		return -1;
+	}
+	*value = configured;
+	return 0;
+}
+
+static sint32 target_sensor_sample(void *context,
+	AthrillDeviceSensorSample *sample)
+{
+	SensorSampleType source;
+	(void)context;
+	if (sample == NULL) {
+		return -1;
+	}
+	sensor_source_sample(&source);
+	memcpy(sample->acceleration, source.acc, sizeof(source.acc));
+	memcpy(sample->angular_velocity, source.gyro, sizeof(source.gyro));
+	memcpy(sample->magnetic_field, source.mag, sizeof(source.mag));
+	sample->pressure_hpa = source.abs_pressure;
+	sample->temperature_c = source.temperature;
+	return 0;
+}
+
+static sint32 target_gps_sample(void *context, AthrillDeviceGpsSample *sample)
+{
+	GpsSampleType source;
+	(void)context;
+	if (sample == NULL || !sensor_source_gps(&source)) {
+		return -1;
+	}
+	sample->latitude_deg_e7 = source.lat;
+	sample->longitude_deg_e7 = source.lon;
+	sample->altitude_mm = source.alt;
+	sample->horizontal_accuracy_cm = source.eph;
+	sample->vertical_accuracy_cm = source.epv;
+	sample->speed_cm_s = source.vel;
+	sample->velocity_north_cm_s = source.vn;
+	sample->velocity_east_cm_s = source.ve;
+	sample->velocity_down_cm_s = source.vd;
+	sample->course_cdeg = source.cog;
+	sample->fix_type = source.fix_type;
+	sample->satellites = source.satellites;
+	sample->time_usec = source.time_usec;
 	return 0;
 }
 
@@ -578,7 +993,9 @@ static const AthrillDeviceTargetOps target_ops = {
 	target_spi_bind, target_spi_select, target_spi_exchange, target_i2c_bind, target_i2c_transfer,
 	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
-	target_model_adapter_connect
+	target_model_adapter_connect, target_spi_bind_node, target_host_value,
+	target_sensor_sample, target_i2c_bind_node, target_uart_bind_nodes,
+	target_uart_send_from_node, target_gps_sample
 };
 
 static Std_ReturnType config_string_silent(const char *key, char **value)
