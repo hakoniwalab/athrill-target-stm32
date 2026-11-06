@@ -1,7 +1,11 @@
 #ifndef ATHRILL_STM32_FMU_V6C_H
 #define ATHRILL_STM32_FMU_V6C_H
 
-/* Stage 1 has no external v6C sensor chips; it establishes the H743 board profile. */
+#include "std_types.h"
+#include "cpu.h"
+#include "std_device_ops.h"
+
 void fmu_v6c_attach(void);
+void fmu_v6c_tick(DeviceClockType *clock);
 
 #endif /* ATHRILL_STM32_FMU_V6C_H */

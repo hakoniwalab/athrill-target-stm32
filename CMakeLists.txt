@@ -93,6 +93,8 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/sensor/sensor_source.c
   src/device/sensor/ms5611.c
   src/device/sensor/icm20689.c
+  src/device/sensor/icm42688p.c
+  src/device/sensor/bmi055.c
   src/device/peripheral/stm32_exti.c
   src/device/peripheral/stm32_dma.c
   src/device/peripheral/stm32_i2c.c
@@ -218,6 +220,12 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_spi PRIVATE src/device)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
+  add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
+    src/device/sensor/bmi055.c src/device/sensor/icm42688p.c src/device/sensor/ms5611.c)
+  stm32_target(test_v6c_sensors)
+  target_include_directories(test_v6c_sensors PRIVATE src/device)
+  target_link_libraries(test_v6c_sensors PRIVATE athrill_stm32_config)
+  add_test(NAME device-v6c-sensors COMMAND test_v6c_sensors)
   # The fast executors against the generic ones (src/cpu/thumb_fast.c).
   add_executable(test_thumb_fast test/cpu/test_thumb_fast.c src/cpu/thumb_fast.c src/cpu/thumb_exec16.c
     src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c

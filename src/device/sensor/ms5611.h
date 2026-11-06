@@ -17,6 +17,7 @@
 
 #include "std_types.h"
 #include "peripheral/stm32_spi.h"
+#include "peripheral/stm32_i2c.h"
 
 typedef struct {
 	uint16 prom[8];
@@ -33,6 +34,8 @@ typedef struct {
 } Ms5611Type;
 
 extern const Stm32SpiChipOps ms5611_ops;
+/* The same command engine behind the chip's I2C interface. */
+extern const Stm32I2cChipOps ms5611_i2c_ops;
 
 void ms5611_reset(Ms5611Type *chip);
 /* The raw D1 (pressure) and D2 (temperature) of pressure (hPa) and temperature (degrees C). */

@@ -9,12 +9,13 @@
 #define SPI2  0x40003800U
 
 static int failures;
+static uint32 raised[128];
 
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); failures++; } } while (0)
 
 int intc_raise_intr(uint32 intno)
 {
-	(void)intno;
+	raised[intno]++;
 	return 0;
 }
 
@@ -46,6 +47,8 @@ int main(void)
 	CHECK(id[0] == 0x7FU && id[6] == 0xC2U && id[7] == 0x22U && id[8] == 0x08U);
 	CHECK((stm32h7_spi_read(SPI2 + 0x14U, 4U) & ((1U << 1) | (1U << 12)))
 		== ((1U << 1) | (1U << 12)));
+	stm32h7_spi_write(SPI2 + 0x10U, 4U, 1U << 3); /* EOTIE after DMA completion */
+	CHECK(raised[36] == 1U); /* SPI2 global IRQ wakes NuttX's TX-complete wait */
 
 	stm32_dmamux_write(0x4002080CU, 4U, 39U); /* SPI2_RX request */
 	stm32_dmamux_write(0x5802581CU, 4U, 80U); /* D3 request selector */

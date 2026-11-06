@@ -145,6 +145,7 @@ void board_attach(void)
 
 void board_tick(DeviceClockType *clock)
 {
+	fmu_v6c_tick(clock);
 	if (has_imu) {
 		icm20689_tick(&imu, clock);
 		ublox_tick(&gps, clock);

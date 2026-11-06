@@ -5,9 +5,12 @@
  */
 #include "stm32h7_spi.h"
 #include "stm32_spi.h"
+#include "cpu.h"
+#include "std_device_ops.h"
 
 #define SPI_CR1		0x00U
 #define SPI_CFG1	0x08U
+#define SPI_IER		0x10U
 #define SPI_SR		0x14U
 #define SPI_IFCR	0x18U
 #define SPI_TXDR	0x20U
@@ -23,11 +26,13 @@
 #define SR_EOT		(1U << 3)
 #define SR_SUSP		(1U << 11)
 #define SR_TXC		(1U << 12)
+#define IER_EOTIE	(1U << 3)
 #define RX_FIFO_SIZE	16U
 
 typedef struct {
 	uint32 base;
 	uint32 bus;
+	uint32 irq;
 	uint32 regs[SPI_REGS / 4U];
 	uint8 rx[RX_FIFO_SIZE];
 	uint32 head;
@@ -35,12 +40,12 @@ typedef struct {
 } H7SpiType;
 
 static H7SpiType spis[] = {
-	{ .base = 0x40013000U, .bus = 1U },
-	{ .base = 0x40003800U, .bus = 2U },
-	{ .base = 0x40003C00U, .bus = 3U },
-	{ .base = 0x40013400U, .bus = 4U },
-	{ .base = 0x40015000U, .bus = 5U },
-	{ .base = 0x58001400U, .bus = 6U },
+	{ .base = 0x40013000U, .bus = 1U, .irq = 35U },
+	{ .base = 0x40003800U, .bus = 2U, .irq = 36U },
+	{ .base = 0x40003C00U, .bus = 3U, .irq = 51U },
+	{ .base = 0x40013400U, .bus = 4U, .irq = 84U },
+	{ .base = 0x40015000U, .bus = 5U, .irq = 85U },
+	{ .base = 0x58001400U, .bus = 6U, .irq = 86U },
 };
 
 #define SPI_NUM (sizeof(spis) / sizeof(spis[0]))
@@ -145,6 +150,12 @@ void stm32h7_spi_write(uint32 addr, uint32 size, uint32 value)
 		if ((offset == SPI_CR1) && ((s->regs[offset / 4U] & CR1_SPE) == 0U)) {
 			s->head = 0U;
 			s->count = 0U;
+		}
+		/* EOT/TXC are already true for the instantaneous exchange.  NuttX
+		 * enables EOTIE after the DMA completes and waits for this IRQ. */
+		if (((offset == SPI_IER) || (offset == SPI_CR1))
+			&& ((s->regs[SPI_IER / 4U] & IER_EOTIE) != 0U)) {
+			(void)intc_raise_intr(s->irq);
 		}
 	}
 }

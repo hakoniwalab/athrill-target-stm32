@@ -209,12 +209,21 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 		*value = stm32_gpio_read(aligned);
 		return TRUE;
 	}
+	if (stm32_exti_owns(addr)) {
+		*value = stm32_exti_read(addr);
+		return TRUE;
+	}
 	if (stm32_dma_owns(addr)) {
 		*value = stm32_dma_read(aligned);
 		return TRUE;
 	}
 	if (stm32_dmamux_owns(addr)) {
 		*value = stm32_dmamux_read(aligned);
+		return TRUE;
+	}
+	if (stm32_i2c_owns(addr)) {
+		stm32_device_accessed = TRUE;
+		*value = stm32_i2c_read(addr);
 		return TRUE;
 	}
 	if (stm32h7_spi_owns(addr)) {
@@ -239,12 +248,20 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 		stm32_gpio_write(addr, size, value);
 		return TRUE;
 	}
+	if (stm32_exti_owns(addr)) {
+		stm32_exti_write(addr, size, value);
+		return TRUE;
+	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
 		return TRUE;
 	}
 	if (stm32_dmamux_owns(addr)) {
 		stm32_dmamux_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_i2c_owns(addr)) {
+		stm32_i2c_write(addr, size, value);
 		return TRUE;
 	}
 	if (stm32h7_spi_owns(addr)) {
