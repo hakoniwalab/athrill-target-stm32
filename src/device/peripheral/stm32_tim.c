@@ -123,6 +123,42 @@ static const TimType f7_tim_table[] = {
 	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
 };
 
+/*
+ * H743: CPU 480 MHz, HCLK 240 MHz and both APB timer kernels 240 MHz.
+ * TIM15/16/17 occupy the addresses used by TIM9/10/11 on F7 and share
+ * TIM1's break/update/trigger interrupt lines.
+ */
+static const TimType h7_tim_table[] = {
+	{ .number = 1U,  .base = 0x40010000U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 25U, .irq_cc = 27U, .irq_trg_com = 26U, .irq_brk = 24U },
+	{ .number = 2U,  .base = 0x40000000U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
+	  .irq_update = 28U, .irq_cc = 28U, .irq_trg_com = 28U, .irq_brk = 28U },
+	{ .number = 3U,  .base = 0x40000400U, .kind = TIM_GENERAL, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 29U, .irq_cc = 29U, .irq_trg_com = 29U, .irq_brk = 29U },
+	{ .number = 4U,  .base = 0x40000800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 30U, .irq_cc = 30U, .irq_trg_com = 30U, .irq_brk = 30U },
+	{ .number = 5U,  .base = 0x40000C00U, .kind = TIM_GENERAL, .bits = 32U, .channels = 4U, .divider = 2U,
+	  .irq_update = 50U, .irq_cc = 50U, .irq_trg_com = 50U, .irq_brk = 50U },
+	{ .number = 6U,  .base = 0x40001000U, .kind = TIM_BASIC, .bits = 16U, .channels = 0U, .divider = 2U,
+	  .irq_update = 54U, .irq_cc = 54U, .irq_trg_com = 54U, .irq_brk = 54U },
+	{ .number = 7U,  .base = 0x40001400U, .kind = TIM_BASIC, .bits = 16U, .channels = 0U, .divider = 2U,
+	  .irq_update = 55U, .irq_cc = 55U, .irq_trg_com = 55U, .irq_brk = 55U },
+	{ .number = 8U,  .base = 0x40010400U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 2U,
+	  .irq_update = 44U, .irq_cc = 46U, .irq_trg_com = 45U, .irq_brk = 43U },
+	{ .number = 12U, .base = 0x40001800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 2U, .divider = 2U,
+	  .irq_update = 43U, .irq_cc = 43U, .irq_trg_com = 43U, .irq_brk = 43U },
+	{ .number = 13U, .base = 0x40001C00U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 44U, .irq_cc = 44U, .irq_trg_com = 44U, .irq_brk = 44U },
+	{ .number = 14U, .base = 0x40002000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
+	{ .number = 15U, .base = 0x40014000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 2U, .divider = 2U,
+	  .irq_update = 24U, .irq_cc = 24U, .irq_trg_com = 24U, .irq_brk = 24U },
+	{ .number = 16U, .base = 0x40014400U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 25U, .irq_cc = 25U, .irq_trg_com = 25U, .irq_brk = 25U },
+	{ .number = 17U, .base = 0x40014800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
+	  .irq_update = 26U, .irq_cc = 26U, .irq_trg_com = 26U, .irq_brk = 26U },
+};
+
 #define TIM_MAX	(sizeof(f7_tim_table) / sizeof(f7_tim_table[0]))
 
 static const TimType *selected_tim_table = f7_tim_table;
@@ -132,10 +168,8 @@ static uint32 tim_count;
 
 void stm32_tim_set_h7(std_bool h7)
 {
-	/* The shared-table refactor deliberately retains the F7 table. */
-	(void)h7;
-	selected_tim_table = f7_tim_table;
-	selected_tim_count = TIM_MAX;
+	selected_tim_table = h7 ? h7_tim_table : f7_tim_table;
+	selected_tim_count = h7 ? (sizeof(h7_tim_table) / sizeof(h7_tim_table[0])) : TIM_MAX;
 }
 
 static TimType *tim_of(uint32 addr)

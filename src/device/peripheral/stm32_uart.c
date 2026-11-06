@@ -100,6 +100,18 @@ static const UartType f7_uart_table[] = {
 	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
 };
 
+/* H743 D2PCLK1 and D2PCLK2 are both 120 MHz with the 480 MHz CPU clock. */
+static const UartType h7_uart_table[] = {
+	{ .number = 1U, .base = 0x40011000U, .divider = 4U, .irq = 37U },
+	{ .number = 2U, .base = 0x40004400U, .divider = 4U, .irq = 38U },
+	{ .number = 3U, .base = 0x40004800U, .divider = 4U, .irq = 39U },
+	{ .number = 4U, .base = 0x40004C00U, .divider = 4U, .irq = 52U },
+	{ .number = 5U, .base = 0x40005000U, .divider = 4U, .irq = 53U },
+	{ .number = 6U, .base = 0x40011400U, .divider = 4U, .irq = 71U },
+	{ .number = 7U, .base = 0x40007800U, .divider = 4U, .irq = 82U },
+	{ .number = 8U, .base = 0x40007C00U, .divider = 4U, .irq = 83U },
+};
+
 #define UART_MAX	(sizeof(f7_uart_table) / sizeof(f7_uart_table[0]))
 
 static const UartType *selected_uart_table = f7_uart_table;
@@ -184,7 +196,8 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 			(void)fputc(data, tx_file);
 		}
 	}
-	else if (u->chip_ops != NULL) {
+	/* A console/file sink and a TCP attachment may observe the same line. */
+	if (u->chip_ops != NULL) {
 		u->chip_ops->transmit(u->chip, data);
 	}
 }
@@ -257,6 +270,11 @@ static void advance_to(UartType *u, uint64 now)
 	/* end of the input file: look for appended data from time to time */
 	if ((u == console) && rx_file_at_end && (now >= u->rx_next)) {
 		rx_file_at_end = FALSE;
+	}
+	/* A DMA request stays asserted while RDR is full, including when its stream is enabled later. */
+	if (u->rxne && ((reg(u, USART_CR3) & CR3_DMAR) != 0U)
+		&& stm32_dma_peripheral_rx(u->base + USART_RDR, u->rdr)) {
+		u->rxne = FALSE;
 	}
 	if (listening(u) && !u->rxne && (now >= u->rx_next) && input_available(u)) {
 		if (next_input(u, &data)) {
@@ -484,10 +502,8 @@ void stm32_uart_set_tx_dma(std_bool enabled)
 
 void stm32_uart_set_h7(std_bool h7)
 {
-	/* The shared-table refactor deliberately retains the F7 table. */
-	(void)h7;
-	selected_uart_table = f7_uart_table;
-	selected_uart_count = UART_MAX;
+	selected_uart_table = h7 ? h7_uart_table : f7_uart_table;
+	selected_uart_count = h7 ? (sizeof(h7_uart_table) / sizeof(h7_uart_table[0])) : UART_MAX;
 }
 
 /* A character waiting to arrive at u; STD_E_LIMIT when its queue is full. */

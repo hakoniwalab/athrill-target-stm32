@@ -1,6 +1,6 @@
 /*
- * Unit tests of the STM32F7 timer model (src/device/peripheral/stm32_tim.c)
- * against the behaviour RM0410 describes, with the CPU clock and the NVIC
+ * Unit tests of the shared STM32F7/H7 timer engine
+ * (src/device/peripheral/stm32_tim.c), with the CPU clock and the NVIC
  * stubbed. Expected values are worked out by hand from the manual.
  */
 #include <stdio.h>
@@ -75,6 +75,7 @@ static void setup(void)
 		raised[i] = 0U;
 		active_irq[i] = 0U;
 	}
+	stm32_tim_set_h7(FALSE);
 	stm32_tim_reset();
 }
 
@@ -474,6 +475,26 @@ static void test_pwm(void)
 	CHECK_EQ("center PWM: high", pwm.high_clocks, 2U * 50U);
 }
 
+static void test_h7_table(void)
+{
+	Stm32TimPwmType pwm;
+
+	now = 0U;
+	stm32_tim_set_h7(TRUE);
+	stm32_tim_reset();
+	CHECK_EQ("H7 has TIM17", stm32_tim_owns(0x40014800U), TRUE);
+	CHECK_EQ("H7 has no TIM9", stm32_tim_pwm(9U, 1U, &pwm), FALSE);
+	CHECK_EQ("H7 TIM17 channel 1", stm32_tim_pwm(17U, 1U, &pwm), TRUE);
+	CHECK_EQ("H7 TIM5 remains 32-bit", rd(0x40000C00U, ARR), 0xFFFFFFFFU);
+	/* PX4 HRT: 240 MHz TIM8 / (PSC + 1) = 1 MHz. */
+	wr(TIM8, PSC, 239U);
+	wr(TIM8, ARR, 0xFFFFU);
+	wr(TIM8, EGR, 1U);
+	wr(TIM8, CR1, 1U);
+	now = 480U * 1000U;
+	CHECK_EQ("H7 TIM8 counts microseconds", rd(TIM8, CNT), 1000U);
+}
+
 int main(void)
 {
 	test_up_counting();
@@ -485,6 +506,7 @@ int main(void)
 	test_interrupts();
 	test_registers();
 	test_pwm();
+	test_h7_table();
 	test_arm_m_dwt(&now, &checks, &failures);
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
