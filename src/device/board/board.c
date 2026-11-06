@@ -39,19 +39,15 @@ static std_bool has_imu;
 #define PULSE_MIN_US	1000.0F
 #define PULSE_MAX_US	2000.0F
 
-typedef struct {
-	uint32 timer;
-	uint32 channel;
-} PwmOutputType;
-
-static const PwmOutputType fmu_v5_outputs[MOTORS] = {
+static const BoardPwmOutputType fmu_v5_outputs[MOTORS] = {
 	{ 1U, 4U }, { 1U, 3U }, { 1U, 2U }, { 1U, 1U }, { 4U, 2U }, { 4U, 3U }, { 12U, 1U }, { 12U, 2U },
 };
-static const PwmOutputType *motor_outputs;
+static const BoardPwmOutputType *motor_outputs;
+static uint32 motor_output_count;
 static float32 motor_commands[MOTORS];
 static uint32 clocks_per_us = 216U;
 
-static float32 motor_command(const PwmOutputType *output)
+static float32 motor_command(const BoardPwmOutputType *output)
 {
 	Stm32TimPwmType pwm;
 	float32 us;
@@ -73,7 +69,7 @@ static void update_motors(void)
 	std_bool changed = FALSE;
 	uint32 k;
 
-	for (k = 0U; k < MOTORS; k++) {
+	for (k = 0U; k < motor_output_count; k++) {
 		float32 command = motor_command(&motor_outputs[k]);
 
 		if (command != motor_commands[k]) {
@@ -82,8 +78,16 @@ static void update_motors(void)
 		}
 	}
 	if (changed) {
-		sensor_source_actuators(motor_commands, MOTORS);
+		sensor_source_actuators(motor_commands, motor_output_count);
 	}
+}
+
+void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz)
+{
+	motor_outputs = outputs;
+	motor_output_count = (count > MOTORS) ? MOTORS : count;
+	clocks_per_us = cpu_mhz;
+	memset(motor_commands, 0, sizeof(motor_commands));
 }
 
 /* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
@@ -94,9 +98,7 @@ static void attach_fmu_v5(void)
 	char *sd_image = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
-	clocks_per_us = mhz;
-	motor_outputs = fmu_v5_outputs;
-	memset(motor_commands, 0, sizeof(motor_commands));
+	board_pwm_outputs(fmu_v5_outputs, MOTORS, mhz);
 	icm20689_reset(&imu, (uint64)mhz * 1000000U, ICM20689_ROTATION_YAW_90, STM32_GPIO_PORT('B'), 4U);
 	stm32_spi_attach(1U, STM32_GPIO_PORT('F'), 2U, &icm20689_ops, &imu);
 	has_imu = TRUE;
@@ -129,6 +131,7 @@ void board_attach(void)
 
 	has_imu = FALSE;
 	motor_outputs = NULL;
+	motor_output_count = 0U;
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_BOARD", &name) != STD_E_OK) {
 		return;
 	}

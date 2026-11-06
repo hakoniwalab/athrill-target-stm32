@@ -19,6 +19,13 @@
 #include "cpu.h"
 #include "std_device_ops.h"
 
+typedef struct {
+	uint32 timer;
+	uint32 channel;
+} BoardPwmOutputType;
+
+/* Selects the board's ordered PWM outputs for the shared actuator path. */
+void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz);
 /* Puts the chips of the configured board on their buses (after the buses' reset). */
 void board_attach(void);
 /* The board's chips up to the device clock (their pins, their next events). */
