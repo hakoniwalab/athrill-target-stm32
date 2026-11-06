@@ -23,7 +23,7 @@ jobs:
         with:
           path: athrill-target-stm32
       # the core and the shared Arm pseudo-code, at the commits the README pins
-      - name: athrill (after 3.0.0: host functions, idle/spin halt)
+      - name: "athrill (after 3.0.0: host functions, idle/spin halt)"
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
