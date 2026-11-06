@@ -126,7 +126,7 @@ void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 c
 	}
 }
 
-void board_fmu_v5_begin(void)
+void board_reset(void)
 {
 	has_imu = FALSE;
 	motor_outputs = NULL;
@@ -212,7 +212,6 @@ void board_attach(void)
 {
 	char *name = NULL;
 
-	board_fmu_v5_begin();
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_BOARD", &name) != STD_E_OK) {
 		return;
 	}

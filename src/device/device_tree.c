@@ -923,13 +923,9 @@ static sint32 target_model_adapter_connect(void *context,
 	 * Each exact DT model delegates to the existing C model independently.
 	 * Controllers are reset before the graph is built, so their adapters only
 	 * assert that the matching legacy model is already active.  Leaf adapters
-	 * attach one chip each.  The no-DT board_attach path remains unchanged.
+	 * attach one chip each.  Shared board tick state is reset before either the
+	 * DT graph or the no-DT board_attach path is selected.
 	 */
-	if (strcmp(adapter_name, "pixhawk4-board") == 0 &&
-	    strcmp(node->matched_compatible, "holybro,pixhawk4") == 0) {
-		board_fmu_v5_begin();
-		return 0;
-	}
 	if (strcmp(adapter_name, "sdcard") == 0 &&
 	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
 		AthrillDeviceSpecifier spec;

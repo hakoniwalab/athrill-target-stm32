@@ -28,8 +28,9 @@ typedef struct {
 
 /* Selects the board's ordered PWM outputs for the shared actuator path. */
 void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz);
+/* Clears shared board tick and PWM-selection state before either build path. */
+void board_reset(void);
 /* Thin DT adapters for the existing FMUv5 C models. */
-void board_fmu_v5_begin(void);
 void board_fmu_v5_pwm_attach(void);
 void board_fmu_v5_icm20689_attach(void);
 void board_fmu_v5_ublox_attach(void);
