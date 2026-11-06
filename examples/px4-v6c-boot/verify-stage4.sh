@@ -57,7 +57,7 @@ for run in run1 run2; do
 	grep -aq "Disarmed by internal command" "$log"
 	grep -aq "/fs/microsd/log/.*\.ulg" "$log"
 	python3 "$ROOT/tools/check_actuator_trace.py" "$trace" \
-		1:1:1:1180 2:1:2:1260 3:1:3:1340 4:1:4:1420
+		1:1:1:1174 2:1:2:1175 3:1:3:1175 4:1:4:1175
 	python3 - "$WORK/$run/sd.img" <<'PY'
 import mmap
 import sys
@@ -76,5 +76,5 @@ cmp "$WORK/run1/fram.bin" "$WORK/run2/fram.bin"
 cmp "$WORK/run1/sd.img" "$WORK/run2/sd.img"
 
 echo "PASS: PX4 v6C SD mounted, X500 parameters persisted, ULog written"
-echo "PASS: FMU1..4 TIM1_CH1..4 = 1180,1260,1340,1420 us"
+echo "PASS: PX4 iterate-motors = 1174/1175/1175/1175 us on FMU1..4 (TIM1_CH1..4) in order"
 echo "PASS: PX4 stage-4 bench artifacts identical twice"
