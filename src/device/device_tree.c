@@ -101,6 +101,7 @@ typedef struct {
 	GpioLine gpio[MAX_GPIO_LINES];
 	GpioSubscriber gpio_subscribers[MAX_GPIO_SUBSCRIBERS];
 	DmaChannel dma[MAX_DMA_CHANNELS];
+	uint32 gpio_outputs[11];
 } Stm32DeviceTreeTarget;
 
 static Stm32DeviceTreeTarget target_context;
@@ -117,6 +118,7 @@ static Std_ReturnType mmio_get8(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 1U, &value) != 0) {
 		return STD_E_INVALID;
@@ -130,6 +132,7 @@ static Std_ReturnType mmio_get16(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 2U, &value) != 0) {
 		return STD_E_INVALID;
@@ -143,6 +146,7 @@ static Std_ReturnType mmio_get32(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 4U, &value) != 0) {
 		return STD_E_INVALID;
@@ -155,6 +159,7 @@ static Std_ReturnType mmio_put8(MpuAddressRegionType *region, CoreIdType core,
 {
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	return (!adapter->active ||
 	        adapter->ops->write(adapter->instance, address, 1U, data) != 0) ? STD_E_INVALID : STD_E_OK;
 }
@@ -163,6 +168,7 @@ static Std_ReturnType mmio_put16(MpuAddressRegionType *region, CoreIdType core,
 {
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	return (!adapter->active ||
 	        adapter->ops->write(adapter->instance, address, 2U, data) != 0) ? STD_E_INVALID : STD_E_OK;
 }
@@ -171,6 +177,7 @@ static Std_ReturnType mmio_put32(MpuAddressRegionType *region, CoreIdType core,
 {
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
+	stm32_device_accessed = TRUE;
 	return (!adapter->active ||
 	        adapter->ops->write(adapter->instance, address, 4U, data) != 0) ? STD_E_INVALID : STD_E_OK;
 }
@@ -802,16 +809,41 @@ static sint32 target_gpio_drive(void *context, AthrillDeviceGpioLine line, std_b
 		return 0;
 	}
 	g->level = level;
-	if (g->stm32_pin) {
-		uint32 bit = 1U << g->pin;
-		stm32_spi_pins_changed(g->port, level ? 0U : bit,
-			level ? bit : 0U);
-	}
 	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
 		if (target->gpio_subscribers[i].used &&
 		    target->gpio_subscribers[i].handle == line.value) {
 			target->gpio_subscribers[i].callback(target->gpio_subscribers[i].instance, level);
 		}
+	return 0;
+}
+
+static sint32 target_gpio_outputs(void *context,
+	const AthrillDeviceGpioLine *lines, uint32 count, uint32 levels)
+{
+	Stm32DeviceTreeTarget *target = context;
+	GpioLine *gpio[16];
+	uint32 old, next, port, index;
+	if (lines == NULL || count == 0U || count > 16U) {
+		return -1;
+	}
+	for (index = 0U; index < count; index++) {
+		gpio[index] = gpio_line(target, lines[index].value, FALSE);
+		if (gpio[index] == NULL || !gpio[index]->stm32_pin ||
+		    gpio[index]->port >= 11U || gpio[index]->pin != index ||
+		    (index != 0U && gpio[index]->port != gpio[0]->port)) {
+			return -1;
+		}
+	}
+	port = gpio[0]->port;
+	old = target->gpio_outputs[port];
+	next = levels & ((1U << count) - 1U);
+	for (index = 0U; index < count; index++) {
+		gpio[index]->level = (next & (1U << index)) != 0U;
+	}
+	target->gpio_outputs[port] = next;
+	if (old != next) {
+		stm32_spi_pins_changed(port, old, next);
+	}
 	return 0;
 }
 static sint32 target_gpio_subscribe(void *context, AthrillDeviceGpioLine line,
@@ -888,14 +920,22 @@ static sint32 target_model_adapter_connect(void *context,
 		board_fmu_v5_begin();
 		return 0;
 	}
-	if (strcmp(adapter_name, "pwm-actuator-map") == 0 &&
-	    strcmp(node->matched_compatible, "athrill,pwm-actuator-map") == 0) {
-		board_fmu_v5_pwm_attach();
-		return 0;
-	}
 	if (strcmp(adapter_name, "sdcard") == 0 &&
 	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
-		board_fmu_v5_sdcard_attach();
+		AthrillDeviceSpecifier spec;
+		AthrillDeviceGpioLine line;
+		if (!board_fmu_v5_sdcard_attach()) {
+			return 0;
+		}
+		memset(&spec, 0, sizeof(spec));
+		spec.provider_path = "/gpio@40020800";
+		spec.provider_compatible = "st,stm32-gpio";
+		spec.cell_count = 2U;
+		spec.cells[0] = 8U;
+		if (target_gpio_resolve(context, &spec, &line) != 0 ||
+		    target_gpio_drive(context, line, TRUE) != 0) {
+			return -1;
+		}
 		return 0;
 	}
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
@@ -908,10 +948,6 @@ static sint32 target_model_adapter_connect(void *context,
 	      strcmp(node->matched_compatible, "st,stm32-spi") == 0)) ||
 	    (strcmp(adapter_name, "stm32f7-i2c") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-i2c-v2") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-timer") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-timers") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-pwm") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-pwm") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
@@ -996,6 +1032,17 @@ static sint32 target_gps_sample(void *context, AthrillDeviceGpsSample *sample)
 	return 0;
 }
 
+static sint32 target_actuator_output(void *context, const float32 *values,
+	uint32 count)
+{
+	(void)context;
+	if (values == NULL) {
+		return -1;
+	}
+	sensor_source_actuators(values, count);
+	return 0;
+}
+
 static const AthrillDeviceTargetOps target_ops = {
 	ATHRILL_DEVICE_ABI_MAJOR, ATHRILL_DEVICE_ABI_MINOR, sizeof(AthrillDeviceTargetOps),
 	target_mmio_register, target_mmio_unregister, target_irq_resolve, target_irq_set, target_irq_active,
@@ -1005,7 +1052,8 @@ static const AthrillDeviceTargetOps target_ops = {
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
 	target_model_adapter_connect, target_spi_bind_node, target_host_value,
 	target_sensor_sample, target_i2c_bind_node, target_uart_bind_nodes,
-	target_uart_send_from_node, target_gps_sample
+	target_uart_send_from_node, target_gps_sample, target_actuator_output,
+	target_gpio_outputs
 };
 
 static Std_ReturnType config_string_silent(const char *key, char **value)
