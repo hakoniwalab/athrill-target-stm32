@@ -8,6 +8,8 @@
 #include "peripheral/stm32_uart_tcp.h"
 #include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_spi.h"
+#include "peripheral/stm32h7_spi.h"
+#include "peripheral/stm32_dmamux.h"
 #include "sensor/sensor_source.h"
 #include "board/board.h"
 #include "board/board_profile.h"
@@ -73,7 +75,9 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_exti_reset();
 	stm32_dma_set_h7(stm32_board_is_h7());
 	stm32_dma_reset();
+	stm32_dmamux_reset();
 	stm32_spi_reset();
+	stm32h7_spi_reset();
 	stm32_i2c_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();

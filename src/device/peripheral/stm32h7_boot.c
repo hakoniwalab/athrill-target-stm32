@@ -44,10 +44,6 @@
 #define RNG_DR         (RNG_BASE + 0x08U)
 #define SDMMC2_BASE    0x48022400U
 #define SDMMC_STA      (SDMMC2_BASE + 0x34U)
-#define SPI1_BASE      0x40013000U
-#define SPI2_BASE      0x40003800U
-#define SPI_SR_OFFSET  0x14U
-#define SPI_RXDR_OFFSET 0x30U
 #define I2C1_BASE      0x40005400U
 #define I2C2_BASE      0x40005800U
 #define I2C4_BASE      0x58001C00U
@@ -193,11 +189,6 @@ static uint32 adc_read(const H7RegionType *region, uint32 addr, uint32 value)
 	return value;
 }
 
-static std_bool spi_register(uint32 addr, uint32 offset)
-{
-	return (addr == (SPI1_BASE + offset)) || (addr == (SPI2_BASE + offset));
-}
-
 static std_bool i2c_register(uint32 addr, uint32 offset)
 {
 	return (addr == (I2C1_BASE + offset)) || (addr == (I2C2_BASE + offset))
@@ -258,17 +249,11 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 		v = rng_value;
 		break;
 	case SDMMC_STA:
-		v |= 1U << 2; /* no card attached: command-response timeout */
+		/* A no-response command is sent; response commands time out with no card. */
+		v |= (1U << 2) | (1U << 7);
 		break;
 	default:
-		if (spi_register(a, SPI_SR_OFFSET)) {
-			/* TXP, RXP and TXC let a polled transfer complete. */
-			v |= (1U << 0) | (1U << 1) | (1U << 11);
-		}
-		else if (spi_register(a, SPI_RXDR_OFFSET)) {
-			v = 0xFFFFFFFFU; /* no chip selected */
-		}
-		else if (((a >= ADC12_BASE) && (a < (ADC12_BASE + 0x400U)))
+		if (((a >= ADC12_BASE) && (a < (ADC12_BASE + 0x400U)))
 			|| ((a >= ADC3_BASE) && (a < (ADC3_BASE + 0x400U)))) {
 			v = adc_read(region, a, v);
 		}

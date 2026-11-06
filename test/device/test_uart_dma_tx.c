@@ -71,6 +71,17 @@ void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
 	(void)value;
 }
 
+std_bool stm32h7_spi_dma_exchange(uint32 txdr, uint32 size, uint32 value,
+	uint32 *rxdr, uint32 *response)
+{
+	(void)txdr;
+	(void)size;
+	(void)value;
+	(void)rxdr;
+	(void)response;
+	return FALSE;
+}
+
 Std_ReturnType mpu_get_data8(CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	(void)c;

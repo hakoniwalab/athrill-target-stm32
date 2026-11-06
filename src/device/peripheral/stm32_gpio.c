@@ -7,6 +7,7 @@
 #include "stm32_exti.h"
 
 #define F7_GPIO_BASE	0x40020000U
+#define H7_GPIO_BASE	0x58020000U
 #define GPIO_STRIDE	0x400U
 #define GPIO_PORTS	11U	/* A to K */
 
@@ -28,9 +29,7 @@ static uint32 gpio_base = F7_GPIO_BASE;
 
 void stm32_gpio_set_h7(std_bool h7)
 {
-	/* The shared-table refactor deliberately retains the F7 base. */
-	(void)h7;
-	gpio_base = F7_GPIO_BASE;
+	gpio_base = h7 ? H7_GPIO_BASE : F7_GPIO_BASE;
 }
 
 std_bool stm32_gpio_owns(uint32 addr)

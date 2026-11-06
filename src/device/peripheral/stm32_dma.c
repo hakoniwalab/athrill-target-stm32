@@ -4,6 +4,7 @@
  */
 #include "stm32_dma.h"
 #include "stm32_spi.h"
+#include "stm32h7_spi.h"
 #include "bus.h"
 #include "cpu.h"
 #include "std_device_ops.h"
@@ -203,12 +204,18 @@ static void start(DmaType *d, uint32 s)
 	uint32 tx_size;
 	uint32 rx_size = 1U;
 	uint32 i;
+	uint32 rx_par = par;
+	uint32 response;
+	std_bool h7_spi;
 
-	if ((((tx[SxCR] >> CR_DIR_SHIFT) & 3U) != DIR_M2P) || !stm32_spi_owns(par)
-		|| ((par & 0x3FFU) != SPI_DR_OFFSET)) {
+	if (((tx[SxCR] >> CR_DIR_SHIFT) & 3U) != DIR_M2P) {
 		return;
 	}
-	if (find_rx(par, &rd, &rs)) {
+	h7_spi = stm32h7_spi_dma_exchange(par, 0U, 0U, &rx_par, &response);
+	if (!h7_spi && (!stm32_spi_owns(par) || ((par & 0x3FFU) != SPI_DR_OFFSET))) {
+		return;
+	}
+	if (find_rx(rx_par, &rd, &rs)) {
 		rx = rd->stream[rs];
 		rx_size = unit(rx[SxCR], CR_MSIZE_SHIFT);
 	}
@@ -216,11 +223,18 @@ static void start(DmaType *d, uint32 s)
 	for (i = 0U; i < n; i++) {
 		uint32 from = tx[SxM0AR] + (((tx[SxCR] & CR_MINC) != 0U) ? (i * tx_size) : 0U);
 
-		stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), mem_read(from, tx_size));
+		if (h7_spi) {
+			(void)stm32h7_spi_dma_exchange(par, unit(tx[SxCR], CR_PSIZE_SHIFT),
+				mem_read(from, tx_size), &rx_par, &response);
+		}
+		else {
+			stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), mem_read(from, tx_size));
+			response = stm32_spi_read(par, (rx != NULL) ? unit(rx[SxCR], CR_PSIZE_SHIFT) : 1U);
+		}
 		if (rx != NULL) {
 			uint32 to = rx[SxM0AR] + (((rx[SxCR] & CR_MINC) != 0U) ? (i * rx_size) : 0U);
 
-			mem_write(to, rx_size, stm32_spi_read(par, unit(rx[SxCR], CR_PSIZE_SHIFT)));
+			mem_write(to, rx_size, response);
 		}
 	}
 	if (rx != NULL) {

@@ -88,6 +88,8 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32_tim.c
   src/device/peripheral/stm32_gpio.c
   src/device/peripheral/stm32_spi.c
+  src/device/peripheral/stm32h7_spi.c
+  src/device/peripheral/stm32_dmamux.c
   src/device/sensor/sensor_source.c
   src/device/sensor/ms5611.c
   src/device/sensor/icm20689.c
@@ -174,7 +176,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config)
   add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
   add_executable(test_dma_icm20689 test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
-    src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32_dma.c
+    src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_dma.c
     src/device/sensor/icm20689.c)
   stm32_target(test_dma_icm20689)
   target_include_directories(test_dma_icm20689 PRIVATE src/device)
@@ -208,6 +210,14 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_boot PRIVATE src/device)
   target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
+  add_executable(test_stm32h7_spi test/device/test_stm32h7_spi.c
+    src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_spi.c
+    src/device/peripheral/stm32_gpio.c src/device/peripheral/stm32_exti.c
+    src/device/peripheral/stm32_dmamux.c src/device/memory/fm25v02.c)
+  stm32_target(test_stm32h7_spi)
+  target_include_directories(test_stm32h7_spi PRIVATE src/device)
+  target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config)
+  add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
   # The fast executors against the generic ones (src/cpu/thumb_fast.c).
   add_executable(test_thumb_fast test/cpu/test_thumb_fast.c src/cpu/thumb_fast.c src/cpu/thumb_exec16.c
     src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c

@@ -15,6 +15,8 @@
 #include "stm32_uart.h"
 #include "stm32_gpio.h"
 #include "stm32_spi.h"
+#include "stm32h7_spi.h"
+#include "stm32_dmamux.h"
 #include "stm32_exti.h"
 #include "stm32_dma.h"
 #include "stm32_i2c.h"
@@ -190,7 +192,7 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 }
 
 /* Common-address peripherals whose existing engines are valid for H7. */
-static std_bool h7_shared_read(uint32 addr, uint32 *value)
+static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 {
 	uint32 aligned = addr & ~3U;
 
@@ -203,8 +205,21 @@ static std_bool h7_shared_read(uint32 addr, uint32 *value)
 		*value = stm32_tim_read(aligned);
 		return TRUE;
 	}
+	if (stm32_gpio_owns(addr)) {
+		*value = stm32_gpio_read(aligned);
+		return TRUE;
+	}
 	if (stm32_dma_owns(addr)) {
 		*value = stm32_dma_read(aligned);
+		return TRUE;
+	}
+	if (stm32_dmamux_owns(addr)) {
+		*value = stm32_dmamux_read(aligned);
+		return TRUE;
+	}
+	if (stm32h7_spi_owns(addr)) {
+		stm32_device_accessed = TRUE;
+		*value = stm32h7_spi_read(addr, size) << (8U * (addr & 3U));
 		return TRUE;
 	}
 	return FALSE;
@@ -220,8 +235,20 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 		stm32_tim_write(addr, size, value);
 		return TRUE;
 	}
+	if (stm32_gpio_owns(addr)) {
+		stm32_gpio_write(addr, size, value);
+		return TRUE;
+	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32_dmamux_owns(addr)) {
+		stm32_dmamux_write(addr, size, value);
+		return TRUE;
+	}
+	if (stm32h7_spi_owns(addr)) {
+		stm32h7_spi_write(addr, size, value);
 		return TRUE;
 	}
 	return FALSE;
@@ -232,7 +259,7 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 	uint32 value;
 	(void)c;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, &value)) {
+		if (h7_shared_read((uint32)a, 1U, &value)) {
 			*d = (uint8)(value >> (8U * ((uint32)a & 3U)));
 			return STD_E_OK;
 		}
@@ -258,7 +285,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	uint32 value;
 	(void)c;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, &value)) {
+		if (h7_shared_read((uint32)a, 2U, &value)) {
 			*d = (uint16)(value >> (8U * ((uint32)a & 2U)));
 			return STD_E_OK;
 		}
@@ -283,7 +310,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 {
 	(void)c;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, d)) {
+		if (h7_shared_read((uint32)a, 4U, d)) {
 			return STD_E_OK;
 		}
 		return stm32h7_boot_read((uint32)a, 4U, d);
