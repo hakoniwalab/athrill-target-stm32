@@ -62,7 +62,8 @@ check() {	# name, pattern (grep -E), file
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
 cd "$WORK/golden"
-cp "$HERE/memory.txt" "$HERE/first-boot-config.txt" "$HERE/first-boot.nsh" "$HERE/make-sd-image.sh" .
+cp "$HERE/memory.txt" "$HERE/first-boot.nsh" "$HERE/make-sd-image.sh" .
+grep -v UART2_TCP "$HERE/first-boot-config.txt" > first-boot-config.txt
 append_device_tree first-boot-config.txt
 ./make-sd-image.sh > /dev/null
 echo "first boot: SYS_AUTOSTART 4001 and the chips' calibration IDs"

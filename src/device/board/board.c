@@ -180,7 +180,7 @@ void board_fmu_v5_fm25v02_attach(void)
 	stm32_spi_attach(2U, STM32_GPIO_PORT('F'), 5U, &fm25v02_ops, &fram);
 }
 
-void board_fmu_v5_sdcard_attach(void)
+std_bool board_fmu_v5_sdcard_attach(void)
 {
 	char *sd_image = NULL;
 	/* the microSD card on SDMMC1, an image in DEVICE_CONFIG_STM32_SDCARD_IMAGE (none: empty slot) */
@@ -191,7 +191,9 @@ void board_fmu_v5_sdcard_attach(void)
 	if (sdcard_present(&sdcard)) {
 		stm32_sdmmc_attach(&sdcard);
 		stm32_gpio_drive(STM32_GPIO_PORT('C'), 8U, TRUE);	/* D0 high: the card is not busy */
+		return TRUE;
 	}
+	return FALSE;
 }
 
 /* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
@@ -203,7 +205,7 @@ static void attach_fmu_v5(void)
 	board_fmu_v5_ist8310_attach();
 	board_fmu_v5_ms5611_attach();
 	board_fmu_v5_fm25v02_attach();
-	board_fmu_v5_sdcard_attach();
+	(void)board_fmu_v5_sdcard_attach();
 }
 
 void board_attach(void)

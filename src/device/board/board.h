@@ -36,7 +36,7 @@ void board_fmu_v5_ublox_attach(void);
 void board_fmu_v5_ist8310_attach(void);
 void board_fmu_v5_ms5611_attach(void);
 void board_fmu_v5_fm25v02_attach(void);
-void board_fmu_v5_sdcard_attach(void);
+std_bool board_fmu_v5_sdcard_attach(void);
 /* Puts the chips of the configured board on their buses (after the buses' reset). */
 void board_attach(void);
 /* The board's chips up to the device clock (their pins, their next events). */
