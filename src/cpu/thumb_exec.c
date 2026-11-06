@@ -9,6 +9,7 @@
 #include "memory_window.h"
 #include "thumb_fast.h"
 #include "device.h"
+#include "athrill_host_function_internal.h"
 #include <string.h>
 
 static Std_ReturnType fetch(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length)
@@ -80,6 +81,46 @@ static Std_ReturnType undefined32(TargetCoreType *core, uint32 insn)
 	return STD_E_DECODE;
 }
 
+static Std_ReturnType guest_execute16(TargetCoreType *core, uint16 insn)
+{
+	ThumbExec16 exec = stm32_exec_fast ? thumb_fast_executor16(insn) : NULL;
+
+	if (exec == NULL) {
+		exec = thumb_executor16(insn);
+	}
+	return (exec != NULL) ? exec(core, insn) : undefined16(core, insn);
+}
+
+static Std_ReturnType guest_execute32(TargetCoreType *core, uint32 insn)
+{
+	ThumbExec32 exec = stm32_exec_fast ? thumb_fast_executor32(insn) : NULL;
+
+	if (exec == NULL) {
+		exec = thumb_executor32(insn);
+	}
+	return (exec != NULL) ? exec(core, insn) : undefined32(core, insn);
+}
+
+static Std_ReturnType host_execute16(TargetCoreType *core, uint16 insn)
+{
+	int id = athrill_host_function_find(core->reg.pc);
+
+	if ((id >= 0) && athrill_host_function_invoke(core->core_id, id)) {
+		return STD_E_OK;
+	}
+	return guest_execute16(core, insn);
+}
+
+static Std_ReturnType host_execute32(TargetCoreType *core, uint32 insn)
+{
+	int id = athrill_host_function_find(core->reg.pc);
+
+	if ((id >= 0) && athrill_host_function_invoke(core->core_id, id)) {
+		return STD_E_OK;
+	}
+	return guest_execute32(core, insn);
+}
+
 /* A miss: the instruction at pc decoded into its cache entry; NULL when pc is not in memory. */
 COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32 pc)
 {
@@ -107,6 +148,9 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 		if (e->exec16 == NULL) {
 			e->exec16 = undefined16;
 		}
+		if (athrill_host_function_find(pc) >= 0) {
+			e->exec16 = host_execute16;
+		}
 		e->exec32 = NULL;
 		return e;
 	}
@@ -126,7 +170,30 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 	if (e->exec32 == NULL) {
 		e->exec32 = undefined32;
 	}
+	if (athrill_host_function_find(pc) >= 0) {
+		e->exec32 = host_execute32;
+	}
 	return e;
+}
+
+void thumb_invalidate_code(AthrillAddrType address, uint32 size)
+{
+	uint64 first;
+	uint64 end;
+	uint64 pc;
+
+	if (!decode_cache_ready || (size == 0U)) {
+		return;
+	}
+	first = (address >= 2U) ? ((uint64)address - 2U) : 0U;
+	first &= ~1ULL;
+	end = (uint64)address + size;
+	for (pc = first; (pc < end) && (pc <= UINT32_MAX); pc += 2U) {
+		ThumbDecodedType *entry = &decode_cache[((uint32)pc >> 1) & (DECODE_CACHE_SIZE - 1U)];
+		if (entry->pc == (uint32)pc) {
+			entry->pc = 1U;
+		}
+	}
 }
 
 /* The cached instruction at pc, decoded on a miss; NULL when pc is not in memory. */
