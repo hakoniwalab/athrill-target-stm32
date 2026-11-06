@@ -90,14 +90,14 @@ Many RTOS idle loops never execute `WFI`:
 Executed faithfully, such a loop burns host time on instructions that change
 nothing. Athrill STM32 offers two ways to treat it as `WFI`:
 
-- **A branch to itself** (`DEVICE_CONFIG_ARM_SPIN_HALT 1`, off by default). After executing
+- **A branch to itself** (`DEVICE_CONFIG_SPIN_HALT 1`, off by default). After executing
   a `B` or `B<cond>` whose target is its own address, outside an IT block,
   the core halts. Only an exception can leave such a branch, so this is a
   rule about the instruction set: it needs no symbols and works on a
   stripped ELF. It covers ChibiOS's `b .`, but not NuttX's loop around an
-  empty function.
-- **The idle function's name** (`DEVICE_CONFIG_IDLE_FUNCTION`: `up_idle`, NuttX's,
-  by default; `none` for none). This covers
+  empty function. The old `DEVICE_CONFIG_ARM_SPIN_HALT` name remains an alias.
+- **The idle function's name** (`DEVICE_CONFIG_IDLE_FUNCTION`, for example
+  `up_idle` in NuttX, the default of Athrill STM32 when the line is absent; `none` for none). This covers
   any idle loop, including NuttX's, but needs the firmware's symbol table
   and the name.
 
@@ -119,7 +119,7 @@ below confirms this: the output with and without it is identical.
 
 | Athrill configuration | Instructions executed | Real-time factor | MAVLink output |
 | --- | ---: | ---: | --- |
-| A branch to itself halts as `WFI` (`DEVICE_CONFIG_ARM_SPIN_HALT 1`), clock skip | 2,756,787,092 (21% of the clocks) | **1.583** | reference |
+| A branch to itself halts as `WFI` (`DEVICE_CONFIG_SPIN_HALT 1`), clock skip | 2,756,787,092 (21% of the clocks) | **1.583** | reference |
 | The idle function named (`__idle_thread`), clock skip | 2,756,316,759 | 1.592 | identical |
 | No idle function (`none`): the core never halts, so the clock skip never happens; `b .` is executed | 12.96 billion (every clock) | 0.62 | identical |
 | Idle function, clock skip off (`DEBUG_FUNC_ENABLE_SKIP_CLOCK 0`), before the idle function was ignored without the skip: the halted core waits one clock per loop | as released | about 0.02 (only 0 to 20 virtual s measured, boot included: 986 s wall) | identical up to 20 s |
@@ -212,7 +212,7 @@ ArduPilot notes above, not measured here.
 
 - **The idle function must really be idle.** If a firmware does work in its
   idle hook, halting there would change its behaviour. Leave
-  `DEVICE_CONFIG_IDLE_FUNCTION` unset or `none` for such a firmware. The OS
+  `DEVICE_CONFIG_IDLE_FUNCTION none` for such a firmware (unset means `up_idle` on Athrill STM32). The OS
   then runs as written, and the skip still applies at `WFI`.
 - **No cycle accuracy.** One instruction is one clock. Pipeline,
   cache and bus timing are not modelled, so time-critical code sees an

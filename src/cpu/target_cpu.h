@@ -44,8 +44,6 @@ typedef struct TargetCoreTypeTag {
     std_bool exc_return_pending;	/* this instruction wrote an EXC_RETURN value to PC in Handler mode */
     uint32 exc_return;
     std_bool wfe;		/* halted by WFE (an event also wakes it) */
-    uint32 idle_pc;		/* the idle function's address (0: none), see cpu_supply_clock */
-    std_bool spin_halt;	/* a branch to itself halts as WFI (DEVICE_CONFIG_ARM_SPIN_HALT), see thumb_exec.c */
     OpDecodedCodeType *decoded_code;
     uint64 internal_cycle;
 } TargetCoreType;
@@ -65,6 +63,7 @@ Std_ReturnType thumb_execute(TargetCoreType *core);
 Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed);
 void thumb_invalidate_code(AthrillAddrType address, uint32 size);
 void stm32_host_function_init(void);
+void stm32_idle_spin_halt_init(void);
 /*
  * The instruction at address as the generated decoders name it (for
  * messages); *insn and *length get its encoding (first halfword in bits 31:16

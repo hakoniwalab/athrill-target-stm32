@@ -10,6 +10,7 @@
 #include "symbol_ops.h"
 #include "thumb_fast.h"
 #include "device.h"
+#include "athrill_idle_spin_halt.h"
 
 /* STM32F76x: 110 interrupt channels, 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
 #define STM32_NUM_IRQ		110U
@@ -47,42 +48,11 @@ COLD_PATH static void reset_core(TargetCoreType *core)
  * address are read from the first two words of the vector table. This is done
  * at the first clock, once the program has been loaded.
  */
-/*
- * The idle function of the firmware's OS (DEVICE_CONFIG_IDLE_FUNCTION,
- * "up_idle" for NuttX by default; "none" for none): when the core reaches it
- * with no exception to take, it sleeps as at WFI. An idle loop that does not
- * sleep (NuttX's up_idle on PX4 is empty) then lets the halted CPU skip to
- * the next event instead of spinning until it.
- * Without the clock skip (DEBUG_FUNC_ENABLE_SKIP_CLOCK not 1) the idle
- * function is not used: a halted core would then advance one clock per
- * main loop, ticking every device, which is slower than executing the idle
- * loop in batches. The results are the same either way.
- */
-static uint32 idle_function(void)
-{
-	char *name = "up_idle";
-	AthrillAddrType addr;
-	uint32 size;
-	uint32 skip = 0U;
-
-	(void)cpuemu_get_devcfg_value("DEBUG_FUNC_ENABLE_SKIP_CLOCK", &skip);
-	if (skip != 1U) {
-		fprintf(stderr, "INFO: no clock skip: the idle function is not used\n");
-		return 0U;
-	}
-	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_IDLE_FUNCTION", &name);
-	if (symbol_get_func(name, (uint32)strlen(name), &addr, &size) < 0) {
-		return 0U;
-	}
-	return (uint32)addr & ~1U;
-}
-
 COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 {
 	uint32 sp;
 	uint32 entry;
 	uint32 boot = STM32_RESET_VTOR;
-	uint32 spin = 0U;
 
 	/* DEVICE_CONFIG_STM32_BOOT_ADDR: the vector table to boot from (BOOT_ADD0),
 	 * e.g. an application after a bootloader */
@@ -95,14 +65,6 @@ COLD_PATH static Std_ReturnType take_reset(TargetCoreType *core)
 		return STD_E_SEGV;
 	}
 	core->m.vtor = boot;	/* the boot address: the flash, aliased at 0 on the device */
-	core->idle_pc = idle_function();
-	core->spin_halt = (cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_SPIN_HALT", &spin) == STD_E_OK) && (spin != 0U);
-	if (core->spin_halt) {
-		fprintf(stderr, "INFO: a branch to itself halts the core as WFI\n");
-	}
-	if (core->idle_pc != 0U) {
-		fprintf(stderr, "INFO: idle function at 0x%08x\n", core->idle_pc);
-	}
 	core->reg.r[CPU_REG_SP] = sp & ~3U;
 	core->reg.pc = entry & ~1U;
 	core->reg.r[CPU_REG_LR] = 0xFFFFFFFFU;
@@ -257,6 +219,7 @@ void cpu_init(void)
 	CoreIdType i;
 
 	stm32_host_function_init();
+	stm32_idle_spin_halt_init();
 	read_fp_mode();
 	open_pc_trace();
 	pc_sampling = (cpuemu_get_devcfg_value("DEBUG_PC_SAMPLE_START", &pc_sample_start) == STD_E_OK);
@@ -338,15 +301,14 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 			if (core->wfe) {
 				core->m.event = FALSE;
 			}
+			core->wfe = FALSE;
 		}
 		core->m.primask = primask;
 		if (core->is_halt) {
 			return STD_E_OK;
 		}
 	}
-	if ((core->idle_pc != 0U) && (core->reg.pc == core->idle_pc) && (ArmMPendingToTakeFast(&core->m) == 0U)) {
-		core->is_halt = TRUE;
-		core->wfe = FALSE;
+	if (athrill_idle_spin_halt_before_execute(id)) {
 		return STD_E_OK;
 	}
 	err = thumb_execute(core);
@@ -370,7 +332,8 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 
 	stm32_device_accessed = FALSE;
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed) {
-		std_bool special = core->reset_pending || core->scs.reset_requested || (core->reg.pc == core->idle_pc);
+		std_bool special = core->reset_pending || core->scs.reset_requested
+			|| athrill_idle_spin_halt_idle_ready(core_id);
 		uint64 k;
 
 		if (!special && !pc_sampling) {

@@ -10,6 +10,7 @@
 #include "thumb_fast.h"
 #include "device.h"
 #include "athrill_host_function_internal.h"
+#include "athrill_idle_spin_halt.h"
 #include <string.h>
 
 static Std_ReturnType fetch(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length)
@@ -48,12 +49,26 @@ typedef struct {
 	uint32 insn;		/* as fetch() returns it */
 	uint16 length;
 	std_bool rom;		/* fetched from ROM, which the CPU cannot write: not checked again */
+	std_bool branch_to_self;
 	ThumbExec16 exec16;
 	ThumbExec32 exec32;
 } ThumbDecodedType;
 
 static ThumbDecodedType decode_cache[DECODE_CACHE_SIZE];
 static std_bool decode_cache_ready = FALSE;
+
+/* B/B<c> whose encoded target is its own address. */
+static std_bool branch_to_self(uint32 insn, uint32 length)
+{
+	if (length == 2U) {
+		return (insn == 0xE7FEU) /* B T2 */
+			|| (((insn & 0xF0FFU) == 0xD0FEU)
+				&& ((insn & 0x0E00U) != 0x0E00U)); /* B<c> T1 */
+	}
+	return (insn == 0xF7FFBFFEU) /* B T4 */
+		|| (((insn & 0xFC3FFFFFU) == 0xF43FAFFEU)
+			&& ((insn & 0x03800000U) != 0x03800000U)); /* B<c> T3 */
+}
 
 static uint16 halfword(const uint8 *p)
 {
@@ -141,6 +156,7 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 		e->pc = pc;
 		e->insn = hw1;
 		e->length = 2U;
+		e->branch_to_self = branch_to_self(e->insn, e->length);
 		e->exec16 = stm32_exec_fast ? thumb_fast_executor16(hw1) : NULL;
 		if (e->exec16 == NULL) {
 			e->exec16 = thumb_executor16(hw1);
@@ -162,6 +178,7 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 	e->pc = pc;
 	e->insn = ((uint32)hw1 << 16) | halfword(p2);
 	e->length = 4U;
+	e->branch_to_self = branch_to_self(e->insn, e->length);
 	e->exec16 = NULL;
 	e->exec32 = stm32_exec_fast ? thumb_fast_executor32(e->insn) : NULL;
 	if (e->exec32 == NULL) {
@@ -213,6 +230,15 @@ static inline const ThumbDecodedType *decoded_at(uint32 pc)
 		}
 	}
 	return decode_into(e, pc);
+}
+
+std_bool thumb_is_branch_to_self(CoreIdType core_id, AthrillAddrType pc)
+{
+	const ThumbDecodedType *decoded;
+
+	(void)core_id;
+	decoded = decoded_at((uint32)pc);
+	return (decoded != NULL) && decoded->branch_to_self;
 }
 
 /* ExecuteFPCheck() (arm_profile.h): the lazy floating-point context of the M profile. */
@@ -324,24 +350,6 @@ COLD_PATH static Std_ReturnType execute_slow(TargetCoreType *core)
 }
 
 /*
- * A branch to itself: B or B<cond> whose target is its own address. Only an
- * exception can leave it, and executing it again changes nothing but the
- * clock, so the core may wait in it as in WFI. Encodings: B T1/T2 (16 bits),
- * B T3/T4 (32 bits, offset -4), from the Armv7-M ARM A7.7.12.
- */
-static std_bool branch_to_self(const ThumbDecodedType *decoded)
-{
-	uint32 insn = decoded->insn;
-
-	if (decoded->length == 2U) {
-		return (insn == 0xE7FEU)	/* B T2 */
-			|| (((insn & 0xF0FFU) == 0xD0FEU) && ((insn & 0x0E00U) != 0x0E00U));	/* B<c> T1 */
-	}
-	return (insn == 0xF7FFBFFEU)	/* B T4 */
-		|| (((insn & 0xFC3FFFFFU) == 0xF43FAFFEU) && ((insn & 0x03800000U) != 0x03800000U));	/* B<c> T3 */
-}
-
-/*
  * One step. The common case, kept short: no exception to look at, the
  * instruction in the decode cache, nothing asked for after it.
  */
@@ -349,6 +357,8 @@ static inline Std_ReturnType execute_one(TargetCoreType *core)
 {
 	const ThumbDecodedType *decoded;
 	Std_ReturnType err;
+	uint32 pc = core->reg.pc;
+	std_bool in_it = core->reg.itstate != 0U;
 
 	if (core->m.pending_check || core->m.priority_check || core->m.lockup || !core->m.epsr_t) {
 		return execute_slow(core);
@@ -374,13 +384,10 @@ static inline Std_ReturnType execute_one(TargetCoreType *core)
 	if ((core->reg.itstate != 0U) && !core->it_written) {
 		core->reg.itstate = ArmITAdvance(core->reg.itstate);
 	}
-	if ((core->reg.next_pc == core->reg.pc) && core->spin_halt && (core->reg.itstate == 0U)
-		&& branch_to_self(decoded)) {
-		/* nothing pending (pending_check clear): wait for the next exception */
-		core->is_halt = TRUE;
-		core->wfe = FALSE;
-	}
 	core->reg.pc = core->reg.next_pc;
+	if ((core->reg.pc == pc) && decoded->branch_to_self && !in_it) {
+		athrill_idle_spin_halt_after_execute(core->core_id, pc);
+	}
 	return STD_E_OK;
 }
 
@@ -395,7 +402,8 @@ Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64
 	uint64 n = 0U;
 
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed && !core->reset_pending
-		&& !core->scs.reset_requested && (core->reg.pc != core->idle_pc)) {
+		&& !core->scs.reset_requested
+		&& !athrill_idle_spin_halt_idle_ready(core->core_id)) {
 		(*clock)++;
 		n++;
 		err = execute_one(core);

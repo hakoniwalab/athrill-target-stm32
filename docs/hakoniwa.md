@@ -232,7 +232,7 @@ What the example sets (`x500-hakoniwa-ardupilot.parm`):
 - the checks as in ArduPilot SITL (`ARMING_SKIPCHK -1`, the 4.7 form of SITL's `ARMING_CHECK 0`), no safety switch
   (`BRD_SAFETY_DEFLT 0`) and no RC failsafe (`FS_THR_ENABLE 0`), as the simulation has no RC and no switch.
 
-The board configuration (`device_config.txt`) lets a branch to itself wait like `WFI` (`DEVICE_CONFIG_ARM_SPIN_HALT`,
+The board configuration (`device_config.txt`) lets a branch to itself wait like `WFI` (`DEVICE_CONFIG_SPIN_HALT`,
 [ardupilot.md](ardupilot.md)): ArduCopter's idle loop is `b .`, and the virtual clock then skips it.
 
 ## How it is set up
