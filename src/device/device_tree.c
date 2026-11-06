@@ -964,16 +964,6 @@ static sint32 target_model_adapter_connect(void *context,
 		}
 		return 0;
 	}
-	if (strcmp(adapter_name, "bmi055-accel-legacy") == 0 &&
-	    strcmp(node->matched_compatible, "bosch,bma280") == 0) {
-		fmu_v6c_bmi055_accel_attach();
-		return 0;
-	}
-	if (strcmp(adapter_name, "bmi055-gyro-legacy") == 0 &&
-	    strcmp(node->matched_compatible, "bosch,bmg160") == 0) {
-		fmu_v6c_bmi055_gyro_attach();
-		return 0;
-	}
 	if (strcmp(adapter_name, "icm42688p-legacy") == 0 &&
 	    (strcmp(node->matched_compatible, "invensense,icm42688") == 0 ||
 	     strcmp(node->matched_compatible, "invensense,icm4268x") == 0)) {
