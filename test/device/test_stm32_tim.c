@@ -50,6 +50,9 @@ static void check_eq(int line, const char *what, unsigned long long got, unsigne
 #define TIM3	0x40000400U
 #define TIM6	0x40001000U
 #define TIM8	0x40010400U
+#define TIM15	0x40014000U
+#define TIM16	0x40014400U
+#define TIM17	0x40014800U
 
 #define CR1	0x00U
 #define DIER	0x0CU
@@ -478,8 +481,16 @@ static void test_pwm(void)
 static void test_h7_table(void)
 {
 	Stm32TimPwmType pwm;
+	static const uint32 timer[] = { TIM15, TIM16, TIM17 };
+	static const uint32 irq[] = { 116U, 117U, 118U };
+	static const char *const irq_check[] = {
+		"H7 TIM15 global IRQ 116",
+		"H7 TIM16 global IRQ 117",
+		"H7 TIM17 global IRQ 118",
+	};
+	uint32 i;
 
-	now = 0U;
+	setup();
 	stm32_tim_set_h7(TRUE);
 	stm32_tim_reset();
 	CHECK_EQ("H7 has TIM17", stm32_tim_owns(0x40014800U), TRUE);
@@ -493,6 +504,17 @@ static void test_h7_table(void)
 	wr(TIM8, CR1, 1U);
 	now = 480U * 1000U;
 	CHECK_EQ("H7 TIM8 counts microseconds", rd(TIM8, CNT), 1000U);
+
+	/* RM0433 gives TIM15/16/17 independent global IRQs 116/117/118. */
+	for (i = 0U; i < 3U; i++) {
+		wr(timer[i], DIER, 1U);
+		wr(timer[i], EGR, 1U);
+		(void)tick();
+		CHECK_EQ(irq_check[i], raised[irq[i]], 1U);
+		CHECK_EQ("H7 timer does not use the F7 TIM1 shared IRQ", raised[24U + i], 0U);
+		wr(timer[i], SR, 0U);
+		(void)tick();
+	}
 }
 
 int main(void)

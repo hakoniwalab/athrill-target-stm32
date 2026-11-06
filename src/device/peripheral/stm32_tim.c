@@ -125,8 +125,8 @@ static const TimType f7_tim_table[] = {
 
 /*
  * H743: CPU 480 MHz, HCLK 240 MHz and both APB timer kernels 240 MHz.
- * TIM15/16/17 occupy the addresses used by TIM9/10/11 on F7 and share
- * TIM1's break/update/trigger interrupt lines.
+ * TIM15/16/17 occupy the addresses used by TIM9/10/11 on F7.  On H743 each
+ * has its own global interrupt line (RM0433 vector table, IRQs 116..118).
  */
 static const TimType h7_tim_table[] = {
 	{ .number = 1U,  .base = 0x40010000U, .kind = TIM_ADVANCED, .bits = 16U, .channels = 4U, .divider = 2U,
@@ -152,11 +152,11 @@ static const TimType h7_tim_table[] = {
 	{ .number = 14U, .base = 0x40002000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
 	  .irq_update = 45U, .irq_cc = 45U, .irq_trg_com = 45U, .irq_brk = 45U },
 	{ .number = 15U, .base = 0x40014000U, .kind = TIM_GENERAL, .bits = 16U, .channels = 2U, .divider = 2U,
-	  .irq_update = 24U, .irq_cc = 24U, .irq_trg_com = 24U, .irq_brk = 24U },
+	  .irq_update = 116U, .irq_cc = 116U, .irq_trg_com = 116U, .irq_brk = 116U },
 	{ .number = 16U, .base = 0x40014400U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
-	  .irq_update = 25U, .irq_cc = 25U, .irq_trg_com = 25U, .irq_brk = 25U },
+	  .irq_update = 117U, .irq_cc = 117U, .irq_trg_com = 117U, .irq_brk = 117U },
 	{ .number = 17U, .base = 0x40014800U, .kind = TIM_GENERAL, .bits = 16U, .channels = 1U, .divider = 2U,
-	  .irq_update = 26U, .irq_cc = 26U, .irq_trg_com = 26U, .irq_brk = 26U },
+	  .irq_update = 118U, .irq_cc = 118U, .irq_trg_com = 118U, .irq_brk = 118U },
 };
 
 #define TIM_MAX	(sizeof(f7_tim_table) / sizeof(f7_tim_table[0]))
