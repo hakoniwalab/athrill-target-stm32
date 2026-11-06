@@ -53,6 +53,18 @@ the Python packages with `pip install numpy pyulog pymavlink matplotlib`. Its fi
 `fast1/`, `fast2/`, `strict/` and `mavlink/` (each with its console output,
 F-RAM and SD card image), `a.ulg`, `mavlink/c.ulg` and `charts/`.
 
+For a shorter equivalence regression between the legacy board path and the
+Devicetree path, run:
+
+```sh
+examples/px4-sih/verify/compare-path-counts.sh px4_fmu-v5_default.elf pixhawk4.dtb [athrill3]
+```
+
+It boots the SIH airframe once and runs both paths from cloned images for 1.5
+G clocks. Their instruction counts, normalized consoles, F-RAM and SD images
+must match. The window includes the GPIO-read/WFI sequence that previously
+made the DT path report extra CPU steps.
+
 ### The checks of a flight log
 
 The thresholds are for this SIH quadcopter, chosen to catch a broken

@@ -13,6 +13,7 @@
 #include "mpu.h"
 #include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_i2c.h"
+#include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_uart.h"
 #include "sensor/sensor_source.h"
@@ -122,13 +123,24 @@ static MmioAdapter *mmio_of(MpuAddressRegionType *region)
 	return (MmioAdapter *)region->data;
 }
 
+/* Match the legacy F7 bus path: only reads that consume or expose a moving
+ * serial stream end a CPU batch.  Register-only peripherals (timer, GPIO,
+ * EXTI) can be read without ticking all devices between instructions. */
+static void mmio_read_batch_barrier(AthrillAddrType address)
+{
+	if (stm32_spi_owns(address) || stm32_uart_owns(address) ||
+	    stm32_sdmmc_owns(address)) {
+		stm32_device_accessed = TRUE;
+	}
+}
+
 static Std_ReturnType mmio_get8(MpuAddressRegionType *region, CoreIdType core,
                                 AthrillAddrType address, uint8 *data)
 {
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	stm32_device_accessed = TRUE;
+	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 1U, &value) != 0) {
 		return STD_E_INVALID;
@@ -142,7 +154,7 @@ static Std_ReturnType mmio_get16(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	stm32_device_accessed = TRUE;
+	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 2U, &value) != 0) {
 		return STD_E_INVALID;
@@ -156,7 +168,7 @@ static Std_ReturnType mmio_get32(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	stm32_device_accessed = TRUE;
+	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 4U, &value) != 0) {
 		return STD_E_INVALID;
@@ -1178,12 +1190,18 @@ std_bool stm32_device_tree_build(void)
 	AthrillDevicePluginPath plugins[MAX_PLUGINS];
 	AthrillDeviceHostValue host_values[MAX_HOST_VALUES];
 	char *path = NULL;
+	char *legacy_value = NULL;
 	int plugin_count;
 	stm32_device_tree_destroy();
 	numeric_host_value_count = 0U;
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_DEVICE_TREE", &path) != STD_E_OK) {
 		return FALSE;
 	}
+	/* The C path makes these two configuration echoes while attaching its
+	 * board and F-RAM.  The DT path consumes the same values through the graph;
+	 * keep their one visible lookup so normalized consoles remain identical. */
+	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_BOARD", &legacy_value);
+	(void)cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_FRAM_FILE", &legacy_value);
 	plugin_count = collect_plugins(plugins);
 	if (plugin_count < 0) {
 		printf("DEVICE_TREE_ERROR code=plugin-config node=/ property=DEVICE_CONFIG_DEVICE_PLUGIN reason=expected-compatible=path\n");

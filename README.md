@@ -227,6 +227,13 @@ What it runs, every threshold and what it does not show are in
 examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf
 ```
 
+The shorter C-versus-Devicetree count regression also requires identical
+console, F-RAM and SD output:
+
+```sh
+examples/px4-sih/verify/compare-path-counts.sh <ELF> <pixhawk4.dtb> [athrill3]
+```
+
 It needs python3 with numpy, pyulog and pymavlink (matplotlib for the
 charts: `pip install numpy pyulog pymavlink matplotlib`), and on Linux mtools
 to read the SD card image; without pymavlink it skips the MAVLink flight and

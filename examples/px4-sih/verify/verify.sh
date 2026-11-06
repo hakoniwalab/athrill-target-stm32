@@ -58,14 +58,12 @@ append_device_tree() {
 	fi
 }
 
-# Remove only startup lines introduced by the DT framework.  Guest output and
-# all other Athrill configuration lines remain part of the deterministic hash.
+# Remove only the two startup lines introduced on the DT path. Guest output,
+# the model inventory on stderr and all other configuration lines remain part
+# of the deterministic comparison.
 normalize_console() {
 	sed -e '/^DEVICE_CONFIG_DEVICE_TREE = /d' \
-	    -e '/^DEVICE_TREE_WARNING /d' \
-	    -e '/^DEVICE_TREE sha256=/d' \
-	    -e '/^DEVICE_TREE_HOST /d' \
-	    -e '/^DEVICE_MODEL /d' "$1"
+	    -e '/^DEVICE_TREE sha256=/d' "$1"
 }
 
 # copy a file (a clone where the file system can)
