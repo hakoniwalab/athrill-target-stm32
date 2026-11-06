@@ -97,7 +97,7 @@ nothing. Athrill STM32 offers two ways to treat it as `WFI`:
   stripped ELF. It covers ChibiOS's `b .`, but not NuttX's loop around an
   empty function. The old `DEVICE_CONFIG_ARM_SPIN_HALT` name remains an alias.
 - **The idle function's name** (`DEVICE_CONFIG_IDLE_FUNCTION`, for example
-  `up_idle` in NuttX; unset or `none` for none). This covers
+  `up_idle` in NuttX, the default of Athrill STM32 when the line is absent; `none` for none). This covers
   any idle loop, including NuttX's, but needs the firmware's symbol table
   and the name.
 
@@ -212,7 +212,7 @@ ArduPilot notes above, not measured here.
 
 - **The idle function must really be idle.** If a firmware does work in its
   idle hook, halting there would change its behaviour. Leave
-  `DEVICE_CONFIG_IDLE_FUNCTION` unset or `none` for such a firmware. The OS
+  `DEVICE_CONFIG_IDLE_FUNCTION none` for such a firmware (unset means `up_idle` on Athrill STM32). The OS
   then runs as written, and the skip still applies at `WFI`.
 - **No cycle accuracy.** One instruction is one clock. Pipeline,
   cache and bus timing are not modelled, so time-critical code sees an

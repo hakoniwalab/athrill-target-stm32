@@ -12,6 +12,8 @@ static std_bool arm_halt_ready(CoreIdType core_id)
 
 static const AthrillIdleSpinHaltTargetOps arm_idle_spin_halt_ops = {
 	.name = "Armv7-M",
+	/* NuttX's idle function, the default before the core owned the idle halt. */
+	.default_idle_function = "up_idle",
 	.is_branch_to_self = thumb_is_branch_to_self,
 	.halt_ready = arm_halt_ready,
 };
