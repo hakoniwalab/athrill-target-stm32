@@ -7,7 +7,11 @@
 #include "stm32h7_spi.h"
 #include "bus.h"
 #include "cpu.h"
+#include "cpuemu_ops.h"
 #include "std_device_ops.h"
+#include "athrill_protocol_dma.h"
+
+#include <string.h>
 
 #define F7_DMA1_BASE	0x40026000U
 #define F7_DMA2_BASE	0x40026400U
@@ -39,6 +43,7 @@
 #define CR_MINC		(1U << 10)
 #define CR_PSIZE_SHIFT	11U
 #define CR_MSIZE_SHIFT	13U
+#define CR_CHSEL_SHIFT	25U
 #define DIR_P2M		0U
 #define DIR_M2P		1U
 
@@ -47,12 +52,26 @@
 
 #define SPI_DR_OFFSET	0x0CU
 
+typedef struct DmaType DmaType;
+
 typedef struct {
+	DmaType *controller;
+	uint32 stream;
+	uint64 peripheral_value;
+	std_bool peripheral_valid;
+} DmaEndpoint;
+
+struct DmaType {
 	uint32 isr[2];		/* LISR, HISR */
 	uint32 stream[STREAMS][6];
 	uint32 ndtr_start[STREAMS];	/* NDTR when the stream was enabled (circular reload) */
 	uint32 irq[STREAMS];
-} DmaType;
+	uint32 transferred[STREAMS];
+	std_bool block[STREAMS];
+	AthrillChannel *channel[STREAMS];
+	AthrillDmaProtocol *protocol[STREAMS];
+	DmaEndpoint endpoint[STREAMS];
+};
 
 static DmaType dmas[2] = {
 	{ .irq = { 11U, 12U, 13U, 14U, 15U, 16U, 17U, 47U } },
@@ -99,21 +118,6 @@ uint32 stm32_dma_read(uint32 addr)
 	return 0U;
 }
 
-/* A stream has moved all its data: transfer complete (and half transfer), disabled unless circular. */
-static void complete(DmaType *d, uint32 s)
-{
-	uint32 *st = d->stream[s];
-
-	d->isr[s / 4U] |= (FLAG_TC | FLAG_HT) << flag_shift(s);
-	st[SxNDTR] = 0U;
-	if ((st[SxCR] & CR_CIRC) == 0U) {
-		st[SxCR] &= ~CR_EN;
-	}
-	if ((st[SxCR] & (CR_TCIE | CR_HTIE)) != 0U) {
-		(void)intc_raise_intr(d->irq[s]);
-	}
-}
-
 static uint32 unit(uint32 cr, uint32 shift)
 {
 	return 1U << ((cr >> shift) & 3U);	/* bytes: 1, 2, 4 */
@@ -148,6 +152,204 @@ static void mem_write(uint32 addr, uint32 size, uint32 value)
 	else {
 		(void)bus_put_data32(0U, addr, value);
 	}
+}
+
+static sint32 endpoint_memory_read(void *context, uint64 address, uint8 width,
+	uint64 *value)
+{
+	(void)context;
+	if (value == NULL || address > 0xFFFFFFFFU) {
+		return -1;
+	}
+	*value = mem_read((uint32)address, width);
+	return 0;
+}
+
+static sint32 endpoint_memory_write(void *context, uint64 address, uint8 width,
+	uint64 value)
+{
+	(void)context;
+	if (address > 0xFFFFFFFFU) {
+		return -1;
+	}
+	mem_write((uint32)address, width, (uint32)value);
+	return 0;
+}
+
+static sint32 endpoint_peripheral_read(void *context, uint32 request,
+	uint8 width, uint64 *value)
+{
+	DmaEndpoint *endpoint = context;
+	uint32 cr = endpoint->controller->stream[endpoint->stream][SxCR];
+
+	(void)width;
+	if (value == NULL || !endpoint->peripheral_valid ||
+	    request != ((cr >> CR_CHSEL_SHIFT) & 7U)) {
+		return -1;
+	}
+	*value = endpoint->peripheral_value;
+	endpoint->peripheral_valid = FALSE;
+	return 0;
+}
+
+static sint32 endpoint_peripheral_write(void *context, uint32 request,
+	uint8 width, uint64 value)
+{
+	DmaEndpoint *endpoint = context;
+	uint32 cr = endpoint->controller->stream[endpoint->stream][SxCR];
+
+	(void)width;
+	if (request != ((cr >> CR_CHSEL_SHIFT) & 7U)) {
+		return -1;
+	}
+	endpoint->peripheral_value = value;
+	endpoint->peripheral_valid = TRUE;
+	return 0;
+}
+
+static const AthrillDmaEndpointOps endpoint_ops = {
+	.memory_read = endpoint_memory_read,
+	.memory_write = endpoint_memory_write,
+	.peripheral_read = endpoint_peripheral_read,
+	.peripheral_write = endpoint_peripheral_write,
+};
+
+static void stream_destroy(DmaType *d, uint32 s)
+{
+	if (d->protocol[s] != NULL) {
+		athrill_dma_protocol_destroy(d->protocol[s]);
+		d->protocol[s] = NULL;
+	}
+	if (d->channel[s] != NULL) {
+		athrill_channel_destroy(d->channel[s]);
+		d->channel[s] = NULL;
+	}
+	d->endpoint[s].peripheral_valid = FALSE;
+}
+
+static void stream_notify(void *context, AthrillChannelNotification notification,
+	std_bool asserted, uint64 time)
+{
+	DmaEndpoint *endpoint = context;
+	DmaType *d = endpoint->controller;
+	uint32 s = endpoint->stream;
+	uint32 *st = d->stream[s];
+	uint32 flags;
+
+	(void)time;
+	if (!asserted || notification != ATHRILL_CHANNEL_NOTIFY_COMPLETE) {
+		return;
+	}
+	flags = FLAG_TC | (d->block[s] ? FLAG_HT : 0U);
+	d->isr[s / 4U] |= flags << flag_shift(s);
+	if ((st[SxCR] & CR_CIRC) != 0U) {
+		st[SxNDTR] = d->ndtr_start[s];
+		d->transferred[s] = 0U;
+	}
+	else {
+		st[SxNDTR] = 0U;
+		st[SxCR] &= ~CR_EN;
+	}
+	if ((((flags & FLAG_HT) != 0U) && ((st[SxCR] & CR_HTIE) != 0U)) ||
+	    ((st[SxCR] & CR_TCIE) != 0U)) {
+		(void)intc_raise_intr(d->irq[s]);
+	}
+}
+
+static std_bool stream_create(DmaType *d, uint32 s)
+{
+	uint32 *st = d->stream[s];
+	AthrillChannelConfig config;
+
+	stream_destroy(d, s);
+	memset(&config, 0, sizeof(config));
+	config.peripheral_width = (uint8)unit(st[SxCR], CR_PSIZE_SHIFT);
+	config.memory_width = (uint8)unit(st[SxCR], CR_MSIZE_SHIFT);
+	if (config.peripheral_width > 4U || config.memory_width > 4U ||
+	    st[SxNDTR] == 0U) {
+		return FALSE;
+	}
+	config.capacity = 1U;
+	config.threshold = 1U;
+	config.burst = 1U;
+	config.selection.kind = ATHRILL_CHANNEL_SELECT_REQUEST;
+	config.selection.value = (st[SxCR] >> CR_CHSEL_SHIFT) & 7U;
+	config.count_kind = ATHRILL_CHANNEL_COUNT_FIXED;
+	config.count = st[SxNDTR];
+	config.circular = (st[SxCR] & CR_CIRC) != 0U;
+	config.directions = (((st[SxCR] >> CR_DIR_SHIFT) & 3U) == DIR_M2P) ?
+		ATHRILL_CHANNEL_ALLOW_TO_CHILD : ATHRILL_CHANNEL_ALLOW_TO_OWNER;
+	config.notifications = ATHRILL_CHANNEL_NOTIFY_COMPLETE;
+	config.notify = stream_notify;
+	config.notify_context = &d->endpoint[s];
+	d->endpoint[s].controller = d;
+	d->endpoint[s].stream = s;
+	d->endpoint[s].peripheral_valid = FALSE;
+	if (athrill_channel_create(&config, &d->channel[s]) != 0 ||
+	    athrill_dma_protocol_create(d->channel[s], &endpoint_ops,
+		&d->endpoint[s], &d->protocol[s]) != 0 ||
+	    athrill_dma_start(d->protocol[s], st[SxM0AR],
+		(st[SxCR] & CR_MINC) != 0U, cpuemu_get_clock()) != 0) {
+		stream_destroy(d, s);
+		return FALSE;
+	}
+	d->transferred[s] = 0U;
+	d->block[s] = FALSE;
+	return TRUE;
+}
+
+static void stream_half(DmaType *d, uint32 s)
+{
+	uint32 *st = d->stream[s];
+
+	if (d->transferred[s] == (d->ndtr_start[s] / 2U) &&
+	    d->transferred[s] != 0U) {
+		d->isr[s / 4U] |= FLAG_HT << flag_shift(s);
+		if ((st[SxCR] & CR_HTIE) != 0U) {
+			(void)intc_raise_intr(d->irq[s]);
+		}
+	}
+}
+
+static std_bool stream_request_rx(DmaType *d, uint32 s, uint64 value)
+{
+	uint32 request = (d->stream[s][SxCR] >> CR_CHSEL_SHIFT) & 7U;
+
+	if (d->protocol[s] == NULL) {
+		return FALSE;
+	}
+	d->endpoint[s].peripheral_value = value;
+	d->endpoint[s].peripheral_valid = TRUE;
+	d->transferred[s]++;
+	if (athrill_dma_request(d->protocol[s], request, cpuemu_get_clock()) != 1) {
+		d->transferred[s]--;
+		d->endpoint[s].peripheral_valid = FALSE;
+		return FALSE;
+	}
+	d->stream[s][SxNDTR] = (uint32)athrill_dma_remaining(d->protocol[s]);
+	stream_half(d, s);
+	return TRUE;
+}
+
+static std_bool stream_request_tx(DmaType *d, uint32 s, uint64 *value)
+{
+	uint32 request = (d->stream[s][SxCR] >> CR_CHSEL_SHIFT) & 7U;
+
+	if (value == NULL || d->protocol[s] == NULL) {
+		return FALSE;
+	}
+	d->endpoint[s].peripheral_valid = FALSE;
+	d->transferred[s]++;
+	if (athrill_dma_request(d->protocol[s], request, cpuemu_get_clock()) != 1 ||
+	    !d->endpoint[s].peripheral_valid) {
+		d->transferred[s]--;
+		return FALSE;
+	}
+	*value = d->endpoint[s].peripheral_value;
+	d->endpoint[s].peripheral_valid = FALSE;
+	d->stream[s][SxNDTR] = (uint32)athrill_dma_remaining(d->protocol[s]);
+	stream_half(d, s);
+	return TRUE;
 }
 
 /* The enabled stream that reads from peripheral address par, if any. */
@@ -201,11 +403,9 @@ static void start(DmaType *d, uint32 s)
 	uint32 rs = 0U;
 	uint32 *rx = NULL;
 	uint32 n = tx[SxNDTR];
-	uint32 tx_size;
-	uint32 rx_size = 1U;
 	uint32 i;
 	uint32 rx_par = par;
-	uint32 response;
+	uint32 response = 0U;
 	std_bool h7_spi;
 
 	if (((tx[SxCR] >> CR_DIR_SHIFT) & 3U) != DIR_M2P) {
@@ -217,30 +417,30 @@ static void start(DmaType *d, uint32 s)
 	}
 	if (find_rx(rx_par, &rd, &rs)) {
 		rx = rd->stream[rs];
-		rx_size = unit(rx[SxCR], CR_MSIZE_SHIFT);
 	}
-	tx_size = unit(tx[SxCR], CR_MSIZE_SHIFT);
+	d->block[s] = TRUE;
+	if (rx != NULL) {
+		rd->block[rs] = TRUE;
+	}
 	for (i = 0U; i < n; i++) {
-		uint32 from = tx[SxM0AR] + (((tx[SxCR] & CR_MINC) != 0U) ? (i * tx_size) : 0U);
+		uint64 value;
+
+		if (!stream_request_tx(d, s, &value)) {
+			break;
+		}
 
 		if (h7_spi) {
 			(void)stm32h7_spi_dma_exchange(par, unit(tx[SxCR], CR_PSIZE_SHIFT),
-				mem_read(from, tx_size), &rx_par, &response);
+				(uint32)value, &rx_par, &response);
 		}
 		else {
-			stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), mem_read(from, tx_size));
+			stm32_spi_write(par, unit(tx[SxCR], CR_PSIZE_SHIFT), (uint32)value);
 			response = stm32_spi_read(par, (rx != NULL) ? unit(rx[SxCR], CR_PSIZE_SHIFT) : 1U);
 		}
-		if (rx != NULL) {
-			uint32 to = rx[SxM0AR] + (((rx[SxCR] & CR_MINC) != 0U) ? (i * rx_size) : 0U);
-
-			mem_write(to, rx_size, response);
+		if (rx != NULL && !stream_request_rx(rd, rs, response)) {
+			break;
 		}
 	}
-	if (rx != NULL) {
-		complete(rd, rs);
-	}
-	complete(d, s);
 }
 
 void stm32_dma_write(uint32 addr, uint32 size, uint32 value)
@@ -264,9 +464,21 @@ void stm32_dma_write(uint32 addr, uint32 size, uint32 value)
 		if (r == SxNDTR) {
 			d->stream[s][r] &= 0xFFFFU;
 		}
+		if ((r == SxCR) && ((was & CR_EN) != 0U) &&
+		    ((d->stream[s][SxCR] & CR_EN) == 0U)) {
+			if (d->protocol[s] != NULL) {
+				(void)athrill_dma_stop(d->protocol[s], cpuemu_get_clock());
+			}
+			stream_destroy(d, s);
+		}
 		if ((r == SxCR) && ((was & CR_EN) == 0U) && ((d->stream[s][SxCR] & CR_EN) != 0U)) {
 			d->ndtr_start[s] = d->stream[s][SxNDTR];
-			start(d, s);
+			if (!stream_create(d, s)) {
+				d->stream[s][SxCR] &= ~CR_EN;
+			}
+			else {
+				start(d, s);
+			}
 		}
 	}
 }
@@ -275,81 +487,25 @@ std_bool stm32_dma_peripheral_rx(uint32 par, uint32 data)
 {
 	DmaType *d = NULL;
 	uint32 s = 0U;
-	uint32 *st;
-	uint32 size;
-	uint32 done;
-	uint32 flags = 0U;
-
 	if (!find_rx(par, &d, &s)) {
 		return FALSE;
 	}
-	st = d->stream[s];
-	if (st[SxNDTR] == 0U) {
-		return FALSE;
-	}
-	size = unit(st[SxCR], CR_MSIZE_SHIFT);
-	done = d->ndtr_start[s] - st[SxNDTR];
-	mem_write(st[SxM0AR] + (((st[SxCR] & CR_MINC) != 0U) ? (done * size) : 0U), size, data);
-	st[SxNDTR]--;
-	done++;
-	if (done == (d->ndtr_start[s] / 2U)) {
-		flags = FLAG_HT;
-	}
-	if (st[SxNDTR] == 0U) {
-		flags = FLAG_TC;
-		if ((st[SxCR] & CR_CIRC) != 0U) {
-			st[SxNDTR] = d->ndtr_start[s];
-		}
-		else {
-			st[SxCR] &= ~CR_EN;
-		}
-	}
-	d->isr[s / 4U] |= flags << flag_shift(s);
-	if ((((flags & FLAG_HT) != 0U) && ((st[SxCR] & CR_HTIE) != 0U))
-		|| (((flags & FLAG_TC) != 0U) && ((st[SxCR] & CR_TCIE) != 0U))) {
-		(void)intc_raise_intr(d->irq[s]);
-	}
-	return TRUE;
+	return stream_request_rx(d, s, data);
 }
 
 std_bool stm32_dma_peripheral_tx(uint32 par, uint32 *data)
 {
 	DmaType *d = NULL;
 	uint32 s = 0U;
-	uint32 *st;
-	uint32 size;
-	uint32 done;
-	uint32 flags = 0U;
+	uint64 value;
 
 	if (!find_tx(par, &d, &s)) {
 		return FALSE;
 	}
-	st = d->stream[s];
-	if (st[SxNDTR] == 0U) {
+	if (!stream_request_tx(d, s, &value)) {
 		return FALSE;
 	}
-	size = unit(st[SxCR], CR_MSIZE_SHIFT);
-	done = d->ndtr_start[s] - st[SxNDTR];
-	*data = mem_read(st[SxM0AR] + (((st[SxCR] & CR_MINC) != 0U) ? (done * size) : 0U), size);
-	st[SxNDTR]--;
-	done++;
-	if (done == (d->ndtr_start[s] / 2U)) {
-		flags = FLAG_HT;
-	}
-	if (st[SxNDTR] == 0U) {
-		flags = FLAG_TC;
-		if ((st[SxCR] & CR_CIRC) != 0U) {
-			st[SxNDTR] = d->ndtr_start[s];
-		}
-		else {
-			st[SxCR] &= ~CR_EN;
-		}
-	}
-	d->isr[s / 4U] |= flags << flag_shift(s);
-	if ((((flags & FLAG_HT) != 0U) && ((st[SxCR] & CR_HTIE) != 0U))
-		|| (((flags & FLAG_TC) != 0U) && ((st[SxCR] & CR_TCIE) != 0U))) {
-		(void)intc_raise_intr(d->irq[s]);
-	}
+	*data = (uint32)value;
 	return TRUE;
 }
 
@@ -370,10 +526,18 @@ std_bool stm32_dma_peripheral_block_rx(uint32 par, const uint8 *data, uint32 len
 	if (!find_rx(par, &d, &s)) {
 		return FALSE;
 	}
-	for (i = 0U; i < len; i++) {
-		mem_write(d->stream[s][SxM0AR] + i, 1U, data[i]);
+	d->block[s] = TRUE;
+	for (i = 0U; i < len;) {
+		uint32 width = unit(d->stream[s][SxCR], CR_PSIZE_SHIFT);
+		uint64 value = 0U;
+		uint32 amount = (len - i < width) ? len - i : width;
+
+		memcpy(&value, &data[i], amount);
+		if (!stream_request_rx(d, s, value)) {
+			return FALSE;
+		}
+		i += amount;
 	}
-	complete(d, s);
 	return TRUE;
 }
 
@@ -386,10 +550,18 @@ std_bool stm32_dma_peripheral_block_tx(uint32 par, uint8 *data, uint32 len)
 	if (!find_tx(par, &d, &s)) {
 		return FALSE;
 	}
-	for (i = 0U; i < len; i++) {
-		data[i] = (uint8)mem_read(d->stream[s][SxM0AR] + i, 1U);
+	d->block[s] = TRUE;
+	for (i = 0U; i < len;) {
+		uint32 width = unit(d->stream[s][SxCR], CR_PSIZE_SHIFT);
+		uint64 value;
+		uint32 amount = (len - i < width) ? len - i : width;
+
+		if (!stream_request_tx(d, s, &value)) {
+			return FALSE;
+		}
+		memcpy(&data[i], &value, amount);
+		i += amount;
 	}
-	complete(d, s);
 	return TRUE;
 }
 
@@ -403,11 +575,14 @@ void stm32_dma_reset(void)
 		dmas[c].isr[0] = 0U;
 		dmas[c].isr[1] = 0U;
 		for (s = 0U; s < STREAMS; s++) {
+			stream_destroy(&dmas[c], s);
 			for (r = 0U; r < 6U; r++) {
 				dmas[c].stream[s][r] = 0U;
 			}
 			dmas[c].stream[s][SxFCR] = 0x21U;
 			dmas[c].ndtr_start[s] = 0U;
+			dmas[c].transferred[s] = 0U;
+			dmas[c].block[s] = FALSE;
 		}
 	}
 }

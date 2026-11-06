@@ -9,6 +9,7 @@
  *     previous one, and not before RDR has been read.
  */
 #include "stm32_uart.h"
+#include "athrill_protocol_uart.h"
 #include "stm32_dma.h"
 #include "cpuemu_ops.h"
 #include "device.h"
@@ -82,6 +83,8 @@ typedef struct {
 	/* a chip on the line (stm32_uart_attach) */
 	const Stm32UartChipOps *chip_ops;
 	void *chip;
+	AthrillChannel *channel;
+	AthrillUartProtocol *protocol;
 } UartType;
 
 /*
@@ -127,6 +130,7 @@ static std_bool tx_dma_enabled;
 static uint64 rx_file_start;
 
 static void write_tdr(UartType *u, uint8 data);
+static Std_ReturnType push_input(UartType *u, uint8 data);
 
 static UartType *uart_of(uint32 addr)
 {
@@ -186,9 +190,86 @@ static uint64 frame_clocks(const UartType *u)
 	return (half_bits * bit2 * u->divider) / 4U;
 }
 
+static sint32 channel_child_receive(void *context, uint8 data,
+	uint64 completion_time)
+{
+	UartType *u = context;
+	(void)completion_time;
+	u->chip_ops->transmit(u->chip, data);
+	return 0;
+}
+
+static sint32 channel_owner_receive(void *context, uint8 data,
+	uint64 completion_time)
+{
+	UartType *u = context;
+	(void)completion_time;
+	return push_input(u, data) == STD_E_OK ? 0 : -1;
+}
+
+static void channel_disconnect(UartType *u)
+{
+	if (u->protocol != NULL) {
+		(void)athrill_uart_close(u->protocol, u->now);
+		athrill_uart_protocol_destroy(u->protocol);
+		u->protocol = NULL;
+	}
+	athrill_channel_destroy(u->channel);
+	u->channel = NULL;
+}
+
+/* Keep the protocol's completion clock equal to this UART's current frame. */
+static std_bool channel_connect(UartType *u)
+{
+	AthrillChannelConfig config = {0};
+	AthrillUartTiming timing;
+	uint64 ticks;
+	if (u->chip_ops == NULL || u->chip_ops->transmit == NULL) {
+		return FALSE;
+	}
+	ticks = frame_clocks(u);
+	if (u->protocol != NULL &&
+	    athrill_uart_frame_ticks(u->protocol) == ticks) {
+		return TRUE;
+	}
+	if (u->protocol != NULL) {
+		(void)athrill_uart_close(u->protocol, u->now);
+		athrill_uart_protocol_destroy(u->protocol);
+		u->protocol = NULL;
+	}
+	if (u->channel == NULL) {
+		config.peripheral_width = 1U;
+		config.memory_width = 1U;
+		config.capacity = 1U;
+		config.threshold = 1U;
+		config.burst = 1U;
+		config.count_kind = ATHRILL_CHANNEL_COUNT_SELECTION;
+		config.directions = ATHRILL_CHANNEL_ALLOW_EXCHANGE;
+		if (athrill_channel_create(&config, &u->channel) != 0) {
+			return FALSE;
+		}
+	}
+	/* A synthetic 10-bit frame makes the plug-in report exactly ticks. */
+	timing.clock_hz = ticks;
+	timing.baud = 10U;
+	timing.data_bits = 8U;
+	timing.stop_bits = 1U;
+	timing.parity = FALSE;
+	if (athrill_uart_protocol_create(u->channel, &timing,
+		channel_child_receive, u, channel_owner_receive, u,
+		&u->protocol) != 0 ||
+	    athrill_uart_open(u->protocol, u->now) != 0) {
+		athrill_uart_protocol_destroy(u->protocol);
+		u->protocol = NULL;
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /* A character enters the shift register at clock start and leaves for the UART's sink. */
 static void shift_out(UartType *u, uint8 data, uint64 start)
 {
+	uint64 completion;
 	u->shift_end = start + frame_clocks(u);
 	u->sending = TRUE;
 	if (u == console) {
@@ -198,8 +279,9 @@ static void shift_out(UartType *u, uint8 data, uint64 start)
 		}
 	}
 	/* A console/file sink and a TCP attachment may observe the same line. */
-	if (u->chip_ops != NULL) {
-		u->chip_ops->transmit(u->chip, data);
+	if (channel_connect(u)) {
+		(void)athrill_uart_send_to_child(u->protocol, data, start,
+			&completion);
 	}
 }
 
@@ -446,6 +528,9 @@ void stm32_uart_reset(uint32 console_number, const char *rx_file_path, const cha
 	uint32 k;
 
 	console = NULL;
+	for (i = 0U; i < UART_MAX; i++) {
+		channel_disconnect(&uarts[i]);
+	}
 	uart_count = selected_uart_count;
 	for (i = 0U; i < uart_count; i++) {
 		UartType *u = &uarts[i];
@@ -535,10 +620,16 @@ Std_ReturnType stm32_uart_console_input(uint8 data)
 Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data)
 {
 	uint32 i;
+	uint64 completion;
 
 	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
-			return push_input(&uarts[i], data);
+			if (!channel_connect(&uarts[i]) ||
+			    athrill_uart_send_from_child(uarts[i].protocol, data,
+				cpuemu_get_clock(), &completion) != 0) {
+				return STD_E_LIMIT;
+			}
+			return STD_E_OK;
 		}
 	}
 	return STD_E_LIMIT;
@@ -550,8 +641,10 @@ void stm32_uart_attach(uint32 number, const Stm32UartChipOps *ops, void *chip)
 
 	for (i = 0U; i < uart_count; i++) {
 		if (uarts[i].number == number) {
+			channel_disconnect(&uarts[i]);
 			uarts[i].chip_ops = ops;
 			uarts[i].chip = chip;
+			(void)channel_connect(&uarts[i]);
 		}
 	}
 }

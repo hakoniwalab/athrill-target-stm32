@@ -4,7 +4,9 @@
  * board-selected bases differ.
  */
 #include "stm32_i2c.h"
+#include "athrill_protocol_i2c.h"
 #include "cpu.h"
+#include "cpuemu_ops.h"
 #include "std_device_ops.h"
 #include "device.h"
 
@@ -60,6 +62,8 @@ typedef struct I2cChip {
 	uint32 address;
 	const Stm32I2cChipOps *ops;
 	void *chip;
+	AthrillChannel *channel;
+	AthrillI2cProtocol *protocol;
 } I2cChipType;
 
 static I2cType i2cs[] = {
@@ -81,6 +85,44 @@ static const uint32 h7_bases[I2C_NUM] = {
 
 static I2cChipType chips[CHIPS_MAX];
 static uint32 chip_count;
+
+static std_bool channel_start(void *context, std_bool read,
+	std_bool repeated, uint64 time)
+{
+	I2cChipType *chip = context;
+	(void)repeated;
+	(void)time;
+	return chip->ops->start(chip->chip, read);
+}
+
+static std_bool channel_write(void *context, uint8 data, uint64 time)
+{
+	I2cChipType *chip = context;
+	(void)time;
+	chip->ops->write(chip->chip, data);
+	return TRUE;
+}
+
+static sint32 channel_read(void *context, uint8 *data,
+	std_bool master_ack, uint64 time)
+{
+	I2cChipType *chip = context;
+	(void)master_ack;
+	(void)time;
+	*data = chip->ops->read(chip->chip);
+	return 0;
+}
+
+static void channel_stop(void *context, uint64 time)
+{
+	I2cChipType *chip = context;
+	(void)time;
+	chip->ops->stop(chip->chip);
+}
+
+static const AthrillI2cChildOps channel_child_ops = {
+	channel_start, channel_write, channel_read, channel_stop
+};
 
 void stm32_i2c_set_h7(std_bool h7)
 {
@@ -145,7 +187,7 @@ static void set_flags(I2cType *b, uint32 flags)
 static void stop(I2cType *b)
 {
 	if (b->active && (b->chip != NULL)) {
-		b->chip->ops->stop(b->chip->chip);
+		(void)athrill_i2c_stop(b->chip->protocol, cpuemu_get_clock());
 	}
 	b->active = FALSE;
 	b->chip = NULL;
@@ -172,7 +214,10 @@ static void end_of_bytes(I2cType *b)
 /* The next byte from the chip into RXDR. */
 static void receive(I2cType *b)
 {
-	*reg(b, I2C_RXDR) = b->chip->ops->read(b->chip->chip);
+	uint8 data = 0xffU;
+	(void)athrill_i2c_read(b->chip->protocol, &data,
+		b->remaining > 1U, cpuemu_get_clock());
+	*reg(b, I2C_RXDR) = data;
 	b->remaining--;
 	*reg(b, I2C_ISR) |= ISR_RXNE;
 	if (b->remaining == 0U) {
@@ -213,7 +258,9 @@ static void start(I2cType *b)
 			b->chip = &chips[i];
 		}
 	}
-	if ((b->chip == NULL) || !b->chip->ops->start(b->chip->chip, b->reading)) {
+	if ((b->chip == NULL) ||
+	    athrill_i2c_start(b->chip->protocol, (uint16)address,
+		b->reading, cpuemu_get_clock()) != 1) {
 		/* no acknowledge: NACKF, then a STOP of its own */
 		b->active = FALSE;
 		set_flags(b, ISR_NACKF);
@@ -262,8 +309,10 @@ void stm32_i2c_write(uint32 addr, uint32 size, uint32 value)
 	switch (offset) {
 	case I2C_TXDR:
 		if (b->active && !b->reading && ((*reg(b, I2C_ISR) & ISR_TXIS) != 0U)) {
+			std_bool ack = TRUE;
 			*reg(b, I2C_ISR) &= ~ISR_TXIS;
-			b->chip->ops->write(b->chip->chip, (uint8)value);
+			(void)athrill_i2c_write(b->chip->protocol, (uint8)value,
+				&ack, cpuemu_get_clock());
 			b->remaining--;
 			next_bytes(b);
 		}
@@ -319,6 +368,10 @@ void stm32_i2c_reset(void)
 {
 	uint32 i;
 	uint32 k;
+	for (i = 0U; i < chip_count; i++) {
+		athrill_i2c_protocol_destroy(chips[i].protocol);
+		athrill_channel_destroy(chips[i].channel);
+	}
 
 	for (i = 0U; i < I2C_NUM; i++) {
 		for (k = 0U; k < (I2C_REGS / 4U); k++) {
@@ -333,13 +386,38 @@ void stm32_i2c_reset(void)
 
 void stm32_i2c_attach(uint32 bus, uint32 address, const Stm32I2cChipOps *ops, void *chip)
 {
-	if (chip_count >= CHIPS_MAX) {
+	AthrillChannelConfig config = {0};
+	I2cChipType *attached;
+	if (chip_count >= CHIPS_MAX || bus == 0U || bus > I2C_NUM ||
+	    address > 0x7fU || ops == NULL || ops->start == NULL ||
+	    ops->write == NULL || ops->read == NULL || ops->stop == NULL) {
 		return;
 	}
-	chips[chip_count].bus = bus;
-	chips[chip_count].address = address;
-	chips[chip_count].ops = ops;
-	chips[chip_count].chip = chip;
+	attached = &chips[chip_count];
+	attached->bus = bus;
+	attached->address = address;
+	attached->ops = ops;
+	attached->chip = chip;
+	attached->channel = NULL;
+	attached->protocol = NULL;
+	config.peripheral_width = 1U;
+	config.memory_width = 1U;
+	config.capacity = 1U;
+	config.threshold = 1U;
+	config.burst = 1U;
+	config.selection.kind = ATHRILL_CHANNEL_SELECT_ADDRESS;
+	config.selection.value = address;
+	config.count_kind = ATHRILL_CHANNEL_COUNT_SELECTION;
+	config.directions = ATHRILL_CHANNEL_ALLOW_EXCHANGE;
+	if (athrill_channel_create(&config, &attached->channel) != 0 ||
+	    athrill_i2c_protocol_create(attached->channel, &channel_child_ops,
+		attached, &attached->protocol) != 0) {
+		athrill_i2c_protocol_destroy(attached->protocol);
+		athrill_channel_destroy(attached->channel);
+		attached->protocol = NULL;
+		attached->channel = NULL;
+		return;
+	}
 	chip_count++;
 }
 

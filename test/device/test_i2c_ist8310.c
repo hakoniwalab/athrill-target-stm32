@@ -13,7 +13,13 @@
 
 static uint32 raised[128];
 static uint8 active[128];
+static uint64 clock_now;
 std_bool stm32_device_accessed;
+
+uint64 cpuemu_get_clock(void)
+{
+	return clock_now++;
+}
 
 int intc_raise_intr(uint32 intno)
 {

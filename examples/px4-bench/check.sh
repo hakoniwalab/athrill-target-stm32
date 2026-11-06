@@ -28,6 +28,7 @@ FAILED=0
 # Optional DT-mode gate.  Resolve it before changing into a work directory so
 # the copied configuration is independent of the caller's current directory.
 DTB=
+PLUGIN=
 if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
 	if [ ! -f "$DEVICE_CONFIG_DEVICE_TREE" ]; then
 		echo "DEVICE_CONFIG_DEVICE_TREE is not a file: $DEVICE_CONFIG_DEVICE_TREE" >&2
@@ -39,10 +40,21 @@ if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
 		exit 1;;
 	esac
 fi
+if [ -n "${DEVICE_CONFIG_DEVICE_PLUGIN_0:-}" ]; then
+	PLUGIN=$DEVICE_CONFIG_DEVICE_PLUGIN_0
+	plugin_path=${PLUGIN#*=}
+	if [ "$plugin_path" = "$PLUGIN" ] || [ ! -f "$plugin_path" ]; then
+		echo "DEVICE_CONFIG_DEVICE_PLUGIN_0 must be encoded-compatible=library-file" >&2
+		exit 1
+	fi
+fi
 
 append_device_tree() {
 	if [ -n "$DTB" ]; then
 		echo "DEVICE_CONFIG_DEVICE_TREE $DTB" >> "$1"
+	fi
+	if [ -n "$PLUGIN" ]; then
+		echo "DEVICE_CONFIG_DEVICE_PLUGIN_0 $PLUGIN" >> "$1"
 	fi
 }
 

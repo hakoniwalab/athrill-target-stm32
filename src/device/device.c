@@ -93,8 +93,8 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
+	board_reset();
 #ifdef ATHRILL_ENABLE_DEVICE_TREE
-	/* A DT build attaches its named board adapter while connecting the graph. */
 	if (!stm32_device_tree_build()) {
 #endif
 		board_attach();
