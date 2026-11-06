@@ -15,6 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
+        build_type: [Debug, Release]
     runs-on: ${{ matrix.os }}
     steps:
       - name: athrill-target-stm32
@@ -35,11 +36,17 @@ jobs:
           ref: 60d8098cfcbbda5489c74843c15d3d2742e6c3bb
           path: athrill-arm-common
           fetch-depth: 0
+      - name: athrill-device
+        uses: actions/checkout@v4
+        with:
+          repository: hakoniwalab/athrill-device
+          ref: 37ea17fc5c8c038193401061c6e746e587785828
+          path: athrill-device
       - name: build
         working-directory: athrill-target-stm32
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel
+          cmake -S . -B build-${{ matrix.build_type }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake --build build-${{ matrix.build_type }} --parallel
       - name: ctest
-        working-directory: athrill-target-stm32/build
+        working-directory: athrill-target-stm32/build-${{ matrix.build_type }}
         run: ctest --output-on-failure
