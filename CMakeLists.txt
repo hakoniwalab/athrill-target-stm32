@@ -84,6 +84,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
+  src/device/peripheral/stm32h7_boot.c
   src/device/peripheral/stm32_tim.c
   src/device/peripheral/stm32_gpio.c
   src/device/peripheral/stm32_spi.c
@@ -98,6 +99,8 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/memory/fm25v02.c
   src/device/memory/sdcard.c
   src/device/peripheral/stm32_sdmmc.c
+  src/device/board/board_profile.c
+  src/device/board/fmu_v6c.c
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -199,6 +202,12 @@ if(BUILD_TESTING)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
+  add_executable(test_stm32h7_boot test/device/test_stm32h7_boot.c
+    src/device/peripheral/stm32h7_boot.c src/device/board/board_profile.c)
+  stm32_target(test_stm32h7_boot)
+  target_include_directories(test_stm32h7_boot PRIVATE src/device)
+  target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
+  add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
   # The fast executors against the generic ones (src/cpu/thumb_fast.c).
   add_executable(test_thumb_fast test/cpu/test_thumb_fast.c src/cpu/thumb_fast.c src/cpu/thumb_exec16.c
     src/cpu/thumb_exec32.c src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c

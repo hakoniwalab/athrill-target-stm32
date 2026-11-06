@@ -8,6 +8,8 @@
  *           the microSD card on SDMMC1, and ESCs on the PWM outputs AUX1
  *           to AUX8 whose motor commands go to the sensor device
  *           (hil_actuator)
+ *   fmu-v6c Pixhawk 6C, STM32H743 profile.  Stage 1 attaches no external
+ *           chips; it boots the MCU to an observable console.
  */
 #ifndef ATHRILL_STM32_BOARD_H
 #define ATHRILL_STM32_BOARD_H

@@ -17,6 +17,7 @@
 std_bool stm32_dma_owns(uint32 addr);
 uint32 stm32_dma_read(uint32 addr);
 void stm32_dma_write(uint32 addr, uint32 size, uint32 value);
+void stm32_dma_set_h7(std_bool h7);
 void stm32_dma_reset(void);
 
 /* A received datum of the peripheral register par to the stream that reads it; FALSE: none enabled. */

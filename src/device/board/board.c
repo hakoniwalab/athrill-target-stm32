@@ -2,6 +2,7 @@
  * The boards (see board.h).
  */
 #include "board.h"
+#include "fmu_v6c.h"
 #include "std_errno.h"
 #include "cpuemu_ops.h"
 #include "peripheral/stm32_gpio.h"
@@ -133,6 +134,9 @@ void board_attach(void)
 	}
 	if (strcmp(name, "fmu-v5") == 0) {
 		attach_fmu_v5();
+	}
+	else if (strcmp(name, "fmu-v6c") == 0) {
+		fmu_v6c_attach();
 	}
 	else {
 		printf("WARNING: unknown board %s (DEVICE_CONFIG_STM32_BOARD)\n", name);
