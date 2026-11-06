@@ -10,12 +10,16 @@
 #define REG_DATAXL	0x03U	/* to DATAZH 0x08 */
 #define REG_CNTL1	0x0AU
 #define REG_CNTL2	0x0BU
+#define REG_CNTL3	0x0DU
 
 #define WAI_VALUE	0x10U
 #define STAT1_DRDY	(1U << 0)
 #define CNTL1_SINGLE	0x01U
 #define CNTL2_SRST	(1U << 0)
-#define LSB_PER_GAUSS	1320.0F
+#define CNTL3_16BIT_X	(1U << 4)
+#define CNTL3_16BIT_MASK	(7U << 4)
+#define LSB_PER_GAUSS_DEFAULT	(100.0F / 0.3F)
+#define LSB_PER_GAUSS_16BIT	1320.0F
 
 static sint16 saturate(float32 v)
 {
@@ -61,7 +65,9 @@ static void measure(Ist8310Type *chip)
 		raw[2] = -s.mag[2];
 	}
 	for (k = 0U; k < 3U; k++) {
-		sint16 v = saturate(raw[k] * LSB_PER_GAUSS);
+		float32 scale = ((chip->regs[REG_CNTL3] & (CNTL3_16BIT_X << k)) != 0U) ?
+			LSB_PER_GAUSS_16BIT : LSB_PER_GAUSS_DEFAULT;
+		sint16 v = saturate(raw[k] * scale);
 
 		chip->regs[REG_DATAXL + (2U * k)] = (uint8)v;
 		chip->regs[REG_DATAXL + (2U * k) + 1U] = (uint8)((uint16)v >> 8);
@@ -103,6 +109,9 @@ static void chip_write(void *p, uint8 data)
 		else {
 			chip->regs[r] = data;
 		}
+		break;
+	case REG_CNTL3:
+		chip->regs[r] = data & CNTL3_16BIT_MASK;
 		break;
 	case REG_WAI:
 	case REG_STAT1:

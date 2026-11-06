@@ -15,12 +15,15 @@ def main():
     speed = None
     accepted = 0
     params = {}
+    latest_imu = None
     while True:
         message = link.recv_match(blocking=False)
         if message is None:
             break
         if message.get_type() == "PARAM_VALUE":
             params[message.param_id.rstrip("\x00")] = message.param_value
+        elif message.get_type() == "RAW_IMU":
+            latest_imu = message
         elif (message.get_type() == "COMMAND_ACK"
               and message.command == mavutil.mavlink.MAV_CMD_DO_MOTOR_TEST
               and message.result == mavutil.mavlink.MAV_RESULT_ACCEPTED):
@@ -47,7 +50,14 @@ def main():
         return 0
     if accepted < 4:
         raise SystemExit(f"FAIL: accepted motor tests={accepted}")
-    print(f"PASS: WP_SPD={speed:.2f}, accepted motor tests={accepted}")
+    if latest_imu is None:
+        raise SystemExit("FAIL: RAW_IMU absent")
+    magnetic = (latest_imu.xmag, latest_imu.ymag, latest_imu.zmag)
+    expected = (307, -40, 355)
+    if any(abs(got - want) > 30 for got, want in zip(magnetic, expected)):
+        raise SystemExit(f"FAIL: RAW_IMU magnetic field={magnetic} mG")
+    print(f"PASS: WP_SPD={speed:.2f}, accepted motor tests={accepted}, "
+          f"RAW_IMU magnetic field={magnetic} mG")
     return 0
 
 

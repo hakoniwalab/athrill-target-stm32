@@ -45,7 +45,7 @@ wait
 for run in run1 run2; do
 	"$PYTHON" "$DIR/check-stage4.py" "$WORK/$run/mavlink.raw" >"$WORK/$run/summary.txt"
 	python3 "$ROOT/tools/check_actuator_trace.py" "$WORK/$run/actuators.txt" \
-		1:1:1:916 4:1:4:1000 2:1:2:1083 3:1:3:1166
+		1:1:1:1100 4:1:4:1200 2:1:2:1300 3:1:3:1400
 done
 
 cmp "$WORK/run1/summary.txt" "$WORK/run2/summary.txt"

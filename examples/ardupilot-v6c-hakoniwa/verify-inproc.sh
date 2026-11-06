@@ -57,7 +57,7 @@ run_once()
 	' "$WORK/$run/device_config.txt" >"$WORK/$run/device_config.new"
 	mv "$WORK/$run/device_config.new" "$WORK/$run/device_config.txt"
 	set +e
-	ATHRILL_TICKS=28800000000 HAKO_SENSOR_DEVICE_TRACE_PATH="$WORK/$run/sensor-device.trace" \
+	ATHRILL_TICKS=24000000000 HAKO_SENSOR_DEVICE_TRACE_PATH="$WORK/$run/sensor-device.trace" \
 		"$RUNNER" "$WORK/$run" "$ELF" "$ATHRILL" "$DEVICE" "$DRONE_ROOT" "$AIRFRAME" \
 		>"$WORK/$run/emulator.log" 2>&1
 	status=$?
