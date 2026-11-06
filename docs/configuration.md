@@ -18,8 +18,11 @@ Optional model plugins are explicit, zero-based mappings. Enumeration stops
 at the first absent index, and a plugin cannot override a built-in compatible:
 
 ```text
-DEVICE_CONFIG_DEVICE_PLUGIN_0 hakoniwa,sensor-device=/opt/athrill/libhako_sensor_device.so
+DEVICE_CONFIG_DEVICE_PLUGIN_0 hakoniwa%2Csensor-device=/opt/athrill/libhako_sensor_device.so
 ```
+
+`%2C` represents the compatible's comma because the unchanged Athrill
+configuration tokenizer treats a literal comma as a field separator.
 
 Host-only values such as the F-RAM and SD image paths remain in
 `device_config.txt`. At startup they are logged on `DEVICE_TREE_HOST` lines

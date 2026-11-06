@@ -33,7 +33,8 @@
 #define MAX_GPIO_SUBSCRIBERS 384U
 #define MAX_DMA_CHANNELS 64U
 #define MAX_PLUGINS 32U
-#define MAX_HOST_VALUES 16U
+#define MAX_HOST_VALUES 32U
+#define MAX_PLUGIN_MAPPING 1024U
 
 typedef struct {
 	const AthrillDeviceMmioOps *ops;
@@ -106,6 +107,15 @@ typedef struct {
 
 static Stm32DeviceTreeTarget target_context;
 static AthrillDeviceRuntime *device_tree_runtime;
+static std_bool destroy_registered;
+
+typedef struct {
+	char key[64];
+	char value[32];
+} NumericHostValue;
+static NumericHostValue numeric_host_values[MAX_HOST_VALUES];
+static uint32 numeric_host_value_count;
+static char plugin_mappings[MAX_PLUGINS][MAX_PLUGIN_MAPPING];
 
 static MmioAdapter *mmio_of(MpuAddressRegionType *region)
 {
@@ -983,12 +993,33 @@ static sint32 target_host_value(void *context, const char *key,
 	const char **value)
 {
 	char *configured = NULL;
+	uint32 number;
+	uint32 i;
 	(void)context;
-	if (key == NULL || value == NULL ||
-	    config_string_silent(key, &configured) != STD_E_OK) {
+	if (key == NULL || value == NULL) {
 		return -1;
 	}
-	*value = configured;
+	if (config_string_silent(key, &configured) == STD_E_OK) {
+		*value = configured;
+		return 0;
+	}
+	for (i = 0U; i < numeric_host_value_count; i++) {
+		if (strcmp(numeric_host_values[i].key, key) == 0) {
+			*value = numeric_host_values[i].value;
+			return 0;
+		}
+	}
+	if ((cpuemu_get_devcfg_value(key, &number) != STD_E_OK &&
+	     cpuemu_get_devcfg_value_hex(key, &number) != STD_E_OK) ||
+	    numeric_host_value_count >= MAX_HOST_VALUES || strlen(key) >=
+	    sizeof(numeric_host_values[0].key)) {
+		return -1;
+	}
+	strcpy(numeric_host_values[numeric_host_value_count].key, key);
+	snprintf(numeric_host_values[numeric_host_value_count].value,
+		sizeof(numeric_host_values[0].value), "%u", number);
+	*value = numeric_host_values[numeric_host_value_count].value;
+	numeric_host_value_count++;
 	return 0;
 }
 
@@ -1086,13 +1117,17 @@ static uint32 collect_host_values(AthrillDeviceHostValue values[MAX_HOST_VALUES]
 		"DEVICE_CONFIG_STM32_FRAM_FILE", "DEVICE_CONFIG_STM32_SDCARD_IMAGE",
 		"DEVICE_CONFIG_STM32_UART_RX_FILE", "DEVICE_CONFIG_STM32_UART_TX_FILE",
 		"DEVICE_CONFIG_STM32_ACTUATOR_FILE", "DEVICE_CONFIG_STM32_SENSOR_BENCH",
-		"DEVICE_CONFIG_STM32_SENSOR_DEVICE", "DEVICE_CONFIG_STM32_UART2_TCP_PORT"
+		"DEVICE_CONFIG_STM32_SENSOR_DEVICE", "DEVICE_CONFIG_STM32_UART2_TCP_PORT",
+		"HAKO_SENSOR_DEVICE_ASSET", "HAKO_SENSOR_DEVICE_ROBOT",
+		"HAKO_SENSOR_DEVICE_SENSOR_CHANNEL", "HAKO_SENSOR_DEVICE_GPS_CHANNEL",
+		"HAKO_SENSOR_DEVICE_ACTUATOR_CHANNEL", "HAKO_AIRCRAFT_CONFIG_PATH",
+		"HAKO_AIRCRAFT_WORKER", "HAKO_SENSOR_DEVICE_TRACE_PATH"
 	};
 	uint32 count = 0U, i;
-	char *value;
+	const char *value;
 	for (i = 0U; i < sizeof(keys) / sizeof(keys[0]) && count < MAX_HOST_VALUES; i++) {
 		value = NULL;
-		if (config_string_silent(keys[i], &value) == STD_E_OK) {
+		if (target_host_value(NULL, keys[i], &value) == 0) {
 			values[count].key = keys[i];
 			values[count].value = value;
 			count++;
@@ -1113,11 +1148,24 @@ static int collect_plugins(AthrillDevicePluginPath plugins[MAX_PLUGINS])
 		if (config_string_silent(key, &mapping) != STD_E_OK) {
 			break;
 		}
+		if (strlen(mapping) >= sizeof(plugin_mappings[i])) {
+			return -1;
+		}
+		strcpy(plugin_mappings[i], mapping);
+		mapping = plugin_mappings[i];
 		equals = strchr(mapping, '=');
 		if (equals == NULL || equals == mapping || equals[1] == 0) {
 			return -1;
 		}
 		*equals = 0;
+		{
+			char *encoded;
+			while ((encoded = strstr(mapping, "%2C")) != NULL ||
+			       (encoded = strstr(mapping, "%2c")) != NULL) {
+				*encoded = ',';
+				memmove(encoded + 1, encoded + 3, strlen(encoded + 3) + 1U);
+			}
+		}
 		plugins[i].compatible = mapping;
 		plugins[i].library_path = equals + 1;
 	}
@@ -1136,6 +1184,7 @@ std_bool stm32_device_tree_build(void)
 	char *path = NULL;
 	int plugin_count;
 	stm32_device_tree_destroy();
+	numeric_host_value_count = 0U;
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_DEVICE_TREE", &path) != STD_E_OK) {
 		return FALSE;
 	}
@@ -1157,6 +1206,13 @@ std_bool stm32_device_tree_build(void)
 	if (athrill_device_build(&options, &target_ops, &target_context, &device_tree_runtime) != 0) {
 		printf("ERROR: DEVICE_CONFIG_DEVICE_TREE build failed\n");
 		exit(1);
+	}
+	if (!destroy_registered) {
+		if (atexit(stm32_device_tree_destroy) != 0) {
+			printf("ERROR: can not register device tree cleanup\n");
+			exit(1);
+		}
+		destroy_registered = TRUE;
 	}
 	return TRUE;
 }
