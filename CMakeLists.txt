@@ -198,11 +198,13 @@ if(BUILD_TESTING)
   set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
   # USART transmit DMA with the real DMA model
   add_executable(test_uart_dma_tx test/device/test_uart_dma_tx.c src/device/peripheral/stm32_uart.c
-    src/device/peripheral/stm32_dma.c)
+    src/device/peripheral/stm32_dma.c src/device/peripheral/stm32_dmamux.c)
   stm32_target(test_uart_dma_tx)
   target_include_directories(test_uart_dma_tx PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_uart_dma_tx PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-uart-dma-tx COMMAND test_uart_dma_tx)
+  add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
+  set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
   add_executable(test_spi_ms5611 test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
     src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/sensor/ms5611.c)
   stm32_target(test_spi_ms5611)

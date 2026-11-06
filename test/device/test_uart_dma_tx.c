@@ -5,11 +5,18 @@
  * on the line and their times, NDTR, the half-transfer and transfer-complete
  * flags, the stream's interrupt and the stream disabling itself. The CPU
  * clock, the NVIC, the bus (memory), SPI and the console are stubbed.
+ *
+ * Expectations come from RM0410 Rev 5 sections 8.3.4 (F7 channel
+ * selection), 8.3.9 (circular mode), 8.3.14 (completion), 8.4 and 8.5;
+ * and RM0433 Rev 8 sections 15.3.5 (DMAMUX request mapping), 15.3.10
+ * (circular mode), 15.3.15 (completion), 15.4/15.5, and 17.3.2/17.6.1
+ * (DMAMUX channel mapping and DMAREQ_ID).
  */
 #include <stdio.h>
 #include <string.h>
 #include "peripheral/stm32_uart.h"
 #include "peripheral/stm32_dma.h"
+#include "peripheral/stm32_dmamux.h"
 #include "peripheral/stm32_spi.h"
 #include "device.h"
 #include "bus.h"
@@ -154,6 +161,7 @@ static void check_str(int line, const char *what, const char *got, const char *w
 #define CR3		0x08U
 #define BRR		0x0CU
 #define ISR		0x1CU
+#define RDR		0x24U
 #define TDR		0x28U
 #define UE		(1U << 0)
 #define TE		(1U << 3)
@@ -163,6 +171,7 @@ static void check_str(int line, const char *what, const char *got, const char *w
 /* DMA1 stream 6: USART2_TX (RM0410 table 27) */
 #define F7_DMA1		0x40026000U
 #define H7_DMA1		0x40020000U
+#define LISR		0x00U
 #define HISR		0x04U
 #define HIFCR		0x0CU
 #define S6CR		(0x10U + (6U * 0x18U))
@@ -178,6 +187,26 @@ static void check_str(int line, const char *what, const char *got, const char *w
 #define S6_HTIF		(1U << 20)	/* stream 6 flags start at HISR bit 16 */
 #define S6_TCIF		(1U << 21)
 #define DMA1_S6_IRQ	17U
+
+#define S5CR		(0x10U + (5U * 0x18U))
+#define S5NDTR		(S5CR + 0x04U)
+#define S5PAR		(S5CR + 0x08U)
+#define S5M0AR		(S5CR + 0x0CU)
+#define CIRC		(1U << 8)
+#define S5_HTIF		(1U << 10)
+#define S5_TCIF		(1U << 11)
+#define DMA1_S5_IRQ	16U
+
+#define S0CR		0x10U
+#define S0NDTR		0x14U
+#define S0PAR		0x18U
+#define S0M0AR		0x1CU
+#define S0_TCIF		(1U << 5)
+#define DMA1_S0_IRQ	11U
+
+#define DMAMUX1		0x40020800U
+#define H7_USART2_RX_REQUEST 43U
+#define H7_USART2_TX_REQUEST 44U
 
 /* 54 MHz / 469: 115200 baud; 10 bits of 469 kernel clocks of 4 CPU clocks */
 #define FRAME		(10U * 469U * 4U)
@@ -280,11 +309,122 @@ static void test_disabled_by_default(void)
 	CHECK_EQ("no DMA interrupt", raised[DMA1_S6_IRQ], 0U);
 }
 
-int main(void)
+static void setup_rx_circular(std_bool h7)
 {
+	uint32 cr = MINC | CIRC | HTIE | TCIE;
+
+	now = 0U;
+	memset(raised, 0, sizeof(raised));
+	memset(ram, 0, sizeof(ram));
+	stm32_dma_set_h7(h7);
+	dma1 = h7 ? H7_DMA1 : F7_DMA1;
+	stm32_dma_reset();
+	stm32_dmamux_reset();
+	if (h7) {
+		/* RM0433 table 122: DMAMUX1 channel 5 -> DMA1 stream 5. */
+		stm32_dmamux_write(DMAMUX1 + (5U * 4U), 4U, H7_USART2_RX_REQUEST);
+	}
+	else {
+		/* RM0410 table 27: USART2_RX is DMA1 channel 4. */
+		cr |= CHSEL_4;
+	}
+	stm32_dma_write(dma1 + S5NDTR, 4U, 4U);
+	stm32_dma_write(dma1 + S5PAR, 4U, USART2 + RDR);
+	stm32_dma_write(dma1 + S5M0AR, 4U, RAM_BASE + 0x40U);
+	stm32_dma_write(dma1 + S5CR, 4U, cr | EN);
+}
+
+static void test_rx_circular(std_bool h7)
+{
+	uint32 i;
+
+	setup_rx_circular(h7);
+	for (i = 0U; i < 2U; i++) {
+		CHECK_EQ(h7 ? "H7 circular request accepted" : "F7 circular request accepted",
+			stm32_dma_peripheral_rx(USART2 + RDR, 'a' + i), TRUE);
+	}
+	CHECK_EQ(h7 ? "H7 circular half NDTR" : "F7 circular half NDTR",
+		dma(S5NDTR), 2U);
+	CHECK_EQ(h7 ? "H7 circular HT flag" : "F7 circular HT flag",
+		dma(HISR) & (S5_HTIF | S5_TCIF), S5_HTIF);
+	CHECK_EQ(h7 ? "H7 circular HT interrupt" : "F7 circular HT interrupt",
+		raised[DMA1_S5_IRQ], 1U);
+	for (i = 2U; i < 4U; i++) {
+		(void)stm32_dma_peripheral_rx(USART2 + RDR, 'a' + i);
+	}
+	CHECK_EQ(h7 ? "H7 circular full data" : "F7 circular full data",
+		memcmp(&ram[0x40], "abcd", 4U), 0U);
+	CHECK_EQ(h7 ? "H7 circular NDTR reload" : "F7 circular NDTR reload",
+		dma(S5NDTR), 4U);
+	CHECK_EQ(h7 ? "H7 circular TC and HT flags" : "F7 circular TC and HT flags",
+		dma(HISR) & (S5_HTIF | S5_TCIF), S5_HTIF | S5_TCIF);
+	CHECK_EQ(h7 ? "H7 circular TC interrupt" : "F7 circular TC interrupt",
+		raised[DMA1_S5_IRQ], 2U);
+	CHECK_EQ(h7 ? "H7 circular remains enabled" : "F7 circular remains enabled",
+		dma(S5CR) & EN, EN);
+	(void)stm32_dma_peripheral_rx(USART2 + RDR, 'z');
+	CHECK_EQ(h7 ? "H7 circular wraps memory" : "F7 circular wraps memory",
+		ram[0x40], 'z');
+	stm32_dma_write(dma1 + HIFCR, 4U, S5_HTIF | S5_TCIF);
+	CHECK_EQ(h7 ? "H7 circular flag clear" : "F7 circular flag clear",
+		dma(HISR) & (S5_HTIF | S5_TCIF), 0U);
+}
+
+static void setup_h7_route(uint32 request)
+{
+	now = 0U;
+	memset(raised, 0, sizeof(raised));
+	memset(ram, 0, sizeof(ram));
+	stm32_dma_set_h7(TRUE);
+	dma1 = H7_DMA1;
+	stm32_dma_reset();
+	stm32_dmamux_reset();
+	stm32_dmamux_write(DMAMUX1, 4U, request); /* channel 0 -> DMA1 stream 0 */
+	stm32_dma_write(dma1 + S0NDTR, 4U, 1U);
+	stm32_dma_write(dma1 + S0PAR, 4U, USART2 + RDR);
+	stm32_dma_write(dma1 + S0M0AR, 4U, RAM_BASE + 0x20U);
+	stm32_dma_write(dma1 + S0CR, 4U, MINC | TCIE | EN);
+}
+
+/*
+ * Known defect, kept as WILL_FAIL: RM0433 17.4.4 says DMAREQ_ID=0 selects
+ * no line, and table 122 assigns USART2_RX request 43. The model currently
+ * routes solely by PAR, ignoring the channel's DMAMUX selection.
+ */
+static void test_h7_dmamux_routing(void)
+{
+	setup_h7_route(0U);
+	CHECK_EQ("H7 no DMAMUX request selected", stm32_dma_peripheral_rx(
+		USART2 + RDR, 'n'), FALSE);
+	CHECK_EQ("H7 no route keeps NDTR", dma(S0NDTR), 1U);
+	CHECK_EQ("H7 no route keeps memory", ram[0x20], 0U);
+
+	setup_h7_route(H7_USART2_TX_REQUEST);
+	CHECK_EQ("H7 wrong DMAMUX request rejected", stm32_dma_peripheral_rx(
+		USART2 + RDR, 'w'), FALSE);
+	CHECK_EQ("H7 wrong route keeps NDTR", dma(S0NDTR), 1U);
+
+	setup_h7_route(H7_USART2_RX_REQUEST);
+	CHECK_EQ("H7 USART2_RX route accepted", stm32_dma_peripheral_rx(
+		USART2 + RDR, 'r'), TRUE);
+	CHECK_EQ("H7 routed byte reaches memory", ram[0x20], 'r');
+	CHECK_EQ("H7 routed transfer NDTR", dma(S0NDTR), 0U);
+	CHECK_EQ("H7 routed transfer TC flag", dma(LISR) & S0_TCIF, S0_TCIF);
+	CHECK_EQ("H7 routed transfer interrupt", raised[DMA1_S0_IRQ], 1U);
+}
+
+int main(int argc, char **argv)
+{
+	if ((argc == 2) && (strcmp(argv[1], "dmamux-spec-gap") == 0)) {
+		test_h7_dmamux_routing();
+		printf("%d checks, %d failures\n", checks, failures);
+		return (failures == 0) ? 0 : 1;
+	}
 	test_four_bytes(FALSE);
 	test_four_bytes(TRUE);
 	test_disabled_by_default();
+	test_rx_circular(FALSE);
+	test_rx_circular(TRUE);
 	printf("%d checks, %d failures\n", checks, failures);
 	return (failures == 0) ? 0 : 1;
 }
