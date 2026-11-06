@@ -1,5 +1,5 @@
 #!/bin/sh
-# Boot ArduCopter Pixhawk6C in a bounded run, observing USART3 and H7 accesses.
+# Boot ArduCopter Pixhawk6C in a bounded run, capturing SERIAL1 (UART7).
 # Usage: run.sh <arducopter.elf> [clock-limit] [athrill3]
 set -e
 
@@ -15,4 +15,5 @@ ATHRILL=${3:-$DIR/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 
 cd "$DIR"
+cp ../ardupilot-bench/fram-brd-io-disabled.bin fram.bin
 exec "$ATHRILL" -c1 -m memory.txt -d device_config.txt -t "$CLOCK_LIMIT" "$ELF"
