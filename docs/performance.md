@@ -20,7 +20,7 @@ sensors are attached.
 ## 2. What was done, in order
 
 1. **Idle skip**: the core halts at the OS idle function
-   (`DEVICE_CONFIG_IDLE_FUNCTION`, `up_idle` by default) until an exception
+   (`DEVICE_CONFIG_IDLE_FUNCTION`, set to `up_idle` in the PX4 examples) until an exception
    is pending, so Athrill skips clocks to the next device event.
 2. **Batched execution** (`cpu_supply_clocks`, 1024 instructions): devices
    tick between batches only; a batch ends at the next device event the

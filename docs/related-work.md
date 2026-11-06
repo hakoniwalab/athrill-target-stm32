@@ -19,7 +19,7 @@ So, for ArduPilot, emulated firmware flying in closed loop with physics, through
 What differs here:
 - the **official binary** from firmware.ardupilot.org (ArduCopter V4.7.2, `Pixhawk4`), not a local build;
 - **external, general-purpose physics** (MuJoCo, the Hakoniwa Drone x500), not ArduPilot's own SITL dynamics;
-- **faster than real time**: RTF 1.16 to 1.26 while hovering (Apple M2 Pro, `DEVICE_CONFIG_ARM_SPIN_HALT`). On the
+- **faster than real time**: RTF 1.16 to 1.26 while hovering (Apple M2 Pro, `DEVICE_CONFIG_SPIN_HALT`). On the
   same ELF without physics, Athrill runs 1.58 against Renode's 0.30 ([ardupilot.md](ardupilot.md));
 - the same emulator, physics and lockstep also fly **PX4** (below).
 

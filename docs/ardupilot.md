@@ -12,7 +12,7 @@ emulators can be compared on the same ELF.
   | Athrill configuration | RTF | Against Renode |
   | --- | ---: | ---: |
   | Idle loop executed as written (hardware only, no skip possible) | 0.62 | about 2x |
-  | A branch to itself waits as `WFI` (`DEVICE_CONFIG_ARM_SPIN_HALT`, no knowledge of the firmware) | **1.583** | **about 5x** |
+  | A branch to itself waits as `WFI` (`DEVICE_CONFIG_SPIN_HALT`, no knowledge of the firmware) | **1.583** | **about 5x** |
   | The OS idle function named (`DEVICE_CONFIG_IDLE_FUNCTION`) | 1.592 | about 5x |
 
   All three give bit-identical MAVLink output.
@@ -35,7 +35,7 @@ how each emulator advances time. In short:
      loop without `WFI` (`b .`), so an emulator that executes it spends host
      time on nothing.
    - A `b .` can only be left by an interrupt, so waiting in it is waiting
-     at `WFI`. With `DEVICE_CONFIG_ARM_SPIN_HALT`, Athrill halts the core
+     at `WFI`. With `DEVICE_CONFIG_SPIN_HALT`, Athrill halts the core
      when it executes a branch to itself, and jumps the clock to the next
      device event. The result does not change.
    - This uses only the meaning of the instruction, not the firmware's
@@ -81,7 +81,7 @@ measurements say otherwise:
 - Renode skips time at `WFI` as well, but this firmware contains no `WFI` or
   `WFE` at all: its idle thread is `b .`. Left to the firmware, neither
   emulator would ever skip time.
-- The comparison uses `DEVICE_CONFIG_ARM_SPIN_HALT`: a general rule about
+- The comparison uses `DEVICE_CONFIG_SPIN_HALT`: a general rule about
   the instruction set, not knowledge of this firmware. It is off by default.
 - Renode has no such rule today. A hook on the idle thread could give it one;
   we have not tried.
