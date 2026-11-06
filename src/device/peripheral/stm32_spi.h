@@ -3,7 +3,8 @@
  * and the chips on their buses.
  *
  * The registers are those of the hardware; a frame written to DR is
- * exchanged with the selected chip at once (no bit timing), its answer goes
+ * translated into a byte exchange on the selected common channel at once
+ * (no bit timing), and the channel's answer goes
  * to the RX FIFO, and SR reports TXE, RXNE and the FIFO levels as the
  * firmware's polling or DMA expects. A chip is selected while its chip
  * select pin (a GPIO output) is low.

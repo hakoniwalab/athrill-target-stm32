@@ -13,6 +13,12 @@
 
 static float32 source_pressure = 1013.25F;
 static float32 source_temperature = 20.0F;
+static uint64 clock_now;
+
+uint64 cpuemu_get_clock(void)
+{
+	return clock_now++;
+}
 
 void sensor_source_sample(SensorSampleType *sample)
 {
