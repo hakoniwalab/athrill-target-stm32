@@ -27,4 +27,7 @@ Std_ReturnType thumb_execute16(TargetCoreType *core, uint16 insn);
 /* insn: the first halfword in bits 31:16, the second in bits 15:0. */
 Std_ReturnType thumb_execute32(TargetCoreType *core, uint32 insn);
 
+/* Hook for the core-owned branch-to-self halt policy. */
+std_bool thumb_is_branch_to_self(CoreIdType core_id, AthrillAddrType pc);
+
 #endif /* ATHRILL_STM32_THUMB_EXEC_H */
