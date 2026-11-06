@@ -30,28 +30,67 @@ static Icm42688pType icm42688p;
 static Ms5611Type ms5611;
 static Ist8310Type ist8310;
 static UbloxType gps;
-static std_bool attached;
+static std_bool bmi055_accel_attached;
+static std_bool bmi055_gyro_attached;
+static std_bool icm42688p_attached;
+static std_bool gps_attached;
+
+void fmu_v6c_bmi055_accel_attach(void)
+{
+	uint32 mhz = 480U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
+	bmi055_reset(&bmi055_accel, BMI055_ACCEL, (uint64)mhz * 1000000U,
+		BMI055_ROTATION_YAW_180, STM32_GPIO_PORT('E'), 4U);
+	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 15U, &bmi055_ops, &bmi055_accel);
+	bmi055_accel_attached = TRUE;
+}
+
+void fmu_v6c_bmi055_gyro_attach(void)
+{
+	uint32 mhz = 480U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
+	bmi055_reset(&bmi055_gyro, BMI055_GYRO, (uint64)mhz * 1000000U,
+		BMI055_ROTATION_YAW_180, STM32_GPIO_PORT('E'), 5U);
+	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 14U, &bmi055_ops, &bmi055_gyro);
+	bmi055_gyro_attached = TRUE;
+}
+
+void fmu_v6c_icm42688p_attach(void)
+{
+	uint32 mhz = 480U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
+	icm42688p_reset(&icm42688p, (uint64)mhz * 1000000U,
+		ICM42688P_ROTATION_YAW_270, STM32_GPIO_PORT('E'), 6U);
+	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 13U, &icm42688p_ops, &icm42688p);
+	icm42688p_attached = TRUE;
+}
+
+std_bool fmu_v6c_sdcard_attach(void)
+{
+	char *sd_image = NULL;
+	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE",
+		&sd_image) != STD_E_OK) {
+		sd_image = NULL;
+	}
+	sdcard_open(&sdcard, sd_image);
+	if (sdcard_present(&sdcard)) {
+		stm32h7_sdmmc_attach(&sdcard);
+		return TRUE;
+	}
+	return FALSE;
+}
 
 void fmu_v6c_attach(void)
 {
 	uint32 mhz = 480U;
 	char *fram_file = NULL;
-	char *sd_image = NULL;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
 	board_pwm_outputs(pwm_outputs, sizeof(pwm_outputs) / sizeof(pwm_outputs[0]), mhz);
-	/* SPI1 PC15, DRDY PE4; PX4 boards/px4/fmu-v6c/src/spi.cpp, rotation boards/px4/fmu-v6c/init/rc.board_sensors. */
-	bmi055_reset(&bmi055_accel, BMI055_ACCEL, (uint64)mhz * 1000000U,
-		BMI055_ROTATION_YAW_180, STM32_GPIO_PORT('E'), 4U);
-	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 15U, &bmi055_ops, &bmi055_accel);
-	/* SPI1 PC14, DRDY PE5; PX4 boards/px4/fmu-v6c/src/spi.cpp, rotation boards/px4/fmu-v6c/init/rc.board_sensors. */
-	bmi055_reset(&bmi055_gyro, BMI055_GYRO, (uint64)mhz * 1000000U,
-		BMI055_ROTATION_YAW_180, STM32_GPIO_PORT('E'), 5U);
-	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 14U, &bmi055_ops, &bmi055_gyro);
-	/* SPI1 PC13, DRDY PE6; PX4 boards/px4/fmu-v6c/src/spi.cpp, rotation boards/px4/fmu-v6c/init/rc.board_sensors. */
-	icm42688p_reset(&icm42688p, (uint64)mhz * 1000000U,
-		ICM42688P_ROTATION_YAW_270, STM32_GPIO_PORT('E'), 6U);
-	stm32_spi_attach(1U, STM32_GPIO_PORT('C'), 13U, &icm42688p_ops, &icm42688p);
+	/* SPI1 sensors: PC15/PE4, PC14/PE5 and PC13/PE6. */
+	fmu_v6c_bmi055_accel_attach();
+	fmu_v6c_bmi055_gyro_attach();
+	fmu_v6c_icm42688p_attach();
 
 	/* I2C4 0x77; PX4 boards/px4/fmu-v6c/src/i2c.cpp, rotation boards/px4/fmu-v6c/init/rc.board_sensors. */
 	ms5611_reset(&ms5611);
@@ -62,6 +101,7 @@ void fmu_v6c_attach(void)
 	/* GPS1 is USART1 (/dev/ttyS0); PX4 boards/px4/fmu-v6c/default.px4board and nuttx-config/include/board.h. */
 	ublox_reset(&gps, 1U, (uint64)mhz * 1000000U);
 	stm32_uart_attach(1U, &ublox_ops, &gps);
+	gps_attached = TRUE;
 
 	/* SPI2 PD4; PX4 boards/px4/fmu-v6c/src/spi.cpp. */
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_FRAM_FILE", &fram_file) != STD_E_OK) {
@@ -70,23 +110,21 @@ void fmu_v6c_attach(void)
 	fm25v02_open(&fram, fram_file);
 	stm32_spi_attach(2U, STM32_GPIO_PORT('D'), 4U, &fm25v02_ops, &fram);
 	/* SDMMC2 CK PD6, CMD PD7, D0-3 PB14/PB15/PB3/PB4; PX4 boards/px4/fmu-v6c/nuttx-config/include/board.h. */
-	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE", &sd_image) != STD_E_OK) {
-		sd_image = NULL;
-	}
-	sdcard_open(&sdcard, sd_image);
-	if (sdcard_present(&sdcard)) {
-		stm32h7_sdmmc_attach(&sdcard);
-	}
-	attached = TRUE;
+	(void)fmu_v6c_sdcard_attach();
 }
 
 void fmu_v6c_tick(DeviceClockType *clock)
 {
-	if (!attached) {
-		return;
+	if (bmi055_accel_attached) {
+		bmi055_tick(&bmi055_accel, clock);
 	}
-	bmi055_tick(&bmi055_accel, clock);
-	bmi055_tick(&bmi055_gyro, clock);
-	icm42688p_tick(&icm42688p, clock);
-	ublox_tick(&gps, clock);
+	if (bmi055_gyro_attached) {
+		bmi055_tick(&bmi055_gyro, clock);
+	}
+	if (icm42688p_attached) {
+		icm42688p_tick(&icm42688p, clock);
+	}
+	if (gps_attached) {
+		ublox_tick(&gps, clock);
+	}
 }

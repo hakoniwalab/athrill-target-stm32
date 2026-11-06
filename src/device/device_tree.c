@@ -7,6 +7,7 @@
 
 #include "athrill_device_if.h"
 #include "board/board.h"
+#include "board/fmu_v6c.h"
 #include "bus.h"
 #include "cpuemu_ops.h"
 #include "device.h"
@@ -427,8 +428,10 @@ static sint32 target_spi_bind_node(void *context,
 	if (controller == NULL || gpio == NULL || gpio->cell_count < 1U ||
 	    node_path_address(controller->path, &controller_address) != 0 ||
 	    node_path_address(gpio->provider_path, &gpio_address) != 0 ||
-	    gpio_address < 0x40020000U || gpio_address > 0x40022800U ||
-	    (gpio_address - 0x40020000U) % 0x400U != 0U) {
+	    !(((gpio_address >= 0x40020000U && gpio_address <= 0x40022800U) ||
+	       (gpio_address >= 0x58020000U && gpio_address <= 0x58022800U)) &&
+	      (gpio_address - (gpio_address >= 0x58020000U ?
+	       0x58020000U : 0x40020000U)) % 0x400U == 0U)) {
 		return -1;
 	}
 	switch (controller_address) {
@@ -440,7 +443,8 @@ static sint32 target_spi_bind_node(void *context,
 	case 0x40015400U: bus = 6U; break;
 	default: return -1;
 	}
-	port = (gpio_address - 0x40020000U) / 0x400U;
+	port = (gpio_address - (gpio_address >= 0x58020000U ?
+		0x58020000U : 0x40020000U)) / 0x400U;
 	pin = gpio->cells[0];
 	if (port > STM32_GPIO_PORT('K') || pin >= 16U ||
 	    target_spi_bind(context, controller->id, chip_select, gpio, ops,
@@ -942,6 +946,10 @@ static sint32 target_model_adapter_connect(void *context,
 	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
 		AthrillDeviceSpecifier spec;
 		AthrillDeviceGpioLine line;
+		if (strstr(node->path, "/sdmmc@48022400/") != NULL) {
+			(void)fmu_v6c_sdcard_attach();
+			return 0;
+		}
 		if (!board_fmu_v5_sdcard_attach()) {
 			return 0;
 		}
@@ -954,6 +962,22 @@ static sint32 target_model_adapter_connect(void *context,
 		    target_gpio_drive(context, line, TRUE) != 0) {
 			return -1;
 		}
+		return 0;
+	}
+	if (strcmp(adapter_name, "bmi055-accel-legacy") == 0 &&
+	    strcmp(node->matched_compatible, "bosch,bma280") == 0) {
+		fmu_v6c_bmi055_accel_attach();
+		return 0;
+	}
+	if (strcmp(adapter_name, "bmi055-gyro-legacy") == 0 &&
+	    strcmp(node->matched_compatible, "bosch,bmg160") == 0) {
+		fmu_v6c_bmi055_gyro_attach();
+		return 0;
+	}
+	if (strcmp(adapter_name, "icm42688p-legacy") == 0 &&
+	    (strcmp(node->matched_compatible, "invensense,icm42688") == 0 ||
+	     strcmp(node->matched_compatible, "invensense,icm4268x") == 0)) {
+		fmu_v6c_icm42688p_attach();
 		return 0;
 	}
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
@@ -988,6 +1012,13 @@ static sint32 target_model_adapter_connect(void *context,
 	     strcmp(node->matched_compatible, "zephyr,crc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-backup-sram") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-backup-sram") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-soc") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32h743") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7") == 0)) ||
+	    (strcmp(adapter_name, "stm32h7-rcc") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32h7-rcc") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-pwr") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32h7-pwr") == 0) ||
 	    (strcmp(adapter_name, "bench-sensor-source") == 0 &&
 	     strcmp(node->matched_compatible, "athrill,bench-sensor-source") == 0)) {
 		return 0;
