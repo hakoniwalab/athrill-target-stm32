@@ -258,6 +258,13 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_spi PRIVATE src/device)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
+  add_executable(test_stm32h7_spi_frontend test/device/test_stm32h7_spi_frontend.c
+    src/device/peripheral/stm32h7_spi.c)
+  stm32_target(test_stm32h7_spi_frontend)
+  target_include_directories(test_stm32h7_spi_frontend PRIVATE src/device)
+  target_link_libraries(test_stm32h7_spi_frontend PRIVATE athrill_stm32_config)
+  add_test(NAME device-stm32h7-spi-spec-gaps COMMAND test_stm32h7_spi_frontend)
+  set_tests_properties(device-stm32h7-spi-spec-gaps PROPERTIES WILL_FAIL TRUE)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
     src/device/sensor/bmi055.c src/device/sensor/icm42688p.c src/device/sensor/ms5611.c)
   stm32_target(test_v6c_sensors)
