@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: 37ea17fc5c8c038193401061c6e746e587785828
+          ref: b53de1685f1254c2b05c3a15345fc627af63f09b
           path: athrill-device
       - name: build
         working-directory: athrill-target-stm32
