@@ -9,9 +9,10 @@
  *           to AUX8 whose motor commands go to the sensor device
  *           (hil_actuator)
  *   fmu-v6c Pixhawk 6C, STM32H743 profile: BMI055 accel and gyro plus an
- *           ICM-42688-P on SPI1, MS5611 and IST8310 on I2C4, F-RAM on
- *           SPI2, a microSD card on SDMMC2, and eight FMU PWM outputs whose
- *           ordered motor commands use the shared actuator path.
+ *           ICM-42688-P on SPI1, MS5611 and IST8310 on I2C4, a u-blox GPS
+ *           on USART1, F-RAM on SPI2, a microSD card on SDMMC2, and eight
+ *           FMU PWM outputs whose ordered motor commands use the shared
+ *           actuator path.
  */
 #ifndef ATHRILL_STM32_BOARD_H
 #define ATHRILL_STM32_BOARD_H

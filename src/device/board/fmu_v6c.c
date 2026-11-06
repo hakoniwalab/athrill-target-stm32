@@ -13,6 +13,7 @@
 #include "sensor/icm42688p.h"
 #include "sensor/ms5611.h"
 #include "sensor/ist8310.h"
+#include "sensor/ublox.h"
 
 /* FMU outputs 1..8, which output functions assign motor 1..8 in order;
  * PX4 boards/px4/fmu-v6c/src/timer_config.cpp. */
@@ -28,6 +29,7 @@ static Bmi055Type bmi055_gyro;
 static Icm42688pType icm42688p;
 static Ms5611Type ms5611;
 static Ist8310Type ist8310;
+static UbloxType gps;
 static std_bool attached;
 
 void fmu_v6c_attach(void)
@@ -57,6 +59,9 @@ void fmu_v6c_attach(void)
 	/* I2C4 0x0c; PX4 boards/px4/fmu-v6c/src/i2c.cpp, rotation boards/px4/fmu-v6c/init/rc.board_sensors. */
 	ist8310_reset(&ist8310, IST8310_ROTATION_NONE);
 	stm32_i2c_attach(4U, 0x0CU, &ist8310_ops, &ist8310);
+	/* GPS1 is USART1 (/dev/ttyS0); PX4 boards/px4/fmu-v6c/default.px4board and nuttx-config/include/board.h. */
+	ublox_reset(&gps, 1U, (uint64)mhz * 1000000U);
+	stm32_uart_attach(1U, &ublox_ops, &gps);
 
 	/* SPI2 PD4; PX4 boards/px4/fmu-v6c/src/spi.cpp. */
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_FRAM_FILE", &fram_file) != STD_E_OK) {
@@ -83,4 +88,5 @@ void fmu_v6c_tick(DeviceClockType *clock)
 	bmi055_tick(&bmi055_accel, clock);
 	bmi055_tick(&bmi055_gyro, clock);
 	icm42688p_tick(&icm42688p, clock);
+	ublox_tick(&gps, clock);
 }
