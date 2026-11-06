@@ -964,12 +964,6 @@ static sint32 target_model_adapter_connect(void *context,
 		}
 		return 0;
 	}
-	if (strcmp(adapter_name, "icm42688p-legacy") == 0 &&
-	    (strcmp(node->matched_compatible, "invensense,icm42688") == 0 ||
-	     strcmp(node->matched_compatible, "invensense,icm4268x") == 0)) {
-		fmu_v6c_icm42688p_attach();
-		return 0;
-	}
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
