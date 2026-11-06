@@ -21,6 +21,28 @@ include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
 add_subdirectory(examples/host-functions)
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 option(ATHRILL_ENABLE_EXDEV "Enable external device loading" ON)
+set(ATHRILL_DEVICE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-device" CACHE PATH
+    "hakoniwalab/athrill-device checkout with the Devicetree framework")
+get_filename_component(ATHRILL_DEVICE_DIR "${ATHRILL_DEVICE_DIR}" ABSOLUTE
+    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+set(ATHRILL_DEVICE_AVAILABLE OFF)
+if(EXISTS "${ATHRILL_DEVICE_DIR}/include/athrill_device_if.h")
+  set(ATHRILL_DEVICE_AVAILABLE ON)
+endif()
+option(ATHRILL_ENABLE_DEVICE_TREE "Enable athrill-device Devicetree support"
+  ${ATHRILL_DEVICE_AVAILABLE})
+if(ATHRILL_DEVICE_AVAILABLE)
+  add_subdirectory("${ATHRILL_DEVICE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/athrill-device")
+endif()
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  if(NOT ATHRILL_DEVICE_AVAILABLE)
+    message(FATAL_ERROR
+      "ATHRILL_ENABLE_DEVICE_TREE requires athrill-device: set ATHRILL_DEVICE_DIR or disable the option")
+  endif()
+endif()
+if(NOT ATHRILL_DEVICE_AVAILABLE)
+  message(FATAL_ERROR "athrill-device is required by the common SPI channel")
+endif()
 
 # Batched execution (cpu_supply_clocks): the core runs up to this many instructions between device ticks.
 add_compile_definitions(ATHRILL_TARGET_BATCH_CLOCKS=1024U)
@@ -109,6 +131,9 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  list(APPEND DEVICE_SOURCES src/device/device_tree.c)
+endif()
 if(ATHRILL_ENABLE_EXDEV)
   list(APPEND DEVICE_SOURCES ${ATHRILL_DEVICE_EXDEV_SOURCES} ${ATHRILL_DEVICE_EXDEV_POSIX_SOURCES})
 endif()
@@ -117,6 +142,10 @@ target_include_directories(athrill_stm32_device PRIVATE
   "${ATHRILL_SRC_DIR}/device/peripheral/target" "${ATHRILL_SRC_DIR}/device/peripheral/serial/fifo"
   "${ATHRILL_APL_DIR}/include")
 stm32_target(athrill_stm32_device)
+target_link_libraries(athrill_stm32_device PRIVATE athrill_device)
+if(ATHRILL_ENABLE_DEVICE_TREE)
+  target_compile_definitions(athrill_stm32_device PRIVATE ATHRILL_ENABLE_DEVICE_TREE)
+endif()
 
 add_library(athrill_bus STATIC ${ATHRILL_BUS_SOURCES})
 stm32_target(athrill_bus)
@@ -176,14 +205,14 @@ if(BUILD_TESTING)
     src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/sensor/ms5611.c)
   stm32_target(test_spi_ms5611)
   target_include_directories(test_spi_ms5611 PRIVATE src/device)
-  target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config)
+  target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
   add_executable(test_dma_icm20689 test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
     src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_dma.c
     src/device/sensor/icm20689.c)
   stm32_target(test_dma_icm20689)
   target_include_directories(test_dma_icm20689 PRIVATE src/device)
-  target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config)
+  target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
   add_executable(test_i2c_ist8310 test/device/test_i2c_ist8310.c src/device/peripheral/stm32_i2c.c
     src/device/sensor/ist8310.c)
@@ -225,7 +254,7 @@ if(BUILD_TESTING)
     src/device/peripheral/stm32_dmamux.c src/device/memory/fm25v02.c)
   stm32_target(test_stm32h7_spi)
   target_include_directories(test_stm32h7_spi PRIVATE src/device)
-  target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config)
+  target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
     src/device/sensor/bmi055.c src/device/sensor/icm42688p.c src/device/sensor/ms5611.c)
@@ -267,5 +296,14 @@ if(BUILD_TESTING)
   # Every instruction test also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE and _EXEC_MODE strict).
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t}-strict COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t} strict)
+  endforeach()
+
+  # Runtime files such as log.txt and model images belong to the build tree.
+  # A separate directory per test also keeps parallel CTest runs independent.
+  get_property(ATHRILL_STM32_TESTS DIRECTORY PROPERTY TESTS)
+  foreach(test_name IN LISTS ATHRILL_STM32_TESTS)
+    set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/test-work/${test_name}")
+    file(MAKE_DIRECTORY "${test_work_dir}")
+    set_tests_properties(${test_name} PROPERTIES WORKING_DIRECTORY "${test_work_dir}")
   endforeach()
 endif()

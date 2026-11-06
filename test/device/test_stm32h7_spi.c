@@ -8,6 +8,13 @@
 #define GPIOD 0x58020C00U
 #define SPI2  0x40003800U
 
+static uint64 clock_now;
+
+uint64 cpuemu_get_clock(void)
+{
+	return clock_now++;
+}
+
 static int failures;
 static uint32 raised[128];
 

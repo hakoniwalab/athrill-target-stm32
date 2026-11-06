@@ -3,6 +3,8 @@
  * from RM0410 35.9.
  */
 #include "stm32_spi.h"
+#include "athrill_protocol_spi.h"
+#include "cpuemu_ops.h"
 
 #define SPI_CR1		0x00U
 #define SPI_CR2		0x04U
@@ -37,6 +39,9 @@ typedef struct {
 	uint32 pin;
 	const Stm32SpiChipOps *ops;
 	void *chip;
+	AthrillChannel *channel;
+	AthrillSpiProtocol *protocol;
+	uint32 selection;
 	std_bool selected;
 } SpiChipType;
 
@@ -84,14 +89,46 @@ static uint32 frame_bits(const SpiType *s)
 	return (ds < 3U) ? 8U : (ds + 1U);
 }
 
-/* The byte the selected chip of the bus answers to mosi (0xFF: no chip drives MISO). */
+static void channel_select(void *context, uint64 time)
+{
+	SpiChipType *chip = context;
+	(void)time;
+	chip->ops->select(chip->chip, TRUE);
+}
+
+static sint32 channel_exchange(void *context, uint8 transmitted,
+	uint8 *received, uint64 time)
+{
+	SpiChipType *chip = context;
+	(void)time;
+	*received = chip->ops->exchange(chip->chip, transmitted);
+	return 0;
+}
+
+static void channel_deselect(void *context, uint64 time)
+{
+	SpiChipType *chip = context;
+	(void)time;
+	chip->ops->select(chip->chip, FALSE);
+}
+
+static const AthrillSpiChildOps channel_child_ops = {
+	channel_select, channel_exchange, channel_deselect
+};
+
+/* The selected child channel answers MOSI (0xFF: no child drives MISO). */
 uint8 stm32_spi_chip_exchange(uint32 bus, uint8 mosi)
 {
 	uint32 i;
+	uint8 miso;
 
 	for (i = 0U; i < chip_count; i++) {
 		if ((chips[i].bus == bus) && chips[i].selected) {
-			return chips[i].ops->exchange(chips[i].chip, mosi);
+			if (athrill_spi_exchange(chips[i].protocol, mosi, &miso,
+				cpuemu_get_clock()) == 0) {
+				return miso;
+			}
+			return 0xFFU;
 		}
 	}
 	return 0xFFU;
@@ -201,6 +238,10 @@ void stm32_spi_reset(void)
 {
 	uint32 i;
 	uint32 k;
+	for (i = 0U; i < chip_count; i++) {
+		athrill_spi_protocol_destroy(chips[i].protocol);
+		athrill_channel_destroy(chips[i].channel);
+	}
 
 	for (i = 0U; i < SPI_NUM; i++) {
 		for (k = 0U; k < (SPI_REGS / 4U); k++) {
@@ -216,15 +257,43 @@ void stm32_spi_reset(void)
 
 void stm32_spi_attach(uint32 bus, uint32 port, uint32 pin, const Stm32SpiChipOps *ops, void *chip)
 {
+	AthrillChannelConfig config = {0};
+	SpiChipType *attached;
 	if (chip_count >= CHIPS_MAX) {
 		return;
 	}
-	chips[chip_count].bus = bus;
-	chips[chip_count].port = port;
-	chips[chip_count].pin = pin;
-	chips[chip_count].ops = ops;
-	chips[chip_count].chip = chip;
-	chips[chip_count].selected = FALSE;
+	if (bus == 0U || bus > SPI_NUM || pin >= 16U || ops == NULL ||
+	    ops->select == NULL || ops->exchange == NULL) {
+		return;
+	}
+	attached = &chips[chip_count];
+	attached->bus = bus;
+	attached->port = port;
+	attached->pin = pin;
+	attached->ops = ops;
+	attached->chip = chip;
+	attached->selection = chip_count;
+	attached->selected = FALSE;
+	attached->channel = NULL;
+	attached->protocol = NULL;
+	config.peripheral_width = 1U;
+	config.memory_width = 1U;
+	config.capacity = 1U;
+	config.threshold = 1U;
+	config.burst = 1U;
+	config.selection.kind = ATHRILL_CHANNEL_SELECT_CHIP;
+	config.selection.value = attached->selection;
+	config.count_kind = ATHRILL_CHANNEL_COUNT_SELECTION;
+	config.directions = ATHRILL_CHANNEL_ALLOW_EXCHANGE;
+	if (athrill_channel_create(&config, &attached->channel) != 0 ||
+	    athrill_spi_protocol_create(attached->channel, &channel_child_ops,
+		attached, &attached->protocol) != 0) {
+		athrill_spi_protocol_destroy(attached->protocol);
+		athrill_channel_destroy(attached->channel);
+		attached->protocol = NULL;
+		attached->channel = NULL;
+		return;
+	}
 	chip_count++;
 }
 
@@ -242,8 +311,16 @@ void stm32_spi_pins_changed(uint32 port, uint32 old, uint32 now)
 		}
 		selected = ((now & bit) == 0U);
 		if (selected != c->selected) {
-			c->selected = selected;
-			c->ops->select(c->chip, selected);
+			if (selected) {
+				if (athrill_spi_select(c->protocol, c->selection,
+					cpuemu_get_clock()) == 1) {
+					c->selected = TRUE;
+				}
+			} else {
+				(void)athrill_spi_deselect(c->protocol,
+					cpuemu_get_clock());
+				c->selected = FALSE;
+			}
 		}
 	}
 }

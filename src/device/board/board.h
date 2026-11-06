@@ -28,6 +28,15 @@ typedef struct {
 
 /* Selects the board's ordered PWM outputs for the shared actuator path. */
 void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 cpu_mhz);
+/* Thin DT adapters for the existing FMUv5 C models. */
+void board_fmu_v5_begin(void);
+void board_fmu_v5_pwm_attach(void);
+void board_fmu_v5_icm20689_attach(void);
+void board_fmu_v5_ublox_attach(void);
+void board_fmu_v5_ist8310_attach(void);
+void board_fmu_v5_ms5611_attach(void);
+void board_fmu_v5_fm25v02_attach(void);
+std_bool board_fmu_v5_sdcard_attach(void);
 /* Puts the chips of the configured board on their buses (after the buses' reset). */
 void board_attach(void);
 /* The board's chips up to the device clock (their pins, their next events). */

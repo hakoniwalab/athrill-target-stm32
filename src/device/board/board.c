@@ -126,30 +126,63 @@ void board_pwm_outputs(const BoardPwmOutputType *outputs, uint32 count, uint32 c
 	}
 }
 
-/* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
-static void attach_fmu_v5(void)
+void board_fmu_v5_begin(void)
+{
+	has_imu = FALSE;
+	motor_outputs = NULL;
+	motor_output_count = 0U;
+}
+
+void board_fmu_v5_pwm_attach(void)
 {
 	uint32 mhz = 216U;
-	char *fram_file = NULL;
-	char *sd_image = NULL;
-
 	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
 	board_pwm_outputs(fmu_v5_outputs, MOTORS, mhz);
+}
+
+void board_fmu_v5_icm20689_attach(void)
+{
+	uint32 mhz = 216U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
 	icm20689_reset(&imu, (uint64)mhz * 1000000U, ICM20689_ROTATION_YAW_90, STM32_GPIO_PORT('B'), 4U);
 	stm32_spi_attach(1U, STM32_GPIO_PORT('F'), 2U, &icm20689_ops, &imu);
 	has_imu = TRUE;
+}
+
+void board_fmu_v5_ublox_attach(void)
+{
+	uint32 mhz = 216U;
+	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
 	ublox_reset(&gps, 1U, (uint64)mhz * 1000000U);
 	stm32_uart_attach(1U, &ublox_ops, &gps);
+}
+
+void board_fmu_v5_ist8310_attach(void)
+{
 	ist8310_reset(&mag, IST8310_ROTATION_ROLL_180_YAW_90);
 	stm32_i2c_attach(3U, 0x0EU, &ist8310_ops, &mag);
+}
+
+void board_fmu_v5_ms5611_attach(void)
+{
 	ms5611_reset(&baro);
 	stm32_spi_attach(4U, STM32_GPIO_PORT('F'), 10U, &ms5611_ops, &baro);
+}
+
+void board_fmu_v5_fm25v02_attach(void)
+{
+	char *fram_file = NULL;
 	/* the parameters: F-RAM on SPI2, kept in DEVICE_CONFIG_STM32_FRAM_FILE if given */
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_FRAM_FILE", &fram_file) != STD_E_OK) {
 		fram_file = NULL;
 	}
 	fm25v02_open(&fram, fram_file);
 	stm32_spi_attach(2U, STM32_GPIO_PORT('F'), 5U, &fm25v02_ops, &fram);
+}
+
+std_bool board_fmu_v5_sdcard_attach(void)
+{
+	char *sd_image = NULL;
 	/* the microSD card on SDMMC1, an image in DEVICE_CONFIG_STM32_SDCARD_IMAGE (none: empty slot) */
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE", &sd_image) != STD_E_OK) {
 		sd_image = NULL;
@@ -158,16 +191,28 @@ static void attach_fmu_v5(void)
 	if (sdcard_present(&sdcard)) {
 		stm32_sdmmc_attach(&sdcard);
 		stm32_gpio_drive(STM32_GPIO_PORT('C'), 8U, TRUE);	/* D0 high: the card is not busy */
+		return TRUE;
 	}
+	return FALSE;
+}
+
+/* Pixhawk 4: PX4 boards/px4/fmu-v5/src/spi.cpp, i2c.cpp. */
+static void attach_fmu_v5(void)
+{
+	board_fmu_v5_pwm_attach();
+	board_fmu_v5_icm20689_attach();
+	board_fmu_v5_ublox_attach();
+	board_fmu_v5_ist8310_attach();
+	board_fmu_v5_ms5611_attach();
+	board_fmu_v5_fm25v02_attach();
+	(void)board_fmu_v5_sdcard_attach();
 }
 
 void board_attach(void)
 {
 	char *name = NULL;
 
-	has_imu = FALSE;
-	motor_outputs = NULL;
-	motor_output_count = 0U;
+	board_fmu_v5_begin();
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_BOARD", &name) != STD_E_OK) {
 		return;
 	}
