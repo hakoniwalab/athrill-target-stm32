@@ -18,6 +18,7 @@
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32h7_sdmmc.h"
+#include "device_tree.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -90,7 +91,13 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
-	board_attach();
+	/* The legacy board model is the Gate-1 behaviour adapter selected by the DT graph. */
+	if (stm32_device_tree_build()) {
+		board_attach();
+	}
+	else {
+		board_attach();
+	}
 	stm32_uart_tcp_attach();
 }
 
@@ -106,6 +113,7 @@ void device_supply_clock(DeviceClockType *clock)
 	stm32_sdmmc_tick(clock);
 	stm32h7_sdmmc_tick(clock);
 	board_tick(clock);
+	stm32_device_tree_tick(clock);
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {

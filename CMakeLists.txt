@@ -21,6 +21,14 @@ include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
 add_subdirectory(examples/host-functions)
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 option(ATHRILL_ENABLE_EXDEV "Enable external device loading" ON)
+set(ATHRILL_DEVICE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-device" CACHE PATH
+    "hakoniwalab/athrill-device checkout with the Devicetree framework")
+get_filename_component(ATHRILL_DEVICE_DIR "${ATHRILL_DEVICE_DIR}" ABSOLUTE
+    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT EXISTS "${ATHRILL_DEVICE_DIR}/include/athrill_device_if.h")
+  message(FATAL_ERROR "athrill-device Devicetree framework not found: set ATHRILL_DEVICE_DIR")
+endif()
+add_subdirectory("${ATHRILL_DEVICE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/athrill-device")
 
 # Batched execution (cpu_supply_clocks): the core runs up to this many instructions between device ticks.
 add_compile_definitions(ATHRILL_TARGET_BATCH_CLOCKS=1024U)
@@ -79,7 +87,7 @@ if(ATHRILL_STM32_COVERAGE)
 endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
-  src/device/device.c src/device/peripheral/stm32_uart.c
+  src/device/device.c src/device/device_tree.c src/device/peripheral/stm32_uart.c
   src/device/peripheral/stm32_uart_tcp.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
@@ -117,6 +125,7 @@ target_include_directories(athrill_stm32_device PRIVATE
   "${ATHRILL_SRC_DIR}/device/peripheral/target" "${ATHRILL_SRC_DIR}/device/peripheral/serial/fifo"
   "${ATHRILL_APL_DIR}/include")
 stm32_target(athrill_stm32_device)
+target_link_libraries(athrill_stm32_device PRIVATE athrill_device)
 
 add_library(athrill_bus STATIC ${ATHRILL_BUS_SOURCES})
 stm32_target(athrill_bus)

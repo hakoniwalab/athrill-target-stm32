@@ -8,6 +8,23 @@ The target models one STM32F765 core. A typical PX4 run explicitly sets `DEVICE_
 table with `DEVICE_CONFIG_STM32_BOOT_ADDR 0x08008000`, and selects the `fmu-v5` board. Paths are resolved from the
 process working directory.
 
+## Devicetree-built devices
+
+`DEVICE_CONFIG_DEVICE_TREE path/to/board.dtb` selects the Devicetree graph.
+The path is resolved from Athrill's working directory. If the key is absent,
+the legacy C-built board path and its output are unchanged.
+
+Optional model plugins are explicit, zero-based mappings. Enumeration stops
+at the first absent index, and a plugin cannot override a built-in compatible:
+
+```text
+DEVICE_CONFIG_DEVICE_PLUGIN_0 hakoniwa,sensor-device=/opt/athrill/libhako_sensor_device.so
+```
+
+Host-only values such as the F-RAM and SD image paths remain in
+`device_config.txt`. At startup they are logged on `DEVICE_TREE_HOST` lines
+with the exact DTB SHA-256.
+
 ## Common core parameter used by the target
 
 | Key | STM32 behavior | Default and dependency | Example line |
