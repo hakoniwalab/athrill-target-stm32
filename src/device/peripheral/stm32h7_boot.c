@@ -33,6 +33,9 @@
 #define OTG_FS_GRSTCTL (STM32H7_OTG_FS_BASE + 0x10U)
 #define ADC12_BASE     0x40022000U
 #define FDCAN1_BASE    0x4000A000U
+#define FDCAN2_BASE    0x4000A400U
+#define FDCAN_RAM_BASE 0x4000AC00U
+#define FDCAN_RAM_SIZE 0x00002800U
 #define ADC3_BASE      0x58026000U
 #define ADC_ISR        0x00U
 #define ADC_CR         0x08U
@@ -67,6 +70,9 @@ typedef struct {
 
 static const H7RegionType regions[] = {
 	{ FDCAN1_BASE, 0x400U, &h7_d2_data[FDCAN1_BASE - H7_D2_BASE] },
+	{ FDCAN2_BASE, 0x400U, &h7_d2_data[FDCAN2_BASE - H7_D2_BASE] },
+	{ FDCAN_RAM_BASE, FDCAN_RAM_SIZE,
+		&h7_d2_data[FDCAN_RAM_BASE - H7_D2_BASE] },
 	{ ADC12_BASE, 0x400U, &h7_d2_data[ADC12_BASE - H7_D2_BASE] },
 	{ STM32H7_OTG_FS_BASE, STM32H7_OTG_FS_SIZE, stm32h7_otg_fs_data },
 	{ RNG_BASE, 0x400U, &stm32h7_ahb2_data[RNG_BASE - STM32H7_AHB2_BASE] },
