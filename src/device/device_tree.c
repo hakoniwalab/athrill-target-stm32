@@ -12,6 +12,7 @@
 #include "device.h"
 #include "mpu.h"
 #include "peripheral/stm32_gpio.h"
+#include "peripheral/stm32_exti.h"
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_uart.h"
@@ -29,8 +30,8 @@
 #define MAX_SPI_ENDPOINTS 32U
 #define MAX_I2C_ENDPOINTS 32U
 #define MAX_UART_ENDPOINTS 16U
-#define MAX_GPIO_LINES 128U
-#define MAX_GPIO_SUBSCRIBERS 128U
+#define MAX_GPIO_LINES 192U
+#define MAX_GPIO_SUBSCRIBERS 192U
 #define MAX_DMA_CHANNELS 64U
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 16U
@@ -754,7 +755,11 @@ static sint32 target_gpio_resolve(void *context, const AthrillDeviceSpecifier *s
 	if (spec == NULL || spec->cell_count == 0U) {
 		return -1;
 	}
-	line->value = spec_handle(spec);
+	/* GPIO flags describe the consumer and are not part of a physical line. */
+	line->value = ((uint64)spec->provider << 32) ^ spec->cells[0];
+	if (line->value == 0U) {
+		line->value = 1U;
+	}
 	gpio = gpio_line(context, line->value, TRUE);
 	if (gpio == NULL) {
 		return -1;
@@ -791,7 +796,10 @@ static sint32 target_gpio_drive(void *context, AthrillDeviceGpioLine line, std_b
 	}
 	g->level = level;
 	if (g->stm32_pin) {
-		stm32_gpio_drive(g->port, g->pin, level);
+		uint32 bit = 1U << g->pin;
+		stm32_spi_pins_changed(g->port, level ? 0U : bit,
+			level ? bit : 0U);
+		stm32_exti_pin_edge(g->port, g->pin, level);
 	}
 	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
 		if (target->gpio_subscribers[i].used &&
@@ -887,8 +895,6 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-gpio") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-gpio") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-exti") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-exti") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-dma") == 0 &&
