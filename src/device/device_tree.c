@@ -6,6 +6,7 @@
 #include "device_tree.h"
 
 #include "athrill_device_if.h"
+#include "board/board.h"
 #include "bus.h"
 #include "cpuemu_ops.h"
 #include "device.h"
@@ -552,13 +553,32 @@ static sint32 target_dma_request(void *context, AthrillDeviceDmaChannel channel,
 	return 0;
 }
 
+static sint32 target_model_adapter_connect(void *context,
+	const AthrillDeviceNode *node, const char *adapter_name)
+{
+	(void)context;
+	if (node == NULL || node->matched_compatible == NULL ||
+	    adapter_name == NULL || strcmp(adapter_name, "pixhawk4-fmu-v5") != 0 ||
+	    strcmp(node->matched_compatible, "holybro,pixhawk4") != 0) {
+		return -1;
+	}
+	/*
+	 * The adapter is selected by the DT registry, but deliberately reuses the
+	 * established stateful FMUv5 construction until its individual models are
+	 * fully source-migrated.  The no-DT caller below remains unchanged.
+	 */
+	board_attach();
+	return 0;
+}
+
 static const AthrillDeviceTargetOps target_ops = {
 	ATHRILL_DEVICE_ABI_MAJOR, ATHRILL_DEVICE_ABI_MINOR, sizeof(AthrillDeviceTargetOps),
 	target_mmio_register, target_mmio_unregister, target_irq_resolve, target_irq_set, target_irq_active,
 	target_time_now, target_time_frequency, target_clock_frequency, target_memory_read, target_memory_write,
 	target_spi_bind, target_spi_select, target_spi_exchange, target_i2c_bind, target_i2c_transfer,
 	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
-	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request
+	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
+	target_model_adapter_connect
 };
 
 static Std_ReturnType config_string_silent(const char *key, char **value)

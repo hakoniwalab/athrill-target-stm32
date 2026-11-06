@@ -25,6 +25,27 @@ ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 WORK=$HERE/work
 FAILED=0
 
+# Optional DT-mode gate.  Resolve it before changing into a work directory so
+# the copied configuration is independent of the caller's current directory.
+DTB=
+if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
+	if [ ! -f "$DEVICE_CONFIG_DEVICE_TREE" ]; then
+		echo "DEVICE_CONFIG_DEVICE_TREE is not a file: $DEVICE_CONFIG_DEVICE_TREE" >&2
+		exit 1
+	fi
+	DTB=$(cd "$(dirname "$DEVICE_CONFIG_DEVICE_TREE")" && pwd)/$(basename "$DEVICE_CONFIG_DEVICE_TREE")
+	case "$DTB" in *' '*)
+		echo "DEVICE_CONFIG_DEVICE_TREE cannot contain spaces: $DTB" >&2
+		exit 1;;
+	esac
+fi
+
+append_device_tree() {
+	if [ -n "$DTB" ]; then
+		echo "DEVICE_CONFIG_DEVICE_TREE $DTB" >> "$1"
+	fi
+}
+
 clone() {
 	cp -c "$1" "$2" 2>/dev/null || cp --reflink=auto "$1" "$2" 2>/dev/null || cp "$1" "$2"
 }
@@ -42,6 +63,7 @@ rm -rf "$WORK"
 mkdir -p "$WORK/golden"
 cd "$WORK/golden"
 cp "$HERE/memory.txt" "$HERE/first-boot-config.txt" "$HERE/first-boot.nsh" "$HERE/make-sd-image.sh" .
+append_device_tree first-boot-config.txt
 ./make-sd-image.sh > /dev/null
 echo "first boot: SYS_AUTOSTART 4001 and the chips' calibration IDs"
 "$ATHRILL" -c1 -m memory.txt -d first-boot-config.txt -t 4000000000 "$ELF" > first-boot.log 2>&1 || true
@@ -52,6 +74,7 @@ for run in run1 run2; do
 	cd "$WORK/$run"
 	cp "$HERE/memory.txt" "$HERE/bench.nsh" .
 	{ cat "$HERE/device_config.txt" | grep -v UART2_TCP; echo "DEVICE_CONFIG_STM32_UART_RX_FILE bench.nsh"; } > config.txt
+	append_device_tree config.txt
 	clone "$WORK/golden/fram.bin" fram.bin
 	clone "$WORK/golden/sd.img" sd.img
 	("$ATHRILL" -c1 -m memory.txt -d config.txt -t 12000000000 "$ELF" > console.txt 2> stderr.txt || true) &

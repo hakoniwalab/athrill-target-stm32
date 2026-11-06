@@ -37,6 +37,37 @@ WORK=$HERE/work
 FAILED=0
 SKIPPED=0
 
+# Optional DT-mode gate.  Resolve it before changing into a work directory so
+# every generated config points at the same DTB from any caller directory.
+DTB=
+if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
+	if [ ! -f "$DEVICE_CONFIG_DEVICE_TREE" ]; then
+		echo "DEVICE_CONFIG_DEVICE_TREE is not a file: $DEVICE_CONFIG_DEVICE_TREE" >&2
+		exit 1
+	fi
+	DTB=$(cd "$(dirname "$DEVICE_CONFIG_DEVICE_TREE")" && pwd)/$(basename "$DEVICE_CONFIG_DEVICE_TREE")
+	case "$DTB" in *' '*)
+		echo "DEVICE_CONFIG_DEVICE_TREE cannot contain spaces: $DTB" >&2
+		exit 1;;
+	esac
+fi
+
+append_device_tree() {
+	if [ -n "$DTB" ]; then
+		echo "DEVICE_CONFIG_DEVICE_TREE $DTB" >> "$1"
+	fi
+}
+
+# Remove only startup lines introduced by the DT framework.  Guest output and
+# all other Athrill configuration lines remain part of the deterministic hash.
+normalize_console() {
+	sed -e '/^DEVICE_CONFIG_DEVICE_TREE = /d' \
+	    -e '/^DEVICE_TREE_WARNING /d' \
+	    -e '/^DEVICE_TREE sha256=/d' \
+	    -e '/^DEVICE_TREE_HOST /d' \
+	    -e '/^DEVICE_MODEL /d' "$1"
+}
+
 # copy a file (a clone where the file system can)
 clone() {
 	cp -c "$1" "$2" 2>/dev/null || cp --reflink=auto "$1" "$2" 2>/dev/null || cp "$1" "$2"
@@ -84,6 +115,7 @@ rm -rf "$WORK"
 mkdir -p "$WORK/golden"
 cd "$WORK/golden"
 cp "$EXAMPLE/memory.txt" "$EXAMPLE/first-boot-config.txt" "$EXAMPLE/first-boot.nsh" .
+append_device_tree first-boot-config.txt
 cp "$EXAMPLE/make-sd-image.sh" . && ./make-sd-image.sh > /dev/null
 echo "golden images: first boot (SYS_AUTOSTART 1100)"
 "$ATHRILL" -c1 -m memory.txt -d first-boot-config.txt -t 4000000000 "$ELF" > first-boot.log 2>&1 || true
@@ -96,6 +128,7 @@ for run in fast1 fast2 strict; do
 	cp "$EXAMPLE/memory.txt" "$HERE/scenario.nsh" .
 	grep -v UART2_TCP "$EXAMPLE/device_config.txt" > config.txt
 	echo "DEVICE_CONFIG_STM32_UART_RX_FILE scenario.nsh" >> config.txt
+	append_device_tree config.txt
 	if [ $run = strict ]; then
 		echo "DEVICE_CONFIG_ARM_FP_MODE strict" >> config.txt
 		echo "DEVICE_CONFIG_ARM_EXEC_MODE strict" >> config.txt
@@ -113,8 +146,8 @@ for run in fast1 fast2 strict; do
 	fi
 done
 for run in fast2 strict; do
-	grep -av "DEVICE_CONFIG_ARM_" fast1/console.txt > c1.txt
-	grep -av "DEVICE_CONFIG_ARM_" $run/console.txt > c2.txt
+	normalize_console fast1/console.txt | grep -av "DEVICE_CONFIG_ARM_" > c1.txt
+	normalize_console $run/console.txt | grep -av "DEVICE_CONFIG_ARM_" > c2.txt
 	if cmp -s c1.txt c2.txt && cmp -s fast1/fram.bin $run/fram.bin && cmp -s fast1/sd.img $run/sd.img; then
 		echo "  [PASS] fast1 = $run: F-RAM, SD card image and console (but the mode lines) identical ($(grep -a 'steps=' $run/stderr.txt | sed 's/.*steps=//') instructions)"
 	else
@@ -132,6 +165,7 @@ if python3 -c "import pymavlink" 2> /dev/null; then
 	mkdir -p "$WORK/mavlink"
 	cd "$WORK/mavlink"
 	cp "$EXAMPLE/memory.txt" "$EXAMPLE/device_config.txt" .
+	append_device_tree device_config.txt
 	clone "$WORK/golden/fram.bin" fram.bin
 	clone "$WORK/golden/sd.img" sd.img
 	"$ATHRILL" -c1 -m memory.txt -d device_config.txt -t -1 "$ELF" > console.txt 2>&1 &
@@ -152,7 +186,7 @@ fi
 cd "$WORK"
 if [ "$ELF_SHA" = "$PUBLISHED_ELF" ]; then
 	echo "D. the same as the published run (release ELF)"
-	grep -av "DEVICE_CONFIG_ARM_" fast1/console.txt > c1.txt
+	normalize_console fast1/console.txt > c1.txt
 	if [ "$(sha256 fast1/sd.img)" = $PUBLISHED_SD ] && [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 c1.txt)" = $PUBLISHED_CONSOLE ]; then
 		echo "  [PASS] SD card image, ULog, F-RAM and console identical to the published run (SD card image sha256 ${PUBLISHED_SD%"${PUBLISHED_SD#????????????????}"}...)"
 	else
