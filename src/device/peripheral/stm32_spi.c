@@ -4,15 +4,18 @@
  */
 #include "stm32_spi.h"
 #include "stm32_spi_bindings.h"
+#include "stm32_spi_config.h"
 #include "athrill_protocol_spi.h"
 #include "cpuemu_ops.h"
 
-#define SPI_REGS	0x24U
 #define SPI_BLOCK	0x400U
+#define SPI_WORDS	(SPI_BLOCK / 4U)
 
 /* Register interpretation: offsets and bits come from the bindings
  * (spec/bindings/st-stm32-spi-v1__f7_gen.yaml), resolved once at reset. */
 static uint32 CR1_OFFSET, CR2_OFFSET, SR_OFFSET, DR_OFFSET, CRCPR_OFFSET;
+static uint32 spi_regs;				/* register window (bytes) */
+static uint32 reset_values[SPI_WORDS];	/* by word */
 static uint32 CR1_SPE, CR2_DS_SHIFT, CR2_FRXTH, SR_RXNE, SR_TXE, SR_FRLVL_SHIFT;
 
 static void bind_registers(void)
@@ -31,14 +34,15 @@ static void bind_registers(void)
 		BIND_SHIFT(SR, FRLVL),
 	};
 	stm32_spi_bind("st,stm32-spi", "st,stm32f7", table, sizeof(table) / sizeof(table[0]));
+	spi_regs = stm32_spi_bind_resets("st,stm32-spi", "st,stm32f7", reset_values, SPI_WORDS);
 }
 
-#define RX_FIFO_SIZE	4U	/* bytes (32 bits) */
+#define RX_FIFO_SIZE	STM32F7_SPI_RX_FIFO_BYTES
 #define CHIPS_MAX	16U
 
 typedef struct {
 	uint32 base;
-	uint32 regs[SPI_REGS / 4U];
+	uint32 regs[SPI_WORDS];
 	uint8 rx[RX_FIFO_SIZE];
 	uint32 rx_head;
 	uint32 rx_count;
@@ -216,7 +220,7 @@ uint32 stm32_spi_read(uint32 addr, uint32 size)
 		}
 		return value;
 	}
-	return (offset < SPI_REGS) ? (reg(s, offset) >> (8U * ((addr - s->base) & 3U))) : 0U;
+	return (offset < spi_regs) ? (reg(s, offset) >> (8U * ((addr - s->base) & 3U))) : 0U;
 }
 
 void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
@@ -233,7 +237,7 @@ void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
 	if (offset == SR_OFFSET) {
 		return;
 	}
-	if (offset < SPI_REGS) {
+	if (offset < spi_regs) {
 		s->regs[offset / 4U] = (s->regs[offset / 4U] & ~mask) | ((value << shift) & mask);
 	}
 	/* SPE cleared: the FIFOs empty */
@@ -254,11 +258,9 @@ void stm32_spi_reset(void)
 	}
 
 	for (i = 0U; i < SPI_NUM; i++) {
-		for (k = 0U; k < (SPI_REGS / 4U); k++) {
-			spis[i].regs[k] = 0U;
+		for (k = 0U; k < SPI_WORDS; k++) {
+			spis[i].regs[k] = reset_values[k];
 		}
-		spis[i].regs[CR2_OFFSET / 4U] = 0x0700U;	/* 8-bit frames */
-		spis[i].regs[CRCPR_OFFSET / 4U] = 0x0007U;
 		spis[i].rx_head = 0U;
 		spis[i].rx_count = 0U;
 	}
