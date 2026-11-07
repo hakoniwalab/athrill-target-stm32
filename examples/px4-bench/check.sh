@@ -8,7 +8,10 @@
 # sensor source without an external device). After 30 s it checks, in PX4's
 # own reports: the IMU driver's transfers, the sensor validators, the GPS fix,
 # EKF2's position, the preflight check; then that a second run from the same
-# F-RAM and SD card images gives the same console output and SD card image.
+# F-RAM and SD card images gives the same console output and SD card image;
+# then, for the release firmware, the instruction count, console, F-RAM and
+# SD card image against the regression reference of the board in
+# athrill-device (examples/regression.sh; ATHRILL_DEVICE_DIR).
 # Work files: examples/px4-bench/work. Exit status 0 when all pass.
 # The checks read PX4's console output (device IDs, `listener` fields) as
 # PX4 v1.17.0 prints it; another PX4 version may word or number it
@@ -24,6 +27,8 @@ ATHRILL=${2:-$HERE/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 WORK=$HERE/work
 FAILED=0
+. "$HERE/../regression.sh"
+REFERENCE=$(regression_reference pixhawk4 bench)
 
 # Optional DT-mode gate.  Resolve it before changing into a work directory so
 # the copied configuration is independent of the caller's current directory.
@@ -123,6 +128,11 @@ else
 	echo "  [FAIL] run1 != run2"
 	FAILED=1
 fi
+echo "regression reference (athrill-device boards/pixhawk4/regression/bench.txt)"
+# Without the two Devicetree lines (the DTB's local path and its hash), so the
+# C path and the Devicetree path compare with the same value.
+grep -av -e "^DEVICE_CONFIG_DEVICE_TREE = " -e "^DEVICE_TREE sha256=" run1/console.txt > run1/console.norm || true
+regression_check "$REFERENCE" "$ELF" "$(grep -a 'steps=' run1/stderr.txt | sed 's/.*steps=//' | tail -1)" run1 || FAILED=1
 if [ $FAILED = 0 ]; then
 	echo "ALL PASS"
 else
