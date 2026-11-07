@@ -3,24 +3,35 @@
  * from RM0410 35.9.
  */
 #include "stm32_spi.h"
+#include "stm32_spi_bindings.h"
 #include "athrill_protocol_spi.h"
 #include "cpuemu_ops.h"
 
-#define SPI_CR1		0x00U
-#define SPI_CR2		0x04U
-#define SPI_SR		0x08U
-#define SPI_DR		0x0CU
-#define SPI_CRCPR	0x10U
 #define SPI_REGS	0x24U
 #define SPI_BLOCK	0x400U
 
-#define CR1_SPE		(1U << 6)
-#define CR2_DS_SHIFT	8U
-#define CR2_FRXTH	(1U << 12)
+/* Register interpretation: offsets and bits come from the bindings
+ * (spec/bindings/st-stm32-spi-v1__f7_gen.yaml), resolved once at reset. */
+static uint32 SPI_CR1, SPI_CR2, SPI_SR, SPI_DR, SPI_CRCPR;
+static uint32 CR1_SPE, CR2_DS_SHIFT, CR2_FRXTH, SR_RXNE, SR_TXE, SR_FRLVL_SHIFT;
 
-#define SR_RXNE		(1U << 0)
-#define SR_TXE		(1U << 1)
-#define SR_FRLVL_SHIFT	9U
+static void bind_registers(void)
+{
+	static const Stm32SpiBinding table[] = {
+		{ &SPI_CR1, "CR1", NULL, STM32_BIND_OFFSET },
+		{ &SPI_CR2, "CR2", NULL, STM32_BIND_OFFSET },
+		{ &SPI_SR, "SR", NULL, STM32_BIND_OFFSET },
+		{ &SPI_DR, "DR", NULL, STM32_BIND_OFFSET },
+		{ &SPI_CRCPR, "CRCPR", NULL, STM32_BIND_OFFSET },
+		{ &CR1_SPE, "CR1", "SPE", STM32_BIND_MASK },
+		{ &CR2_DS_SHIFT, "CR2", "DS", STM32_BIND_SHIFT },
+		{ &CR2_FRXTH, "CR2", "FRXTH", STM32_BIND_MASK },
+		{ &SR_RXNE, "SR", "RXNE", STM32_BIND_MASK },
+		{ &SR_TXE, "SR", "TXE", STM32_BIND_MASK },
+		{ &SR_FRLVL_SHIFT, "SR", "FRLVL", STM32_BIND_SHIFT },
+	};
+	stm32_spi_bind("st,stm32-spi", table, sizeof(table) / sizeof(table[0]));
+}
 
 #define RX_FIFO_SIZE	4U	/* bytes (32 bits) */
 #define CHIPS_MAX	16U
@@ -195,18 +206,17 @@ uint32 stm32_spi_read(uint32 addr, uint32 size)
 	uint32 offset = (addr - s->base) & ~3U;
 	uint32 value;
 
-	switch (offset) {
-	case SPI_SR:
+	if (offset == SPI_SR) {
 		return status(s);
-	case SPI_DR:
+	}
+	if (offset == SPI_DR) {
 		value = rx_pop(s);
 		if ((size >= 2U) || (frame_bits(s) > 8U)) {
 			value |= (uint32)rx_pop(s) << 8;
 		}
 		return value;
-	default:
-		return (offset < SPI_REGS) ? (reg(s, offset) >> (8U * ((addr - s->base) & 3U))) : 0U;
 	}
+	return (offset < SPI_REGS) ? (reg(s, offset) >> (8U * ((addr - s->base) & 3U))) : 0U;
 }
 
 void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
@@ -216,21 +226,19 @@ void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
 	uint32 shift = 8U * ((addr - s->base) & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 
-	switch (offset) {
-	case SPI_DR:
+	if (offset == SPI_DR) {
 		transmit(s, size, value);
 		return;
-	case SPI_SR:
+	}
+	if (offset == SPI_SR) {
 		return;
-	default:
-		if (offset < SPI_REGS) {
-			s->regs[offset / 4U] = (s->regs[offset / 4U] & ~mask) | ((value << shift) & mask);
-		}
-		/* SPE cleared: the FIFOs empty */
-		if ((offset == SPI_CR1) && ((reg(s, SPI_CR1) & CR1_SPE) == 0U)) {
-			s->rx_count = 0U;
-		}
-		return;
+	}
+	if (offset < SPI_REGS) {
+		s->regs[offset / 4U] = (s->regs[offset / 4U] & ~mask) | ((value << shift) & mask);
+	}
+	/* SPE cleared: the FIFOs empty */
+	if ((offset == SPI_CR1) && ((reg(s, SPI_CR1) & CR1_SPE) == 0U)) {
+		s->rx_count = 0U;
 	}
 }
 
@@ -238,6 +246,8 @@ void stm32_spi_reset(void)
 {
 	uint32 i;
 	uint32 k;
+
+	bind_registers();
 	for (i = 0U; i < chip_count; i++) {
 		athrill_spi_protocol_destroy(chips[i].protocol);
 		athrill_channel_destroy(chips[i].channel);

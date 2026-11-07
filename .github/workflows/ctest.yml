@@ -40,8 +40,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: 1fed4a80592a8b5dc8dd85fdd2f40642fcf4f3a7
+          ref: 0d6cd45ed454c560ad6b217445998f389d0eb596
           path: athrill-device
+      - name: libyaml (athrill-device bindings loader)
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update -qq && sudo apt-get install -y -qq libyaml-dev pkg-config; else brew install libyaml pkg-config || true; fi
       - name: build
         working-directory: athrill-target-stm32
         run: |
