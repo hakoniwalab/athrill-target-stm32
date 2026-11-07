@@ -111,14 +111,19 @@ echo "ELF sha256: $ELF_SHA"
 # The published run of the release ELF (PX4 v1.17.0, built on the Mac): the
 # whole SD card image, ULog, F-RAM and console of flight A. (make-sd-image.sh
 # makes the same image on every host.)
+# Re-recorded 2026-11-08 when the SDMMC became an athrill-device model
+# (hakoniwalab/athrill-device#13 step 4-6): the F7 SDMMC's write DMA stream
+# now completes when it has filled the FIFO, before DATAEND, as on the chip
+# (before: at the end of the bus time). The flight differs from the release
+# run from that timing on (shown by restoring the old timing: the old values
+# return); every determinism and flight check passes in 3 runs.
+# docs/verification.md keeps the release run's values.
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
-PUBLISHED_ULOG=5aaa66ebf76d7fde713ef39cb07890dc6cb5de136713fd35732121efef116e3d
-PUBLISHED_FRAM=c1a69ccb3740c797db62233deca689741a76a20692e982acea95c76199ff50e9
-# console: normalised without Athrill's configuration echo lines (re-recorded
-# 2026-11-08 from the release run with the target's UART; the firmware output
-# is unchanged)
-PUBLISHED_CONSOLE=9046f5e3a1952db6eac262b282337c1e22c343a9f95e3409c73845e6c7932582
-PUBLISHED_SD=cdce0b68427e967b4f47fcdf2378496f7970736ed68d8c3c15d575f3391ed16d
+PUBLISHED_ULOG=f5e027ad0e09066740f92a480160d647ce2acf3130a1f8acd1abfc3c4a908b33
+PUBLISHED_FRAM=df47fba8e7c01577dd5df410cef35aef60323dbb9785a77d8e0cc3d4f4c274c9
+# console: normalised without Athrill's configuration echo lines
+PUBLISHED_CONSOLE=926ac8aa8c8c1ec9935f4fe30b6b4c7d779becd913768b83d18d1f94253d3f08
+PUBLISHED_SD=42a2ae12833203a0f13e6c8bc1db87a1a1e7ea1e62bddf22ca6ee7565d828927
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"

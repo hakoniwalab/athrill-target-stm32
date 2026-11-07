@@ -69,7 +69,7 @@ list(APPEND STM32_INCLUDES
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu" "${ATHRILL_TARGET_SOURCE_DIR}/cpu/config"
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu/decoder" "${ATHRILL_ARM_COMMON_DIR}/include"
     "${ATHRILL_TARGET_SOURCE_DIR}/device" "${ATHRILL_TARGET_SOURCE_DIR}/device/peripheral"
-    "${STM32_MODELS_DIR}" "${STM32_MODELS_DIR}/peripheral"
+    "${STM32_MODELS_DIR}"
     "${ATHRILL_TARGET_SOURCE_DIR}/debugger/interaction/inc")
 function(stm32_target name)
   athrill_apply_common_settings(${name})
@@ -115,9 +115,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32h7_boot.c
   src/device/target_host.c
   src/device/sensor/sensor_source.c
-  ${STM32_MODELS_DIR}/memory/sdcard.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
-  ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c
   src/device/board/board_profile.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -174,18 +171,6 @@ if(BUILD_TESTING)
   target_include_directories(test_arm_m_dwt PRIVATE src/device)
   target_link_libraries(test_arm_m_dwt PRIVATE athrill_stm32_config)
   add_test(NAME device-arm-m-dwt COMMAND test_arm_m_dwt)
-  add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
-    ${STM32_MODELS_DIR}/memory/sdcard.c)
-  stm32_target(test_sdmmc_sdcard)
-  target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
-  target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
-  add_executable(test_stm32h7_sdmmc test/device/test_host_stub.c test/device/test_stm32h7_sdmmc.c
-    ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c ${STM32_MODELS_DIR}/memory/sdcard.c)
-  stm32_target(test_stm32h7_sdmmc)
-  target_include_directories(test_stm32h7_sdmmc PRIVATE src/device)
-  target_link_libraries(test_stm32h7_sdmmc PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-stm32h7-sdmmc COMMAND test_stm32h7_sdmmc)
   add_executable(test_stm32h7_boot test/device/test_stm32h7_boot.c
     src/device/peripheral/stm32h7_boot.c src/device/board/board_profile.c)
   stm32_target(test_stm32h7_boot)

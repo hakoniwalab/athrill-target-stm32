@@ -19,7 +19,6 @@
 #include "cpu.h"
 #include "cpuemu_ops.h"
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "stm32_sdmmc.h"
 #include "stm32h7_boot.h"
 #include "board/board_profile.h"
 #include <stdio.h>
@@ -102,9 +101,6 @@ static const char *trace_owner(uint32 addr)
 	if (stm32_board_is_h7()) {
 		return "h7boot";
 	}
-	if (stm32_sdmmc_owns(addr)) {
-		return "sdmmc";
-	}
 	return "register-file";
 }
 
@@ -141,9 +137,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	uint32 v = *word_at(r, a);
 	uint32 i;
 
-	if (stm32_sdmmc_owns(a)) {
-		return stm32_sdmmc_read(a);
-	}
 	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
 		if (a == spi_bases[i] + 0x08U) {
 			return v | 0x3U;	/* SR: TXE, RXNE */
@@ -177,13 +170,8 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 
 static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint32 value)
 {
-	uint32 a = addr & ~3U;
 	uint32 i;
 
-	if (stm32_sdmmc_owns(a)) {
-		stm32_sdmmc_write(addr, size, value);
-		return;
-	}
 	for (i = 0U; i < size; i++) {
 		r->data[addr - (uint32)r->start + i] = (uint8)(value >> (8U * i));
 	}
@@ -197,9 +185,6 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 	if (stm32_board_is_h7()) {
 		return stm32h7_boot_read((uint32)a, 1U, &value) == STD_E_OK
 			? (*d = (uint8)value, STD_E_OK) : STD_E_SEGV;
-	}
-	if (stm32_sdmmc_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
 	*d = (uint8)(read_word(r, (uint32)a) >> (8U * (a & 3U)));
@@ -215,9 +200,6 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		return stm32h7_boot_read((uint32)a, 2U, &value) == STD_E_OK
 			? (*d = (uint16)value, STD_E_OK) : STD_E_SEGV;
 	}
-	if (stm32_sdmmc_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
-	}
 	report((uint32)a, "read");
 	*d = (uint16)(read_word(r, (uint32)a) >> (8U * (a & 2U)));
 	return STD_E_OK;
@@ -229,9 +211,6 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
 		return stm32h7_boot_read((uint32)a, 4U, d);
-	}
-	if (stm32_sdmmc_owns((uint32)a)) {
-		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
 	*d = read_word(r, (uint32)a);

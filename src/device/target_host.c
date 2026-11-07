@@ -3,12 +3,8 @@
  * required interface. Moved unchanged from device_tree.c (only the names and
  * the owner of the MMIO adapter table changed).
  *
- * Dependency on target models (until they move, hakoniwalab/athrill-device#13
- * step 4): mmio_read_batch_barrier() calls stm32_sdmmc_owns() (the SPI
- * and UART controllers end the batch themselves). A read of those registers
- * consumes or exposes a moving serial stream, so the CPU batch has to end
- * there (stm32_device_accessed). When the models live in athrill-device the
- * model itself reports that its access ends the batch, and this call goes.
+ * A model whose register access must end the CPU batch reports it itself
+ * (end_batch); the target keeps no list of such addresses.
  *
  * Copyright 2026 Hakoniwa Laboratory
  * SPDX-License-Identifier: MIT
@@ -20,7 +16,6 @@
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
-#include "peripheral/stm32_sdmmc.h"
 #include "target_cpu.h"
 
 #include <fcntl.h>
@@ -53,23 +48,12 @@ static MmioAdapter *mmio_of(MpuAddressRegionType *region)
 	return (MmioAdapter *)region->data;
 }
 
-/* Match the legacy F7 bus path: only reads that consume or expose a moving
- * serial stream end a CPU batch.  Register-only peripherals (timer, GPIO,
- * EXTI) can be read without ticking all devices between instructions. */
-static void mmio_read_batch_barrier(AthrillAddrType address)
-{
-	if (stm32_sdmmc_owns(address)) {
-		stm32_device_accessed = TRUE;
-	}
-}
-
 static Std_ReturnType mmio_get8(MpuAddressRegionType *region, CoreIdType core,
                                 AthrillAddrType address, uint8 *data)
 {
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 1U, &value) != 0) {
 		return STD_E_INVALID;
@@ -83,7 +67,6 @@ static Std_ReturnType mmio_get16(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 2U, &value) != 0) {
 		return STD_E_INVALID;
@@ -97,7 +80,6 @@ static Std_ReturnType mmio_get32(MpuAddressRegionType *region, CoreIdType core,
 	uint64 value;
 	MmioAdapter *adapter = mmio_of(region);
 	(void)core;
-	mmio_read_batch_barrier(address);
 	if (!adapter->active ||
 	    adapter->ops->read(adapter->instance, address, 4U, &value) != 0) {
 		return STD_E_INVALID;

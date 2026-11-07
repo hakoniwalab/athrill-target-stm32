@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: 2b9b49f21a9f8ad5e63d396f013ad86d341b29e6
+          ref: 4698a6809e48f4e1f1e97ff535763142e9c532ee
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4

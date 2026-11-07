@@ -6,8 +6,6 @@
 #include "peripheral/stm32_periph_probe.h"
 #include "sensor/sensor_source.h"
 #include "board/board_profile.h"
-#include "peripheral/stm32_sdmmc.h"
-#include "peripheral/stm32h7_sdmmc.h"
 #include "device_tree.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
@@ -19,14 +17,6 @@ static std_bool exdev_initialized = FALSE;
 
 std_bool stm32_device_accessed = FALSE;
 
-static uint32 cpu_mhz(void)
-{
-	uint32 mhz = 216U;
-
-	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
-	return mhz;
-}
-
 /*
  * The order device_supply_clock() ticks the devices in, written once: the
  * calls and the start-up log (TARGET_TICK lines; "devicetree" is where the
@@ -35,8 +25,6 @@ static uint32 cpu_mhz(void)
  */
 #define TARGET_TICKS(X) \
 	X(arm_m_scs, arm_m_scs_tick(clock)) \
-	X(stm32_sdmmc, stm32_sdmmc_tick(clock)) \
-	X(stm32h7_sdmmc, stm32h7_sdmmc_tick(clock)) \
 	X(devicetree, stm32_device_tree_tick(clock))
 
 static void log_tick_order(void)
@@ -64,8 +52,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	arm_m_scs_reset();
 	arm_m_dwt_reset();
 	stm32_probe_init();
-	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
-	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
 	/* The board comes only from the Devicetree (DEVICE_CONFIG_DEVICE_TREE);
 	 * without one, Athrill runs the CPU with these controllers and no board. */

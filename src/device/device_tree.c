@@ -18,13 +18,10 @@
 #include "device_tree.h"
 
 #include "athrill_device_if.h"
-#include "memory/sdcard.h"
-#include "peripheral/stm32h7_sdmmc.h"
 #include "bus.h"
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
-#include "peripheral/stm32_sdmmc.h"
 #include "sensor/sensor_source.h"
 #include "std_errno.h"
 #include "target_cpu.h"
@@ -75,7 +72,6 @@ typedef struct {
 } Stm32DeviceTreeTarget;
 
 static Stm32DeviceTreeTarget target_context;
-static SdcardType sdcard = { .fd = -1 };
 static AthrillDeviceRuntime *device_tree_runtime;
 static std_bool destroy_registered;
 
@@ -292,42 +288,9 @@ static sint32 target_model_adapter_connect(void *context,
 	 * attach one chip each.  Shared board tick state is reset before either the
 	 * DT graph or the no-DT board_attach path is selected.
 	 */
-	if (strcmp(adapter_name, "sdcard") == 0 &&
-	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
-		AthrillDeviceSpecifier spec;
-		AthrillDeviceGpioLine line;
-		/* The card image (DEVICE_CONFIG_STM32_SDCARD_IMAGE; none: empty slot)
-		 * on the SDMMC model of the SoC (moved here from the C-path boards). */
-		char *sd_image = NULL;
-		if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE", &sd_image) != STD_E_OK) {
-			sd_image = NULL;
-		}
-		sdcard_open(&sdcard, sd_image);
-		if (!sdcard_present(&sdcard)) {
-			return 0;
-		}
-		if (strstr(node->path, "/sdmmc@48022400/") != NULL) {
-			stm32h7_sdmmc_attach(&sdcard);
-			return 0;
-		}
-		stm32_sdmmc_attach(&sdcard);
-		/* F7: D0 high (PC8), the card is not busy */
-		memset(&spec, 0, sizeof(spec));
-		spec.provider_path = "/gpio@40020800";
-		spec.provider_compatible = "st,stm32-gpio";
-		spec.cell_count = 2U;
-		spec.cells[0] = 8U;
-		if (target_gpio_resolve(context, &spec, &line) != 0 ||
-		    target_gpio_drive(context, line, TRUE) != 0) {
-			return -1;
-		}
-		return 0;
-	}
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32-sdmmc") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-flash-controller") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7-flash-controller") == 0 ||
