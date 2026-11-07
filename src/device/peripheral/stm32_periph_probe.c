@@ -20,8 +20,6 @@
 #include "cpuemu_ops.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 #include "stm32_uart.h"
-#include "stm32_spi.h"
-#include "stm32h7_spi.h"
 #include "stm32_dma.h"
 #include "stm32_sdmmc.h"
 #include "stm32h7_boot.h"
@@ -110,16 +108,10 @@ static const char *trace_owner(uint32 addr)
 		return "dma";
 	}
 	if (stm32_board_is_h7()) {
-		if (stm32h7_spi_owns(addr)) {
-			return "h7spi";
-		}
 		return "h7boot";
 	}
 	if (stm32_sdmmc_owns(addr)) {
 		return "sdmmc";
-	}
-	if (stm32_spi_owns(addr)) {
-		return "spi";
 	}
 	return "register-file";
 }
@@ -214,10 +206,6 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 		stm32_sdmmc_write(addr, size, value);
 		return;
 	}
-	if (stm32_spi_owns(a)) {
-		stm32_spi_write(addr, size, value);
-		return;
-	}
 	for (i = 0U; i < size; i++) {
 		r->data[addr - (uint32)r->start + i] = (uint8)(value >> (8U * i));
 	}
@@ -237,11 +225,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 		*value = stm32_dma_read(aligned);
 		return TRUE;
 	}
-	if (stm32h7_spi_owns(addr)) {
-		stm32_device_accessed = TRUE;
-		*value = stm32h7_spi_read(addr, size) << (8U * (addr & 3U));
-		return TRUE;
-	}
 	return FALSE;
 }
 
@@ -253,10 +236,6 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32h7_spi_owns(addr)) {
-		stm32h7_spi_write(addr, size, value);
 		return TRUE;
 	}
 	return FALSE;
@@ -274,12 +253,6 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 		}
 		return stm32h7_boot_read((uint32)a, 1U, &value) == STD_E_OK
 			? (*d = (uint8)value, STD_E_OK) : STD_E_SEGV;
-	}
-	if (stm32_spi_owns((uint32)a)) {
-		/* DR: a read takes from the RX FIFO as many frames as its size */
-		stm32_device_accessed = TRUE;
-		*d = (uint8)stm32_spi_read((uint32)a, 1U);
-		return STD_E_OK;
 	}
 	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
@@ -302,12 +275,6 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		return stm32h7_boot_read((uint32)a, 2U, &value) == STD_E_OK
 			? (*d = (uint16)value, STD_E_OK) : STD_E_SEGV;
 	}
-	if (stm32_spi_owns((uint32)a)) {
-		/* DR: a read takes from the RX FIFO as many frames as its size */
-		stm32_device_accessed = TRUE;
-		*d = (uint16)stm32_spi_read((uint32)a, 2U);
-		return STD_E_OK;
-	}
 	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
@@ -325,12 +292,6 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 			return STD_E_OK;
 		}
 		return stm32h7_boot_read((uint32)a, 4U, d);
-	}
-	if (stm32_spi_owns((uint32)a)) {
-		/* DR: a read takes from the RX FIFO as many frames as its size */
-		stm32_device_accessed = TRUE;
-		*d = (uint32)stm32_spi_read((uint32)a, 4U);
-		return STD_E_OK;
 	}
 	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */

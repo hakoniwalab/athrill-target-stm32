@@ -25,7 +25,6 @@
 #include "device.h"
 #include "mpu.h"
 #include "peripheral/stm32_sdmmc.h"
-#include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_uart.h"
 #include "sensor/sensor_source.h"
 #include "std_errno.h"
@@ -38,7 +37,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_SPI_ENDPOINTS 32U
 #define MAX_UART_ENDPOINTS 16U
 #define MAX_GPIO_LINES 192U
 #define MAX_GPIO_SUBSCRIBERS 384U
@@ -46,14 +44,6 @@
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 32U
 #define MAX_PLUGIN_MAPPING 1024U
-
-typedef struct {
-	const AthrillDeviceSpiPeripheralOps *ops;
-	void *instance;
-	AthrillDeviceNodeId controller;
-	uint32 chip_select;
-	std_bool active;
-} SpiEndpoint;
 
 typedef struct {
 	const AthrillDeviceUartPeripheralOps *ops;
@@ -89,7 +79,6 @@ typedef struct {
 } DmaChannel;
 
 typedef struct {
-	SpiEndpoint spi[MAX_SPI_ENDPOINTS];
 	UartEndpoint uart[MAX_UART_ENDPOINTS];
 	GpioLine gpio[MAX_GPIO_LINES];
 	GpioSubscriber gpio_subscribers[MAX_GPIO_SUBSCRIBERS];
@@ -104,50 +93,6 @@ static std_bool destroy_registered;
 
 static char plugin_mappings[MAX_PLUGINS][MAX_PLUGIN_MAPPING];
 
-static sint32 target_spi_bind(void *context, AthrillDeviceNodeId controller, uint32 chip_select,
-                              const AthrillDeviceSpecifier *gpio, const AthrillDeviceSpiPeripheralOps *ops, void *instance,
-                              AthrillDeviceSpiEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i;
-	(void)gpio;
-	for (i = 0U; i < MAX_SPI_ENDPOINTS; i++)
-		if (!target->spi[i].active) {
-			break;
-		}
-	if (i == MAX_SPI_ENDPOINTS || ops == NULL) {
-		return -1;
-	}
-	target->spi[i].ops = ops;
-	target->spi[i].instance = instance;
-	target->spi[i].controller = controller;
-	target->spi[i].chip_select = chip_select;
-	target->spi[i].active = TRUE;
-	endpoint->value = i + 1U;
-	return 0;
-}
-static SpiEndpoint *spi_endpoint(Stm32DeviceTreeTarget *target, AthrillDeviceSpiEndpoint endpoint)
-{
-	return endpoint.value > 0U && endpoint.value <= MAX_SPI_ENDPOINTS &&
-	       target->spi[endpoint.value - 1U].active ? &target->spi[endpoint.value - 1U] : NULL;
-}
-
-static void target_spi_bridge_select(void *instance, std_bool selected)
-{
-	SpiEndpoint *endpoint = instance;
-	endpoint->ops->set_chip_select(endpoint->instance, selected);
-}
-
-static uint8 target_spi_bridge_exchange(void *instance, uint8 mosi)
-{
-	SpiEndpoint *endpoint = instance;
-	return endpoint->ops->exchange_byte(endpoint->instance, mosi);
-}
-
-static const Stm32SpiChipOps target_spi_bridge_ops = {
-	target_spi_bridge_select, target_spi_bridge_exchange
-};
-
 static sint32 node_path_address(const char *path, uint32 *address)
 {
 	const char *at;
@@ -161,68 +106,6 @@ static sint32 node_path_address(const char *path, uint32 *address)
 		return -1;
 	}
 	*address = (uint32)value;
-	return 0;
-}
-
-static sint32 target_spi_bind_node(void *context,
-	const AthrillDeviceNode *controller, uint32 chip_select,
-	const AthrillDeviceSpecifier *gpio,
-	const AthrillDeviceSpiPeripheralOps *ops, void *instance,
-	AthrillDeviceSpiEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	SpiEndpoint *bound;
-	uint32 controller_address, gpio_address, bus, port, pin;
-	if (controller == NULL || gpio == NULL || gpio->cell_count < 1U ||
-	    node_path_address(controller->path, &controller_address) != 0 ||
-	    node_path_address(gpio->provider_path, &gpio_address) != 0 ||
-	    !(((gpio_address >= 0x40020000U && gpio_address <= 0x40022800U) ||
-	       (gpio_address >= 0x58020000U && gpio_address <= 0x58022800U)) &&
-	      (gpio_address - (gpio_address >= 0x58020000U ?
-	       0x58020000U : 0x40020000U)) % 0x400U == 0U)) {
-		return -1;
-	}
-	switch (controller_address) {
-	case 0x40013000U: bus = 1U; break;
-	case 0x40003800U: bus = 2U; break;
-	case 0x40003c00U: bus = 3U; break;
-	case 0x40013400U: bus = 4U; break;
-	case 0x40015000U: bus = 5U; break;
-	case 0x40015400U: bus = 6U; break;
-	default: return -1;
-	}
-	port = (gpio_address - (gpio_address >= 0x58020000U ?
-		0x58020000U : 0x40020000U)) / 0x400U;
-	pin = gpio->cells[0];
-	if (port > (uint32)('K' - 'A') || pin >= 16U ||
-	    target_spi_bind(context, controller->id, chip_select, gpio, ops,
-		instance, endpoint) != 0) {
-		return -1;
-	}
-	bound = spi_endpoint(target, *endpoint);
-	if (bound == NULL) {
-		return -1;
-	}
-	stm32_spi_attach(bus, port, pin, &target_spi_bridge_ops, bound);
-	return 0;
-}
-static sint32 target_spi_select(void *context, AthrillDeviceSpiEndpoint endpoint, std_bool asserted)
-{
-	SpiEndpoint *e = spi_endpoint(context, endpoint);
-	if (e == NULL || e->ops->set_chip_select == NULL) {
-		return -1;
-	}
-	e->ops->set_chip_select(e->instance, asserted);
-	return 0;
-}
-static sint32 target_spi_exchange(void *context, AthrillDeviceSpiEndpoint endpoint, uint8 mosi,
-                                  uint8 *miso)
-{
-	SpiEndpoint *e = spi_endpoint(context, endpoint);
-	if (e == NULL || e->ops->exchange_byte == NULL || miso == NULL) {
-		return -1;
-	}
-	*miso = e->ops->exchange_byte(e->instance, mosi);
 	return 0;
 }
 
@@ -429,7 +312,7 @@ static sint32 target_gpio_outputs(void *context,
 {
 	Stm32DeviceTreeTarget *target = context;
 	GpioLine *gpio[16];
-	uint32 old, next, port, index;
+	uint32 next, port, index;
 	if (lines == NULL || count == 0U || count > 16U) {
 		return -1;
 	}
@@ -442,15 +325,11 @@ static sint32 target_gpio_outputs(void *context,
 		}
 	}
 	port = gpio[0]->port;
-	old = target->gpio_outputs[port];
 	next = levels & ((1U << count) - 1U);
 	for (index = 0U; index < count; index++) {
 		gpio[index]->level = (next & (1U << index)) != 0U;
 	}
 	target->gpio_outputs[port] = next;
-	if (old != next) {
-		stm32_spi_pins_changed(port, old, next);
-	}
 	return 0;
 }
 static sint32 target_gpio_subscribe(void *context, AthrillDeviceGpioLine line,
@@ -568,9 +447,6 @@ static sint32 target_model_adapter_connect(void *context,
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
 	    (strcmp(adapter_name, "stm32-dma") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-spi") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32-spi-fifo") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32-spi") == 0)) ||
 	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
@@ -600,8 +476,6 @@ static sint32 target_model_adapter_connect(void *context,
 	     strcmp(node->matched_compatible, "st,stm32h7-rcc") == 0) ||
 	    (strcmp(adapter_name, "stm32h7-pwr") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32h7-pwr") == 0) ||
-	    (strcmp(adapter_name, "stm32h7-spi") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32h7-spi") == 0) ||
 	    (strcmp(adapter_name, "stm32h7-boot-register") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-bdma") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-watchdog") == 0 ||
@@ -675,11 +549,11 @@ static const AthrillDeviceTargetOps target_ops = {
 	stm32_host_irq_is_active, stm32_host_time_now, stm32_host_time_frequency_hz,
 	stm32_host_clock_frequency_hz, stm32_host_memory_read, stm32_host_memory_write,
 	/* TO BE REMOVED bridge operations: this file */
-	target_spi_bind, target_spi_select, target_spi_exchange,
+	NULL, NULL, NULL,	/* spi_bind, spi_set_chip_select, spi_exchange_byte: the SPI controllers are athrill-device models */
 	NULL, NULL,	/* i2c_bind, i2c_transfer: the I2C controller is an athrill-device model */
 	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
-	target_model_adapter_connect, target_spi_bind_node, stm32_host_value,
+	target_model_adapter_connect, NULL /* spi_bind_node */, stm32_host_value,
 	target_sensor_sample, NULL /* i2c_bind_node */, target_uart_bind_nodes,
 	target_uart_send_from_node, target_gps_sample, target_actuator_output,
 	target_gpio_outputs,
