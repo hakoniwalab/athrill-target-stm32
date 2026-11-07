@@ -114,9 +114,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32h7_boot.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
-  ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c
   src/device/target_host.c
   src/device/sensor/sensor_source.c
   ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
@@ -195,19 +192,6 @@ if(BUILD_TESTING)
   add_test(NAME device-uart-dma-tx COMMAND test_uart_dma_tx)
   add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
   set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
-  add_executable(test_spi_ms5611 test/device/test_host_stub.c test/device/test_spi_ms5611.c test/fixtures/peripheral/stm32_gpio.c
-    test/fixtures/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c test/fixtures/sensor/ms5611.c)
-  stm32_target(test_spi_ms5611)
-  target_include_directories(test_spi_ms5611 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
-  target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
-  add_executable(test_dma_icm20689 test/device/test_host_stub.c test/device/test_dma_icm20689.c test/fixtures/peripheral/stm32_gpio.c
-    test/fixtures/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
-    test/fixtures/sensor/icm20689.c)
-  stm32_target(test_dma_icm20689)
-  target_include_directories(test_dma_icm20689 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
-  target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
   add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
     ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
@@ -226,22 +210,6 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_boot PRIVATE src/device)
   target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
-  add_executable(test_stm32h7_spi test/device/test_host_stub.c test/device/test_stm32h7_spi.c
-    ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
-    test/fixtures/peripheral/stm32_gpio.c test/fixtures/peripheral/stm32_exti.c
-    test/fixtures/memory/fm25v02.c)
-  stm32_target(test_stm32h7_spi)
-  target_include_directories(test_stm32h7_spi PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
-  target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
-  add_executable(test_stm32h7_spi_frontend test/device/test_host_stub.c test/device/test_stm32h7_spi_frontend.c
-    ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c)
-  stm32_target(test_stm32h7_spi_frontend)
-  target_include_directories(test_stm32h7_spi_frontend PRIVATE src/device)
-  target_link_libraries(test_stm32h7_spi_frontend PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-stm32h7-spi-spec-gaps COMMAND test_stm32h7_spi_frontend)
-  set_tests_properties(device-stm32h7-spi-spec-gaps PROPERTIES WILL_FAIL TRUE)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
     test/fixtures/sensor/bmi055.c test/fixtures/sensor/icm42688p.c test/fixtures/sensor/ms5611.c)
   stm32_target(test_v6c_sensors)

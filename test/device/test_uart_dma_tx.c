@@ -16,7 +16,6 @@
 #include <string.h>
 #include "peripheral/stm32_uart.h"
 #include "peripheral/stm32_dma.h"
-#include "peripheral/stm32_spi.h"
 #include "device.h"
 #include "bus.h"
 #include "concrete_executor/target/dbg_target_serial.h"
@@ -55,37 +54,6 @@ bool dbg_serial_putchar(uint8 c, uint8 d)
 		line_out[line_len] = '\0';
 	}
 	return TRUE;
-}
-
-std_bool stm32_spi_owns(uint32 addr)
-{
-	(void)addr;
-	return FALSE;
-}
-
-uint32 stm32_spi_read(uint32 addr, uint32 size)
-{
-	(void)addr;
-	(void)size;
-	return 0U;
-}
-
-void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
-{
-	(void)addr;
-	(void)size;
-	(void)value;
-}
-
-std_bool stm32h7_spi_dma_exchange(uint32 txdr, uint32 size, uint32 value,
-	uint32 *rxdr, uint32 *response)
-{
-	(void)txdr;
-	(void)size;
-	(void)value;
-	(void)rxdr;
-	(void)response;
-	return FALSE;
 }
 
 Std_ReturnType mpu_get_data8(CoreIdType c, AthrillAddrType a, uint8 *d)
