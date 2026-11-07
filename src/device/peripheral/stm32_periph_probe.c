@@ -22,7 +22,6 @@
 #include "stm32_uart.h"
 #include "stm32_spi.h"
 #include "stm32h7_spi.h"
-#include "stm32_dmamux.h"
 #include "stm32_dma.h"
 #include "stm32_i2c.h"
 #include "stm32_sdmmc.h"
@@ -115,9 +114,6 @@ static const char *trace_owner(uint32 addr)
 		return "i2c";
 	}
 	if (stm32_board_is_h7()) {
-		if (stm32_dmamux_owns(addr)) {
-			return "dmamux";
-		}
 		if (stm32h7_spi_owns(addr)) {
 			return "h7spi";
 		}
@@ -252,10 +248,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 		*value = stm32_dma_read(aligned);
 		return TRUE;
 	}
-	if (stm32_dmamux_owns(addr)) {
-		*value = stm32_dmamux_read(aligned);
-		return TRUE;
-	}
 	if (stm32_i2c_owns(addr)) {
 		stm32_device_accessed = TRUE;
 		*value = stm32_i2c_read(addr);
@@ -277,10 +269,6 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32_dmamux_owns(addr)) {
-		stm32_dmamux_write(addr, size, value);
 		return TRUE;
 	}
 	if (stm32_i2c_owns(addr)) {

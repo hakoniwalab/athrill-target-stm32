@@ -1,7 +1,6 @@
 #include "peripheral/stm32h7_spi.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_gpio.h"
-#include "peripheral/stm32_dmamux.h"
 #include "memory/fm25v02.h"
 #include "../test_check.h"
 #include <stdio.h>
@@ -34,7 +33,6 @@ int main(void)
 	stm32_gpio_reset();
 	stm32_spi_reset();
 	stm32h7_spi_reset();
-	stm32_dmamux_reset();
 	fm25v02_open(&fram, NULL);
 	stm32_spi_attach(2U, STM32_GPIO_PORT('D'), 4U, &fm25v02_ops, &fram);
 
@@ -55,11 +53,8 @@ int main(void)
 	stm32h7_spi_write(SPI2 + 0x10U, 4U, 1U << 3); /* EOTIE after DMA completion */
 	TEST_CHECK(raised[36] == 1U); /* SPI2 global IRQ wakes NuttX's TX-complete wait */
 
-	stm32_dmamux_write(0x4002080CU, 4U, 39U); /* SPI2_RX request */
-	stm32_dmamux_write(0x5802581CU, 4U, 80U); /* D3 request selector */
-	TEST_CHECK(stm32_dmamux_read(0x4002080CU) == 39U);
-	TEST_CHECK(stm32_dmamux_read(0x5802581CU) == 80U);
-
-	puts("STM32H7 SPI/DMAMUX tests passed");
+	/* The DMAMUX register checks moved with the model to athrill-device
+	 * (tests/test_stm32_dmamux.c). */
+	puts("STM32H7 SPI tests passed");
 	return 0;
 }
