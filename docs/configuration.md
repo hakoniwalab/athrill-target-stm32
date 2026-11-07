@@ -10,7 +10,7 @@ process working directory.
 
 ## Devicetree-built devices
 
-`DEVICE_CONFIG_DEVICE_TREE path/to/board.dtb` selects the Devicetree graph.
+`DEVICE_CONFIG_DEVICE_TREE path/to/board.dtb` selects the board: its Devicetree (athrill-device `boards/<board>/*.dtb`). Boards are built only from the Devicetree.
 The path is resolved from Athrill's working directory. If the key is absent,
 the legacy C-built board path and its output are unchanged.
 
@@ -51,7 +51,7 @@ supports the generic spin-halt key. See the core page for values, dependencies, 
 
 | Key | Meaning and accepted values | Default and dependency | Example line |
 | --- | --- | --- | --- |
-| `DEVICE_CONFIG_STM32_BOARD` | Board wiring to attach. `fmu-v5` attaches the Pixhawk 4 devices and AUX PWM outputs; `fmu-v6c` attaches the Pixhawk 6C H7 devices, SDMMC2 card, and FMU PWM outputs. Unknown names warn and attach no board. | Absent: no board devices are attached. | `DEVICE_CONFIG_STM32_BOARD fmu-v6c` |
+| `DEVICE_CONFIG_STM32_BOARD` | The SoC profile: `fmu-v5` (STM32F7) or `fmu-v6c` (STM32H7) for the boot and probe registers. The board itself (its devices and wiring) comes only from `DEVICE_CONFIG_DEVICE_TREE`; a configuration with this key and no Devicetree stops at start with an error. | Absent: STM32F7 profile. | `DEVICE_CONFIG_STM32_BOARD fmu-v6c` |
 | `DEVICE_CONFIG_STM32_FRAM_FILE` | Host backing file for the FM25V02A F-RAM. The target creates it if needed, reads existing bytes, and sizes it to the 32 KiB chip. | Absent: the selected board's F-RAM starts zeroed and is not persisted. Ignored unless `fmu-v5` or `fmu-v6c` is selected. | `DEVICE_CONFIG_STM32_FRAM_FILE fram.bin` |
 | `DEVICE_CONFIG_STM32_SDCARD_IMAGE` | Writable host image for the selected board's SDHC card (SDMMC1 on v5, SDMMC2 with IDMA on v6C). It must exist and be at least 512 KiB; usable size is rounded down to a 512 KiB multiple. | Absent or unusable: empty card slot. Ignored unless `fmu-v5` or `fmu-v6c` is selected. | `DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img` |
 | `DEVICE_CONFIG_STM32_ACTUATOR_FILE` | Text trace of PWM output changes after the selected board's ordered timer channels have passed through the shared waveform-to-actuator path. Each line has the output, timer, channel, pulse width in microseconds, and normalized command. | Absent: no trace file; actuator delivery is unchanged. The file is truncated when the board is attached. | `DEVICE_CONFIG_STM32_ACTUATOR_FILE actuators.txt` |

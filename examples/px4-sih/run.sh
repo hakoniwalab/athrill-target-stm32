@@ -14,11 +14,16 @@ ELF=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 DIR=$(cd "$(dirname "$0")" && pwd)
 ATHRILL=${2:-$DIR/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
+. "$DIR/../boards.sh"
+DTB=${DEVICE_CONFIG_DEVICE_TREE:-$(board_dtb pixhawk4 pixhawk4)}
 cd "$DIR"
+for c in first-boot-config device_config; do
+	{ cat $c.txt; printf 'DEVICE_CONFIG_DEVICE_TREE %s\n' "$DTB"; } >$c.run
+done
 ./make-sd-image.sh
 if [ ! -e fram.bin ]; then
 	echo "first boot: SYS_AUTOSTART 1100 (SIH quadcopter X) into fram.bin ..."
-	"$ATHRILL" -c1 -m memory.txt -d first-boot-config.txt -t 4000000000 "$ELF" > first-boot.log 2>&1 || true
+	"$ATHRILL" -c1 -m memory.txt -d first-boot-config.run -t 4000000000 "$ELF" > first-boot.log 2>&1 || true
 	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 1100" first-boot.log; then
 		echo "first boot failed, see $DIR/first-boot.log" >&2
 		rm -f fram.bin
@@ -26,4 +31,4 @@ if [ ! -e fram.bin ]; then
 	fi
 fi
 echo "PX4 on Athrill; connect QGroundControl to TCP 127.0.0.1:5760"
-exec "$ATHRILL" -c1 -m memory.txt -d device_config.txt -t -1 "$ELF"
+exec "$ATHRILL" -c1 -m memory.txt -d device_config.run -t -1 "$ELF"

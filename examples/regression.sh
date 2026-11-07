@@ -10,8 +10,10 @@
 #   sha256 <file in the run directory> <hex>
 # The values are compared only for that firmware.
 
+. "$(dirname "$0")/../boards.sh"
+
 regression_reference() {	# board, check -> path
-	echo "${ATHRILL_DEVICE_DIR:-$(cd "$(dirname "$0")/../../.." && pwd)/athrill-device}/boards/$1/regression/$2.txt"
+	echo "$(athrill_device_dir)/boards/$1/regression/$2.txt"
 }
 
 regression_sha256() {

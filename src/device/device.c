@@ -3,24 +3,18 @@
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
 #include "peripheral/stm32_periph_probe.h"
-#include "peripheral/stm32_tim.h"
 #include "peripheral/stm32_uart.h"
 #include "peripheral/stm32_uart_tcp.h"
-#include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32h7_spi.h"
 #include "peripheral/stm32_dmamux.h"
 #include "sensor/sensor_source.h"
-#include "board/board.h"
 #include "board/board_profile.h"
-#include "peripheral/stm32_exti.h"
 #include "peripheral/stm32_dma.h"
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32h7_sdmmc.h"
-#ifdef ATHRILL_ENABLE_DEVICE_TREE
 #include "device_tree.h"
-#endif
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"
 #endif
@@ -75,14 +69,8 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	arm_m_scs_reset();
 	arm_m_dwt_reset();
 	stm32_probe_init();
-	stm32_tim_set_h7(stm32_board_is_h7());
-	stm32_tim_reset();
 	stm32_uart_set_h7(stm32_board_is_h7());
 	uart_reset();
-	stm32_gpio_set_h7(stm32_board_is_h7());
-	stm32_gpio_reset();
-	stm32_exti_set_h7(stm32_board_is_h7());
-	stm32_exti_reset();
 	stm32_dma_set_h7(stm32_board_is_h7());
 	stm32_dma_reset();
 	stm32_dmamux_reset();
@@ -93,14 +81,9 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
-	board_reset();
-#ifdef ATHRILL_ENABLE_DEVICE_TREE
-	if (!stm32_device_tree_build()) {
-#endif
-		board_attach();
-#ifdef ATHRILL_ENABLE_DEVICE_TREE
-	}
-#endif
+	/* The board comes only from the Devicetree (DEVICE_CONFIG_DEVICE_TREE);
+	 * without one, Athrill runs the CPU with these controllers and no board. */
+	(void)stm32_device_tree_build();
 	stm32_uart_tcp_attach();
 }
 
@@ -109,16 +92,12 @@ void device_supply_clock(DeviceClockType *clock)
 	clock->can_skip_clock = TRUE;
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
 	arm_m_scs_tick(clock);
-	stm32_tim_tick(clock);
 	stm32_uart_tcp_tick();
 	stm32_uart_tick(clock);
 	stm32_i2c_tick();
 	stm32_sdmmc_tick(clock);
 	stm32h7_sdmmc_tick(clock);
-	board_tick(clock);
-#ifdef ATHRILL_ENABLE_DEVICE_TREE
 	stm32_device_tree_tick(clock);
-#endif
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {

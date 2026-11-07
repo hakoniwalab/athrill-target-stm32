@@ -29,16 +29,8 @@ set(ATHRILL_DEVICE_AVAILABLE OFF)
 if(EXISTS "${ATHRILL_DEVICE_DIR}/include/athrill_device_if.h")
   set(ATHRILL_DEVICE_AVAILABLE ON)
 endif()
-option(ATHRILL_ENABLE_DEVICE_TREE "Enable athrill-device Devicetree support"
-  ${ATHRILL_DEVICE_AVAILABLE})
 if(ATHRILL_DEVICE_AVAILABLE)
   add_subdirectory("${ATHRILL_DEVICE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/athrill-device")
-endif()
-if(ATHRILL_ENABLE_DEVICE_TREE)
-  if(NOT ATHRILL_DEVICE_AVAILABLE)
-    message(FATAL_ERROR
-      "ATHRILL_ENABLE_DEVICE_TREE requires athrill-device: set ATHRILL_DEVICE_DIR or disable the option")
-  endif()
 endif()
 if(NOT ATHRILL_DEVICE_AVAILABLE)
   message(FATAL_ERROR "athrill-device is required: it holds the STM32 models (targets/stm32)")
@@ -53,10 +45,10 @@ add_library(athrill_stm32_config INTERFACE)
 target_compile_definitions(athrill_stm32_config INTERFACE
     CPUEMU_CLOCK_BUG_FIX SEARCH_REGION_OPTIMIZE DISABLE_BUS_ACCESS_LOG
     OPTIMIZE_USE_ONLY_1CPU MINIMUM_DEVICE_CONFIG DISABLE_DEVICE_VDEV DISABLE_CAN)
+target_link_libraries(athrill_stm32_config INTERFACE Threads::Threads m ${CMAKE_DL_LIBS})
 if(ATHRILL_ENABLE_EXDEV)
   target_compile_definitions(athrill_stm32_config INTERFACE EXDEV_ENABLE)
 endif()
-target_link_libraries(athrill_stm32_config INTERFACE Threads::Threads m ${CMAKE_DL_LIBS})
 
 # Hard-coded model values the SVD does not hold (athrill-device targets/stm32/config/stm32_*_config.h):
 # a directory with your own copies of these headers comes before the defaults.
@@ -122,35 +114,21 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32h7_boot.c
-  src/device/peripheral/stm32_tim.c
-  src/device/peripheral/stm32_gpio.c
   ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
   ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
   ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c
   src/device/target_host.c
   ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c
   src/device/sensor/sensor_source.c
-  src/device/sensor/ms5611.c
-  src/device/sensor/icm20689.c
-  src/device/sensor/icm42688p.c
-  src/device/sensor/bmi055.c
-  src/device/peripheral/stm32_exti.c
   ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
   ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
-  src/device/sensor/ist8310.c
-  src/device/sensor/ublox.c
-  src/device/memory/fm25v02.c
   ${STM32_MODELS_DIR}/memory/sdcard.c
   ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
   ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c
   src/device/board/board_profile.c
-  src/device/board/fmu_v6c.c
-  src/device/board/board.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
-if(ATHRILL_ENABLE_DEVICE_TREE)
-  list(APPEND DEVICE_SOURCES src/device/device_tree.c)
-endif()
+list(APPEND DEVICE_SOURCES src/device/device_tree.c)
 if(ATHRILL_ENABLE_EXDEV)
   list(APPEND DEVICE_SOURCES ${ATHRILL_DEVICE_EXDEV_SOURCES} ${ATHRILL_DEVICE_EXDEV_POSIX_SOURCES})
 endif()
@@ -160,9 +138,6 @@ target_include_directories(athrill_stm32_device PRIVATE
   "${ATHRILL_APL_DIR}/include")
 stm32_target(athrill_stm32_device)
 target_link_libraries(athrill_stm32_device PRIVATE athrill_device)
-if(ATHRILL_ENABLE_DEVICE_TREE)
-  target_compile_definitions(athrill_stm32_device PRIVATE ATHRILL_ENABLE_DEVICE_TREE)
-endif()
 
 add_library(athrill_bus STATIC ${ATHRILL_BUS_SOURCES})
 stm32_target(athrill_bus)
@@ -199,13 +174,13 @@ if(BUILD_TESTING)
   add_test(NAME decoder-known COMMAND decode_dump 4770 f000d000 f8d00004 fb91f0f2 eeb70bc0 f3ef8008)
   set_tests_properties(decoder-known PROPERTIES PASS_REGULAR_EXPRESSION
     "BX_T1.*BL_i_T1.*LDR_i_T3.*SDIV_T1.*VCVT_sd_T1.*MRS_T1_AS")
-  # The timer model against RM0410, the emulator stubbed (test/device).
-  add_executable(test_stm32_tim test/device/test_stm32_tim.c test/device/test_arm_m_dwt.c
-    src/device/peripheral/stm32_tim.c src/device/peripheral/arm_m_dwt.c)
-  stm32_target(test_stm32_tim)
-  target_include_directories(test_stm32_tim PRIVATE src/device)
-  target_link_libraries(test_stm32_tim PRIVATE athrill_stm32_config)
-  add_test(NAME device-stm32-tim COMMAND test_stm32_tim)
+  # The DWT cycle counter (the timer is an athrill-device model).
+  add_executable(test_arm_m_dwt test/device/test_dwt_main.c test/device/test_arm_m_dwt.c
+    src/device/peripheral/arm_m_dwt.c)
+  stm32_target(test_arm_m_dwt)
+  target_include_directories(test_arm_m_dwt PRIVATE src/device)
+  target_link_libraries(test_arm_m_dwt PRIVATE athrill_stm32_config)
+  add_test(NAME device-arm-m-dwt COMMAND test_arm_m_dwt)
   add_executable(test_stm32_uart test/device/test_host_stub.c test/device/test_stm32_uart.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c)
   stm32_target(test_stm32_uart)
   target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
@@ -222,35 +197,25 @@ if(BUILD_TESTING)
   add_test(NAME device-uart-dma-tx COMMAND test_uart_dma_tx)
   add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
   set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
-  add_executable(test_spi_ms5611 test/device/test_host_stub.c test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
-    src/device/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c src/device/sensor/ms5611.c)
+  add_executable(test_spi_ms5611 test/device/test_host_stub.c test/device/test_spi_ms5611.c test/fixtures/peripheral/stm32_gpio.c
+    test/fixtures/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c test/fixtures/sensor/ms5611.c)
   stm32_target(test_spi_ms5611)
-  target_include_directories(test_spi_ms5611 PRIVATE src/device)
+  target_include_directories(test_spi_ms5611 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
-  add_executable(test_dma_icm20689 test/device/test_host_stub.c test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
-    src/device/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
-    src/device/sensor/icm20689.c)
+  add_executable(test_dma_icm20689 test/device/test_host_stub.c test/device/test_dma_icm20689.c test/fixtures/peripheral/stm32_gpio.c
+    test/fixtures/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
+    test/fixtures/sensor/icm20689.c)
   stm32_target(test_dma_icm20689)
-  target_include_directories(test_dma_icm20689 PRIVATE src/device)
+  target_include_directories(test_dma_icm20689 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
   add_executable(test_i2c_ist8310 test/device/test_host_stub.c test/device/test_i2c_ist8310.c ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
-    src/device/sensor/ist8310.c)
+    test/fixtures/sensor/ist8310.c)
   stm32_target(test_i2c_ist8310)
-  target_include_directories(test_i2c_ist8310 PRIVATE src/device)
+  target_include_directories(test_i2c_ist8310 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_i2c_ist8310 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-i2c-ist8310 COMMAND test_i2c_ist8310)
-  add_executable(test_ublox test/device/test_ublox.c src/device/sensor/ublox.c)
-  stm32_target(test_ublox)
-  target_include_directories(test_ublox PRIVATE src/device)
-  target_link_libraries(test_ublox PRIVATE athrill_stm32_config)
-  add_test(NAME device-ublox COMMAND test_ublox)
-  add_executable(test_fm25v02 test/device/test_fm25v02.c src/device/memory/fm25v02.c)
-  stm32_target(test_fm25v02)
-  target_include_directories(test_fm25v02 PRIVATE src/device)
-  target_link_libraries(test_fm25v02 PRIVATE athrill_stm32_config)
-  add_test(NAME device-fm25v02 COMMAND test_fm25v02)
   add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
     ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
@@ -272,10 +237,10 @@ if(BUILD_TESTING)
   add_executable(test_stm32h7_spi test/device/test_host_stub.c test/device/test_stm32h7_spi.c
     ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
     ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
-    src/device/peripheral/stm32_gpio.c src/device/peripheral/stm32_exti.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c src/device/memory/fm25v02.c)
+    test/fixtures/peripheral/stm32_gpio.c test/fixtures/peripheral/stm32_exti.c
+    ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c test/fixtures/memory/fm25v02.c)
   stm32_target(test_stm32h7_spi)
-  target_include_directories(test_stm32h7_spi PRIVATE src/device)
+  target_include_directories(test_stm32h7_spi PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
   add_executable(test_stm32h7_spi_frontend test/device/test_host_stub.c test/device/test_stm32h7_spi_frontend.c
@@ -286,9 +251,9 @@ if(BUILD_TESTING)
   add_test(NAME device-stm32h7-spi-spec-gaps COMMAND test_stm32h7_spi_frontend)
   set_tests_properties(device-stm32h7-spi-spec-gaps PROPERTIES WILL_FAIL TRUE)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
-    src/device/sensor/bmi055.c src/device/sensor/icm42688p.c src/device/sensor/ms5611.c)
+    test/fixtures/sensor/bmi055.c test/fixtures/sensor/icm42688p.c test/fixtures/sensor/ms5611.c)
   stm32_target(test_v6c_sensors)
-  target_include_directories(test_v6c_sensors PRIVATE src/device)
+  target_include_directories(test_v6c_sensors PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_v6c_sensors PRIVATE athrill_stm32_config)
   add_test(NAME device-v6c-sensors COMMAND test_v6c_sensors)
   # The fast executors against the generic ones (src/cpu/thumb_fast.c).

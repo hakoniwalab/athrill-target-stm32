@@ -292,7 +292,7 @@ PWM pulses on the FMU AUX outputs go back to it as motor commands, in
 lockstep. The x500 takes off and hovers at about 2.5 m; the whole system
 runs at RTF 1.85 (Apple M2 Pro, no viewer). Everything is public: Hakoniwa Drone v5.0.0 or later (free
 edition) and the sensor device of [athrill-device](https://github.com/hakoniwalab/athrill-device);
-[docs/hakoniwa.md](docs/hakoniwa.md) has the setup, and `examples/px4-hakoniwa` runs it, with a take-off
+[docs/hakoniwa.md](docs/hakoniwa.md) has the setup, and `examples/px4-hakoniwa` runs it (not working at the moment: see the note in docs/hakoniwa.md), with a take-off
 check. The SIH demonstration does not need it.
 
 ## ArduPilot, and a race with Renode
@@ -332,7 +332,7 @@ ArduCopter V4.7.2 binary reads the emulated chips with its own drivers and
 flies the Hakoniwa Drone x500: EKF3 uses the GPS, then GUIDED take-off to
 2.5 m and hover, 3/3 runs, faster than real time without the viewer.
 [docs/hakoniwa.md](docs/hakoniwa.md#ardupilot) has the steps, and
-`examples/ardupilot-hakoniwa` runs it. ArduPilot's Renode emulation also flies
+`examples/ardupilot-hakoniwa` runs it (not working at the moment: see the note in docs/hakoniwa.md). ArduPilot's Renode emulation also flies
 ArduPilot with physics; [docs/related-work.md](docs/related-work.md) says how
 this differs.
 

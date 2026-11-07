@@ -16,6 +16,10 @@ ELF=$(absolute "$1")
 ATHRILL=$(absolute "$2")
 DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$DIR/../.." && pwd)
+EXAMPLES=$ROOT/examples
+. "$EXAMPLES/boards.sh"
+# The first boot runs the board from its Devicetree with the bench sensors.
+DTB=${DEVICE_CONFIG_DEVICE_TREE:-$(board_dtb pixhawk6c pixhawk6c)}
 cd "$DIR"
 
 if [ ! -e sd.img ]; then
@@ -32,7 +36,8 @@ fi
 
 if [ ! -e fram.bin ]; then
 	echo "first boot: shared x500 parameters and v6C sensor IDs into fram.bin"
-	"$ATHRILL" -c1 -m memory.txt -d first-boot-config.txt -t 100000000000 "$ELF" >first-boot.log 2>&1 || true
+	{ cat first-boot-config.txt; printf 'DEVICE_CONFIG_DEVICE_TREE %s\n' "$DTB"; } >first-boot-config.run
+	"$ATHRILL" -c1 -m memory.txt -d first-boot-config.run -t 100000000000 "$ELF" >first-boot.log 2>&1 || true
 	if ! grep -aq "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log \
 		|| ! grep -aq "CAL_ACC0_ID: curr: .* -> new: 4259850" first-boot.log; then
 		echo "first boot failed, see $DIR/first-boot.log" >&2

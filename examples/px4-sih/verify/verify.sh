@@ -37,9 +37,13 @@ WORK=$HERE/work
 FAILED=0
 SKIPPED=0
 
-# Optional DT-mode gate.  Resolve it before changing into a work directory so
-# every generated config points at the same DTB from any caller directory.
+# The board's Devicetree (athrill-device boards/pixhawk4/pixhawk4.dtb, or
+# DEVICE_CONFIG_DEVICE_TREE). Resolve it before changing into a work directory
+# so every generated config points at the same DTB from any caller directory.
+EXAMPLES=$(dirname "$EXAMPLE")
+. "$EXAMPLES/boards.sh"
 DTB=
+DEVICE_CONFIG_DEVICE_TREE=${DEVICE_CONFIG_DEVICE_TREE:-$(board_dtb pixhawk4 pixhawk4)}
 if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
 	if [ ! -f "$DEVICE_CONFIG_DEVICE_TREE" ]; then
 		echo "DEVICE_CONFIG_DEVICE_TREE is not a file: $DEVICE_CONFIG_DEVICE_TREE" >&2
