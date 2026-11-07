@@ -12,23 +12,23 @@
 
 /* Register interpretation: offsets and bits come from the bindings
  * (spec/bindings/st-stm32-spi-v1__f7_gen.yaml), resolved once at reset. */
-static uint32 SPI_CR1, SPI_CR2, SPI_SR, SPI_DR, SPI_CRCPR;
+static uint32 CR1_OFFSET, CR2_OFFSET, SR_OFFSET, DR_OFFSET, CRCPR_OFFSET;
 static uint32 CR1_SPE, CR2_DS_SHIFT, CR2_FRXTH, SR_RXNE, SR_TXE, SR_FRLVL_SHIFT;
 
 static void bind_registers(void)
 {
 	static const Stm32SpiBinding table[] = {
-		{ &SPI_CR1, "CR1", NULL, STM32_BIND_OFFSET },
-		{ &SPI_CR2, "CR2", NULL, STM32_BIND_OFFSET },
-		{ &SPI_SR, "SR", NULL, STM32_BIND_OFFSET },
-		{ &SPI_DR, "DR", NULL, STM32_BIND_OFFSET },
-		{ &SPI_CRCPR, "CRCPR", NULL, STM32_BIND_OFFSET },
-		{ &CR1_SPE, "CR1", "SPE", STM32_BIND_MASK },
-		{ &CR2_DS_SHIFT, "CR2", "DS", STM32_BIND_SHIFT },
-		{ &CR2_FRXTH, "CR2", "FRXTH", STM32_BIND_MASK },
-		{ &SR_RXNE, "SR", "RXNE", STM32_BIND_MASK },
-		{ &SR_TXE, "SR", "TXE", STM32_BIND_MASK },
-		{ &SR_FRLVL_SHIFT, "SR", "FRLVL", STM32_BIND_SHIFT },
+		BIND_OFFSET(CR1),
+		BIND_OFFSET(CR2),
+		BIND_OFFSET(SR),
+		BIND_OFFSET(DR),
+		BIND_OFFSET(CRCPR),
+		BIND_MASK(CR1, SPE),
+		BIND_SHIFT(CR2, DS),
+		BIND_MASK(CR2, FRXTH),
+		BIND_MASK(SR, RXNE),
+		BIND_MASK(SR, TXE),
+		BIND_SHIFT(SR, FRLVL),
 	};
 	stm32_spi_bind("st,stm32-spi", "st,stm32f7", table, sizeof(table) / sizeof(table[0]));
 }
@@ -95,7 +95,7 @@ static uint32 reg(const SpiType *s, uint32 offset)
 /* Bits per frame (DS + 1). */
 static uint32 frame_bits(const SpiType *s)
 {
-	uint32 ds = (reg(s, SPI_CR2) >> CR2_DS_SHIFT) & 0xFU;
+	uint32 ds = (reg(s, CR2_OFFSET) >> CR2_DS_SHIFT) & 0xFU;
 
 	return (ds < 3U) ? 8U : (ds + 1U);
 }
@@ -172,7 +172,7 @@ static void transmit(SpiType *s, uint32 size, uint32 value)
 	uint8 hi;
 	uint8 lo;
 
-	if ((reg(s, SPI_CR1) & CR1_SPE) == 0U) {
+	if ((reg(s, CR1_OFFSET) & CR1_SPE) == 0U) {
 		return;
 	}
 	if (frame_bits(s) > 8U) {
@@ -191,7 +191,7 @@ static void transmit(SpiType *s, uint32 size, uint32 value)
 static uint32 status(const SpiType *s)
 {
 	uint32 sr = SR_TXE;
-	uint32 needed = ((frame_bits(s) <= 8U) && ((reg(s, SPI_CR2) & CR2_FRXTH) != 0U)) ? 1U : 2U;
+	uint32 needed = ((frame_bits(s) <= 8U) && ((reg(s, CR2_OFFSET) & CR2_FRXTH) != 0U)) ? 1U : 2U;
 	uint32 level = (s->rx_count >= 3U) ? 3U : s->rx_count;
 
 	if (s->rx_count >= needed) {
@@ -206,10 +206,10 @@ uint32 stm32_spi_read(uint32 addr, uint32 size)
 	uint32 offset = (addr - s->base) & ~3U;
 	uint32 value;
 
-	if (offset == SPI_SR) {
+	if (offset == SR_OFFSET) {
 		return status(s);
 	}
-	if (offset == SPI_DR) {
+	if (offset == DR_OFFSET) {
 		value = rx_pop(s);
 		if ((size >= 2U) || (frame_bits(s) > 8U)) {
 			value |= (uint32)rx_pop(s) << 8;
@@ -226,18 +226,18 @@ void stm32_spi_write(uint32 addr, uint32 size, uint32 value)
 	uint32 shift = 8U * ((addr - s->base) & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 
-	if (offset == SPI_DR) {
+	if (offset == DR_OFFSET) {
 		transmit(s, size, value);
 		return;
 	}
-	if (offset == SPI_SR) {
+	if (offset == SR_OFFSET) {
 		return;
 	}
 	if (offset < SPI_REGS) {
 		s->regs[offset / 4U] = (s->regs[offset / 4U] & ~mask) | ((value << shift) & mask);
 	}
 	/* SPE cleared: the FIFOs empty */
-	if ((offset == SPI_CR1) && ((reg(s, SPI_CR1) & CR1_SPE) == 0U)) {
+	if ((offset == CR1_OFFSET) && ((reg(s, CR1_OFFSET) & CR1_SPE) == 0U)) {
 		s->rx_count = 0U;
 	}
 }
@@ -257,8 +257,8 @@ void stm32_spi_reset(void)
 		for (k = 0U; k < (SPI_REGS / 4U); k++) {
 			spis[i].regs[k] = 0U;
 		}
-		spis[i].regs[SPI_CR2 / 4U] = 0x0700U;	/* 8-bit frames */
-		spis[i].regs[SPI_CRCPR / 4U] = 0x0007U;
+		spis[i].regs[CR2_OFFSET / 4U] = 0x0700U;	/* 8-bit frames */
+		spis[i].regs[CRCPR_OFFSET / 4U] = 0x0007U;
 		spis[i].rx_head = 0U;
 		spis[i].rx_count = 0U;
 	}
