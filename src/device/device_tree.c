@@ -18,13 +18,12 @@
 #include "device_tree.h"
 
 #include "athrill_device_if.h"
-#include "board/board.h"
-#include "board/fmu_v6c.h"
+#include "memory/sdcard.h"
+#include "peripheral/stm32h7_sdmmc.h"
 #include "bus.h"
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
-#include "peripheral/stm32_gpio.h"
 #include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32_spi.h"
@@ -114,6 +113,7 @@ typedef struct {
 } Stm32DeviceTreeTarget;
 
 static Stm32DeviceTreeTarget target_context;
+static SdcardType sdcard = { .fd = -1 };
 static AthrillDeviceRuntime *device_tree_runtime;
 static std_bool destroy_registered;
 
@@ -209,7 +209,7 @@ static sint32 target_spi_bind_node(void *context,
 	port = (gpio_address - (gpio_address >= 0x58020000U ?
 		0x58020000U : 0x40020000U)) / 0x400U;
 	pin = gpio->cells[0];
-	if (port > STM32_GPIO_PORT('K') || pin >= 16U ||
+	if (port > (uint32)('K' - 'A') || pin >= 16U ||
 	    target_spi_bind(context, controller->id, chip_select, gpio, ops,
 		instance, endpoint) != 0) {
 		return -1;
@@ -718,13 +718,22 @@ static sint32 target_model_adapter_connect(void *context,
 	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
 		AthrillDeviceSpecifier spec;
 		AthrillDeviceGpioLine line;
+		/* The card image (DEVICE_CONFIG_STM32_SDCARD_IMAGE; none: empty slot)
+		 * on the SDMMC model of the SoC (moved here from the C-path boards). */
+		char *sd_image = NULL;
+		if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_SDCARD_IMAGE", &sd_image) != STD_E_OK) {
+			sd_image = NULL;
+		}
+		sdcard_open(&sdcard, sd_image);
+		if (!sdcard_present(&sdcard)) {
+			return 0;
+		}
 		if (strstr(node->path, "/sdmmc@48022400/") != NULL) {
-			(void)fmu_v6c_sdcard_attach();
+			stm32h7_sdmmc_attach(&sdcard);
 			return 0;
 		}
-		if (!board_fmu_v5_sdcard_attach()) {
-			return 0;
-		}
+		stm32_sdmmc_attach(&sdcard);
+		/* F7: D0 high (PC8), the card is not busy */
 		memset(&spec, 0, sizeof(spec));
 		spec.provider_path = "/gpio@40020800";
 		spec.provider_compatible = "st,stm32-gpio";
@@ -858,7 +867,9 @@ static const AthrillDeviceTargetOps target_ops = {
 	target_model_adapter_connect, target_spi_bind_node, stm32_host_value,
 	target_sensor_sample, target_i2c_bind_node, target_uart_bind_nodes,
 	target_uart_send_from_node, target_gps_sample, target_actuator_output,
-	target_gpio_outputs
+	target_gpio_outputs,
+	/* ABI 1.10 REQUIRED operations: target_host.c */
+	stm32_host_console_write, stm32_host_end_batch
 };
 
 static uint32 collect_host_values(AthrillDeviceHostValue values[MAX_HOST_VALUES])
@@ -937,6 +948,14 @@ std_bool stm32_device_tree_build(void)
 	stm32_device_tree_destroy();
 	stm32_host_reset_values();
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_DEVICE_TREE", &path) != STD_E_OK) {
+		char *board = NULL;
+		/* The boards built by C code are gone (hakoniwalab/athrill-device#13):
+		 * a configuration that still names one must not run without a board. */
+		if (stm32_host_config_string("DEVICE_CONFIG_STM32_BOARD", &board) == STD_E_OK) {
+			printf("ERROR: DEVICE_CONFIG_STM32_BOARD %s needs DEVICE_CONFIG_DEVICE_TREE "
+			       "(athrill-device boards/<board>/<board>.dtb); boards are built only from the Devicetree\n", board);
+			exit(1);
+		}
 		return FALSE;
 	}
 	/* The C path makes these two configuration echoes while attaching its

@@ -1,5 +1,7 @@
 # ArduPilot on Athrill STM32, and a comparison with Renode
 
+> **Not working since the boards built by C code were removed (2026-11-07).** The Hakoniwa examples (`examples/px4-hakoniwa`, `examples/ardupilot-hakoniwa`) and `examples/ardupilot-bench` still select their board with `DEVICE_CONFIG_STM32_BOARD` and load the sensor device through `memory.txt` (`DEV`); boards now come only from their Devicetree in athrill-device. They are to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
+
 The unmodified ArduCopter firmware for the Pixhawk 4 boots on Athrill STM32,
 the same emulated board that runs PX4. ArduPilot also runs this firmware on
 [Renode](https://ardupilot.org/dev/docs/renode-emulation.html), so the two

@@ -16,6 +16,7 @@
 #include "target_host.h"
 
 #include "bus.h"
+#include "concrete_executor/target/dbg_target_serial.h"
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
@@ -373,6 +374,21 @@ sint32 stm32_host_value(void *context, const char *key,
 	return 0;
 }
 
+sint32 stm32_host_console_write(void *context, uint32 channel, uint8 data)
+{
+	(void)context;
+	if (channel > 0xFFU) {
+		return -1;
+	}
+	return dbg_serial_putchar((uint8)channel, data) ? 0 : -1;
+}
+
+void stm32_host_end_batch(void *context)
+{
+	(void)context;
+	stm32_device_accessed = TRUE;
+}
+
 void stm32_host_reset_values(void)
 {
 	numeric_host_value_count = 0U;
@@ -393,6 +409,8 @@ static const AthrillDeviceTargetOps host_ops = {
 	.memory_read = stm32_host_memory_read,
 	.memory_write = stm32_host_memory_write,
 	.host_value = stm32_host_value,
+	.console_write = stm32_host_console_write,
+	.end_batch = stm32_host_end_batch,
 	/* every TO BE REMOVED bridge operation stays NULL */
 };
 

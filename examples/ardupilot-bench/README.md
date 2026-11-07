@@ -1,5 +1,8 @@
 # ArduPilot Pixhawk 4 bench
 
+> **Not working since the boards built by C code were removed (2026-11-07).** This example still selects its board with `DEVICE_CONFIG_STM32_BOARD`; boards now come only from their Devicetree in athrill-device (`boards/<board>/*.dtb`). It is to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
+
+
 This boots an unmodified ArduCopter Pixhawk 4 ELF. The seed F-RAM contains
 `BRD_IO_ENABLE=0`, the normal ArduPilot setting for a board used without its
 IO coprocessor. Without that setting ArduPilot tries to update the absent

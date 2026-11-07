@@ -5,19 +5,16 @@
  * the regulator, the RTC's synchronisation and initialisation, the USB OTG
  * core's resets, an SD card slot without a card, SPI buses with nothing on
  * them, an ADC whose conversions are always done); the timers PX4 needs are
- * modelled apart (stm32_tim.c), and so are the USART/UARTs (stm32_uart.c). The first access to each 1 KiB block of
+ * modelled in athrill-device from the Devicetree, and so are the USART/UARTs (stm32_uart.c). The first access to each 1 KiB block of
  * registers is reported on stderr.
  */
 #include "stm32_periph_probe.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "stm32_tim.h"
 #include "stm32_uart.h"
-#include "stm32_gpio.h"
 #include "stm32_spi.h"
 #include "stm32h7_spi.h"
 #include "stm32_dmamux.h"
-#include "stm32_exti.h"
 #include "stm32_dma.h"
 #include "stm32_i2c.h"
 #include "stm32_sdmmc.h"
@@ -97,17 +94,8 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	uint32 v = *word_at(r, a);
 	uint32 i;
 
-	if (stm32_tim_owns(a)) {
-		return stm32_tim_read(a);
-	}
 	if (stm32_uart_owns(a)) {
 		return stm32_uart_read(a);
-	}
-	if (stm32_gpio_owns(a)) {
-		return stm32_gpio_read(a);
-	}
-	if (stm32_exti_owns(a)) {
-		return stm32_exti_read(a);
 	}
 	if (stm32_dma_owns(a)) {
 		return stm32_dma_read(a);
@@ -154,20 +142,8 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	uint32 a = addr & ~3U;
 	uint32 i;
 
-	if (stm32_tim_owns(a)) {
-		stm32_tim_write(addr, size, value);
-		return;
-	}
 	if (stm32_uart_owns(a)) {
 		stm32_uart_write(addr, size, value);
-		return;
-	}
-	if (stm32_gpio_owns(a)) {
-		stm32_gpio_write(addr, size, value);
-		return;
-	}
-	if (stm32_exti_owns(a)) {
-		stm32_exti_write(addr, size, value);
 		return;
 	}
 	if (stm32_dma_owns(a)) {
@@ -201,18 +177,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 		*value = stm32_uart_read(aligned);
 		return TRUE;
 	}
-	if (stm32_tim_owns(addr)) {
-		*value = stm32_tim_read(aligned);
-		return TRUE;
-	}
-	if (stm32_gpio_owns(addr)) {
-		*value = stm32_gpio_read(aligned);
-		return TRUE;
-	}
-	if (stm32_exti_owns(addr)) {
-		*value = stm32_exti_read(addr);
-		return TRUE;
-	}
 	if (stm32_dma_owns(addr)) {
 		*value = stm32_dma_read(aligned);
 		return TRUE;
@@ -238,18 +202,6 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 {
 	if (stm32_uart_owns(addr)) {
 		stm32_uart_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32_tim_owns(addr)) {
-		stm32_tim_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32_gpio_owns(addr)) {
-		stm32_gpio_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32_exti_owns(addr)) {
-		stm32_exti_write(addr, size, value);
 		return TRUE;
 	}
 	if (stm32_dma_owns(addr)) {

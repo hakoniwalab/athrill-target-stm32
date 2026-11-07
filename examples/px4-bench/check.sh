@@ -27,13 +27,15 @@ ATHRILL=${2:-$HERE/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
 WORK=$HERE/work
 FAILED=0
-. "$HERE/../regression.sh"
+. "$HERE/../regression.sh"	# also boards.sh
 REFERENCE=$(regression_reference pixhawk4 bench)
 
-# Optional DT-mode gate.  Resolve it before changing into a work directory so
-# the copied configuration is independent of the caller's current directory.
+# The board's Devicetree (athrill-device boards/pixhawk4/pixhawk4.dtb, or
+# DEVICE_CONFIG_DEVICE_TREE). Resolve it before changing into a work directory
+# so the copied configuration is independent of the caller's current directory.
 DTB=
 PLUGIN=
+DEVICE_CONFIG_DEVICE_TREE=${DEVICE_CONFIG_DEVICE_TREE:-$(board_dtb pixhawk4 pixhawk4)}
 if [ -n "${DEVICE_CONFIG_DEVICE_TREE:-}" ]; then
 	if [ ! -f "$DEVICE_CONFIG_DEVICE_TREE" ]; then
 		echo "DEVICE_CONFIG_DEVICE_TREE is not a file: $DEVICE_CONFIG_DEVICE_TREE" >&2

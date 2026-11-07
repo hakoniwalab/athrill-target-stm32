@@ -41,6 +41,10 @@ sint32 stm32_host_clock_frequency_hz(void *context, AthrillDeviceNodeId node,
 sint32 stm32_host_memory_read(void *context, uint64 address, void *data, uint32 size);
 sint32 stm32_host_memory_write(void *context, uint64 address, const void *data, uint32 size);
 sint32 stm32_host_value(void *context, const char *key, const char **value);
+/* ABI 1.10: firmware console output (Athrill's debugger serial) and the
+ * end of the CPU's current instruction batch. */
+sint32 stm32_host_console_write(void *context, uint32 channel, uint8 data);
+void stm32_host_end_batch(void *context);
 
 /* A configuration string without the core's echo on stdout. */
 Std_ReturnType stm32_host_config_string(const char *key, char **value);

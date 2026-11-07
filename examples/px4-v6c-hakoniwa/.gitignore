@@ -9,3 +9,4 @@ x500-v6c.sh.tmp
 *.raw
 *.trace
 __pycache__/
+first-boot-config.run
