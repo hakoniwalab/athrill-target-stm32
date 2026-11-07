@@ -5,10 +5,7 @@
 #include "stm32_dma.h"
 #include "stm32_spi.h"
 #include "stm32h7_spi.h"
-#include "bus.h"
-#include "cpu.h"
-#include "cpuemu_ops.h"
-#include "std_device_ops.h"
+#include "target_host.h"
 #include "athrill_protocol_dma.h"
 
 #include <string.h>
@@ -129,28 +126,33 @@ static uint32 mem_read(uint32 addr, uint32 size)
 	uint16 v16 = 0U;
 	uint32 v32 = 0U;
 
+	/* one access of the item width (target_host.c memory_read) */
 	if (size == 1U) {
-		(void)bus_get_data8(0U, addr, &v8);
+		(void)stm32_host_ops()->memory_read(NULL, addr, &v8, 1U);
 		return v8;
 	}
 	if (size == 2U) {
-		(void)bus_get_data16(0U, addr, &v16);
+		(void)stm32_host_ops()->memory_read(NULL, addr, &v16, 2U);
 		return v16;
 	}
-	(void)bus_get_data32(0U, addr, &v32);
+	(void)stm32_host_ops()->memory_read(NULL, addr, &v32, 4U);
 	return v32;
 }
 
 static void mem_write(uint32 addr, uint32 size, uint32 value)
 {
+	uint8 v8 = (uint8)value;
+	uint16 v16 = (uint16)value;
+
+	/* one access of the item width (target_host.c memory_write) */
 	if (size == 1U) {
-		(void)bus_put_data8(0U, addr, (uint8)value);
+		(void)stm32_host_ops()->memory_write(NULL, addr, &v8, 1U);
 	}
 	else if (size == 2U) {
-		(void)bus_put_data16(0U, addr, (uint16)value);
+		(void)stm32_host_ops()->memory_write(NULL, addr, &v16, 2U);
 	}
 	else {
-		(void)bus_put_data32(0U, addr, value);
+		(void)stm32_host_ops()->memory_write(NULL, addr, &value, 4U);
 	}
 }
 
@@ -252,7 +254,7 @@ static void stream_notify(void *context, AthrillChannelNotification notification
 	}
 	if ((((flags & FLAG_HT) != 0U) && ((st[SxCR] & CR_HTIE) != 0U)) ||
 	    ((st[SxCR] & CR_TCIE) != 0U)) {
-		(void)intc_raise_intr(d->irq[s]);
+		stm32_host_raise(d->irq[s]);
 	}
 }
 
@@ -289,7 +291,7 @@ static std_bool stream_create(DmaType *d, uint32 s)
 	    athrill_dma_protocol_create(d->channel[s], &endpoint_ops,
 		&d->endpoint[s], &d->protocol[s]) != 0 ||
 	    athrill_dma_start(d->protocol[s], st[SxM0AR],
-		(st[SxCR] & CR_MINC) != 0U, cpuemu_get_clock()) != 0) {
+		(st[SxCR] & CR_MINC) != 0U, stm32_host_clock()) != 0) {
 		stream_destroy(d, s);
 		return FALSE;
 	}
@@ -306,7 +308,7 @@ static void stream_half(DmaType *d, uint32 s)
 	    d->transferred[s] != 0U) {
 		d->isr[s / 4U] |= FLAG_HT << flag_shift(s);
 		if ((st[SxCR] & CR_HTIE) != 0U) {
-			(void)intc_raise_intr(d->irq[s]);
+			stm32_host_raise(d->irq[s]);
 		}
 	}
 }
@@ -321,7 +323,7 @@ static std_bool stream_request_rx(DmaType *d, uint32 s, uint64 value)
 	d->endpoint[s].peripheral_value = value;
 	d->endpoint[s].peripheral_valid = TRUE;
 	d->transferred[s]++;
-	if (athrill_dma_request(d->protocol[s], request, cpuemu_get_clock()) != 1) {
+	if (athrill_dma_request(d->protocol[s], request, stm32_host_clock()) != 1) {
 		d->transferred[s]--;
 		d->endpoint[s].peripheral_valid = FALSE;
 		return FALSE;
@@ -340,7 +342,7 @@ static std_bool stream_request_tx(DmaType *d, uint32 s, uint64 *value)
 	}
 	d->endpoint[s].peripheral_valid = FALSE;
 	d->transferred[s]++;
-	if (athrill_dma_request(d->protocol[s], request, cpuemu_get_clock()) != 1 ||
+	if (athrill_dma_request(d->protocol[s], request, stm32_host_clock()) != 1 ||
 	    !d->endpoint[s].peripheral_valid) {
 		d->transferred[s]--;
 		return FALSE;
@@ -467,7 +469,7 @@ void stm32_dma_write(uint32 addr, uint32 size, uint32 value)
 		if ((r == SxCR) && ((was & CR_EN) != 0U) &&
 		    ((d->stream[s][SxCR] & CR_EN) == 0U)) {
 			if (d->protocol[s] != NULL) {
-				(void)athrill_dma_stop(d->protocol[s], cpuemu_get_clock());
+				(void)athrill_dma_stop(d->protocol[s], stm32_host_clock());
 			}
 			stream_destroy(d, s);
 		}

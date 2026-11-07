@@ -262,6 +262,24 @@ sint32 stm32_host_memory_read(void *context, uint64 address, void *data, uint32 
 	if (address > 0xffffffffULL || address + size > 0x100000000ULL) {
 		return -1;
 	}
+	/* 1, 2 or 4 bytes: one access of that width (a peripheral data register
+	 * is read once, as by the CPU); a larger size is read byte by byte. */
+	if (size == 2U) {
+		uint16 v16;
+		if (bus_get_data16(0U, (AthrillAddrType)address, &v16) != STD_E_OK) {
+			return -1;
+		}
+		memcpy(data, &v16, 2U);
+		return 0;
+	}
+	if (size == 4U) {
+		uint32 v32;
+		if (bus_get_data32(0U, (AthrillAddrType)address, &v32) != STD_E_OK) {
+			return -1;
+		}
+		memcpy(data, &v32, 4U);
+		return 0;
+	}
 	for (i = 0U; i < size;
 	     i++)
 		if (bus_get_data8(0U, (AthrillAddrType)(address + i),
@@ -276,6 +294,17 @@ sint32 stm32_host_memory_write(void *context, uint64 address, const void *data, 
 	(void)context;
 	if (address > 0xffffffffULL || address + size > 0x100000000ULL) {
 		return -1;
+	}
+	/* 1, 2 or 4 bytes: one access of that width; a larger size byte by byte. */
+	if (size == 2U) {
+		uint16 v16;
+		memcpy(&v16, data, 2U);
+		return (bus_put_data16(0U, (AthrillAddrType)address, v16) == STD_E_OK) ? 0 : -1;
+	}
+	if (size == 4U) {
+		uint32 v32;
+		memcpy(&v32, data, 4U);
+		return (bus_put_data32(0U, (AthrillAddrType)address, v32) == STD_E_OK) ? 0 : -1;
 	}
 	for (i = 0U; i < size;
 	     i++)

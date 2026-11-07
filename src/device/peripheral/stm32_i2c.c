@@ -5,10 +5,7 @@
  */
 #include "stm32_i2c.h"
 #include "athrill_protocol_i2c.h"
-#include "cpu.h"
-#include "cpuemu_ops.h"
-#include "std_device_ops.h"
-#include "device.h"
+#include "target_host.h"
 
 #define I2C_CR1		0x00U
 #define I2C_CR2		0x04U
@@ -174,7 +171,7 @@ static uint32 enabled_flags(I2cType *b)
 static void raise(I2cType *b, uint32 flags)
 {
 	if ((flags & enabled_flags(b)) != 0U) {
-		(void)intc_raise_intr(b->irq_event);
+		stm32_host_raise(b->irq_event);
 	}
 }
 
@@ -187,7 +184,7 @@ static void set_flags(I2cType *b, uint32 flags)
 static void stop(I2cType *b)
 {
 	if (b->active && (b->chip != NULL)) {
-		(void)athrill_i2c_stop(b->chip->protocol, cpuemu_get_clock());
+		(void)athrill_i2c_stop(b->chip->protocol, stm32_host_clock());
 	}
 	b->active = FALSE;
 	b->chip = NULL;
@@ -216,7 +213,7 @@ static void receive(I2cType *b)
 {
 	uint8 data = 0xffU;
 	(void)athrill_i2c_read(b->chip->protocol, &data,
-		b->remaining > 1U, cpuemu_get_clock());
+		b->remaining > 1U, stm32_host_clock());
 	*reg(b, I2C_RXDR) = data;
 	b->remaining--;
 	*reg(b, I2C_ISR) |= ISR_RXNE;
@@ -260,7 +257,7 @@ static void start(I2cType *b)
 	}
 	if ((b->chip == NULL) ||
 	    athrill_i2c_start(b->chip->protocol, (uint16)address,
-		b->reading, cpuemu_get_clock()) != 1) {
+		b->reading, stm32_host_clock()) != 1) {
 		/* no acknowledge: NACKF, then a STOP of its own */
 		b->active = FALSE;
 		set_flags(b, ISR_NACKF);
@@ -312,7 +309,7 @@ void stm32_i2c_write(uint32 addr, uint32 size, uint32 value)
 			std_bool ack = TRUE;
 			*reg(b, I2C_ISR) &= ~ISR_TXIS;
 			(void)athrill_i2c_write(b->chip->protocol, (uint8)value,
-				&ack, cpuemu_get_clock());
+				&ack, stm32_host_clock());
 			b->remaining--;
 			next_bytes(b);
 		}
@@ -433,8 +430,8 @@ void stm32_i2c_tick(void)
 	for (i = 0U; i < I2C_NUM; i++) {
 		I2cType *b = &i2cs[i];
 
-		if (((*reg(b, I2C_ISR) & enabled_flags(b)) != 0U) && !intc_irq_active(b->irq_event)) {
-			(void)intc_raise_intr(b->irq_event);
+		if (((*reg(b, I2C_ISR) & enabled_flags(b)) != 0U) && !stm32_host_irq_pending(b->irq_event)) {
+			stm32_host_raise(b->irq_event);
 		}
 	}
 }

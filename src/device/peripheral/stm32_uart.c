@@ -11,7 +11,7 @@
 #include "stm32_uart.h"
 #include "athrill_protocol_uart.h"
 #include "stm32_dma.h"
-#include "cpuemu_ops.h"
+#include "target_host.h"
 #include "device.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 #include <stdio.h>
@@ -421,8 +421,8 @@ static void raise_interrupt(UartType *u)
 	uint32 rose = level & ~u->asserted;
 
 	u->asserted = level;
-	if ((level != 0U) && ((rose != 0U) || !intc_irq_active(u->irq))) {
-		(void)intc_raise_intr(u->irq);
+	if ((level != 0U) && ((rose != 0U) || !stm32_host_irq_pending(u->irq))) {
+		stm32_host_raise(u->irq);
 	}
 }
 
@@ -507,7 +507,7 @@ uint32 stm32_uart_read(uint32 addr)
 	UartType *u = uart_of(addr);
 	uint32 offset = (addr - u->base) & ~3U;
 
-	advance_to(u, cpuemu_get_clock());
+	advance_to(u, stm32_host_clock());
 	return read_register(u, offset) >> (8U * ((addr - u->base) & 3U));
 }
 
@@ -518,7 +518,7 @@ void stm32_uart_write(uint32 addr, uint32 size, uint32 value)
 	uint32 shift = 8U * ((addr - u->base) & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 
-	advance_to(u, cpuemu_get_clock());
+	advance_to(u, stm32_host_clock());
 	write_register(u, offset, value << shift, mask);
 }
 
@@ -626,7 +626,7 @@ Std_ReturnType stm32_uart_chip_send(uint32 number, uint8 data)
 		if (uarts[i].number == number) {
 			if (!channel_connect(&uarts[i]) ||
 			    athrill_uart_send_from_child(uarts[i].protocol, data,
-				cpuemu_get_clock(), &completion) != 0) {
+				stm32_host_clock(), &completion) != 0) {
 				return STD_E_LIMIT;
 			}
 			return STD_E_OK;
