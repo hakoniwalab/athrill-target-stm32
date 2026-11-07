@@ -30,7 +30,7 @@ static void bind_registers(void)
 		{ &SR_TXE, "SR", "TXE", STM32_BIND_MASK },
 		{ &SR_FRLVL_SHIFT, "SR", "FRLVL", STM32_BIND_SHIFT },
 	};
-	stm32_spi_bind("st,stm32-spi", table, sizeof(table) / sizeof(table[0]));
+	stm32_spi_bind("st,stm32-spi", "st,stm32f7", table, sizeof(table) / sizeof(table[0]));
 }
 
 #define RX_FIFO_SIZE	4U	/* bytes (32 bits) */

@@ -18,6 +18,6 @@ typedef struct {
 	Stm32BindKind kind;
 } Stm32SpiBinding;
 
-void stm32_spi_bind(const char *compatible, const Stm32SpiBinding *table, uint32 count);
+void stm32_spi_bind(const char *compatible, const char *soc, const Stm32SpiBinding *table, uint32 count);
 
 #endif

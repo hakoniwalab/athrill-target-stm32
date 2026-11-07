@@ -38,7 +38,7 @@ static void bind_registers(void)
 		{ &SR_TXC, "SR", "TXC", STM32_BIND_MASK },
 		{ &IER_EOTIE, "IER", "EOTIE", STM32_BIND_MASK },
 	};
-	stm32_spi_bind("st,stm32h7-spi", table, sizeof(table) / sizeof(table[0]));
+	stm32_spi_bind("st,stm32h7-spi", "st,stm32h7", table, sizeof(table) / sizeof(table[0]));
 }
 
 typedef struct {
