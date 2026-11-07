@@ -19,7 +19,6 @@
 #include "cpu.h"
 #include "cpuemu_ops.h"
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "stm32_dma.h"
 #include "stm32_sdmmc.h"
 #include "stm32h7_boot.h"
 #include "board/board_profile.h"
@@ -100,9 +99,6 @@ static void report(uint32 addr, const char *what)
  * own storage. */
 static const char *trace_owner(uint32 addr)
 {
-	if (stm32_dma_owns(addr)) {
-		return "dma";
-	}
 	if (stm32_board_is_h7()) {
 		return "h7boot";
 	}
@@ -145,9 +141,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	uint32 v = *word_at(r, a);
 	uint32 i;
 
-	if (stm32_dma_owns(a)) {
-		return stm32_dma_read(a);
-	}
 	if (stm32_sdmmc_owns(a)) {
 		return stm32_sdmmc_read(a);
 	}
@@ -187,10 +180,6 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	uint32 a = addr & ~3U;
 	uint32 i;
 
-	if (stm32_dma_owns(a)) {
-		stm32_dma_write(addr, size, value);
-		return;
-	}
 	if (stm32_sdmmc_owns(a)) {
 		stm32_sdmmc_write(addr, size, value);
 		return;
@@ -200,37 +189,12 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	}
 }
 
-/* Common-address peripherals whose existing engines are valid for H7. */
-static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
-{
-	uint32 aligned = addr & ~3U;
-
-	if (stm32_dma_owns(addr)) {
-		*value = stm32_dma_read(aligned);
-		return TRUE;
-	}
-	return FALSE;
-}
-
-static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
-{
-	if (stm32_dma_owns(addr)) {
-		stm32_dma_write(addr, size, value);
-		return TRUE;
-	}
-	return FALSE;
-}
-
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
 {
 	uint32 value;
 	(void)c;
 	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, 1U, &value)) {
-			*d = (uint8)(value >> (8U * ((uint32)a & 3U)));
-			return STD_E_OK;
-		}
 		return stm32h7_boot_read((uint32)a, 1U, &value) == STD_E_OK
 			? (*d = (uint8)value, STD_E_OK) : STD_E_SEGV;
 	}
@@ -248,10 +212,6 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	(void)c;
 	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, 2U, &value)) {
-			*d = (uint16)(value >> (8U * ((uint32)a & 2U)));
-			return STD_E_OK;
-		}
 		return stm32h7_boot_read((uint32)a, 2U, &value) == STD_E_OK
 			? (*d = (uint16)value, STD_E_OK) : STD_E_SEGV;
 	}
@@ -268,9 +228,6 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	(void)c;
 	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
-		if (h7_shared_read((uint32)a, 4U, d)) {
-			return STD_E_OK;
-		}
 		return stm32h7_boot_read((uint32)a, 4U, d);
 	}
 	if (stm32_sdmmc_owns((uint32)a)) {
@@ -287,9 +244,6 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_write((uint32)a, 1U, d)) {
-			return STD_E_OK;
-		}
 		return stm32h7_boot_write((uint32)a, 1U, d);
 	}
 	report((uint32)a, "write");
@@ -303,9 +257,6 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_write((uint32)a, 2U, d)) {
-			return STD_E_OK;
-		}
 		return stm32h7_boot_write((uint32)a, 2U, d);
 	}
 	report((uint32)a, "write");
@@ -319,9 +270,6 @@ static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
-		if (h7_shared_write((uint32)a, 4U, d)) {
-			return STD_E_OK;
-		}
 		return stm32h7_boot_write((uint32)a, 4U, d);
 	}
 	report((uint32)a, "write");

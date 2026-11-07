@@ -4,17 +4,97 @@
  * as NuttX's STM32F7 SDMMC and MMC/SD drivers do: the identification
  * sequence, the SCR through the FIFO, block reads and writes by DMA (DMA2
  * stream 6, peripheral flow control) and the time a transfer takes. The
- * CPU clock, the NVIC, the bus (memory) and the SPI are stubbed.
+ * CPU clock, the NVIC, the bus (memory) and the SPI are stubbed. The DMA is
+ * athrill-device's DMA model (hakoniwalab/athrill-device#13 step 4-5),
+ * created here on the host's table; the SDMMC reaches it through the
+ * temporary block bridge until the SDMMC moves too (step 4-6).
  */
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include "peripheral/stm32_sdmmc.h"
-#include "peripheral/stm32_dma.h"
+#include "athrill_device_host.h"
 #include "memory/sdcard.h"
 #include "bus.h"
 
+/* athrill-device's DMA model (DMA2), on the host's table */
+extern const AthrillDeviceModelOps athrill_device_stm32_dma_model;
+static void *dma2;
+static uint32 dma2_reg[2] = { 0x40026400U, 0x400U };
+static sint32 dma_get_u32(void *c, const char *name, uint32 index, uint32 *value)
+{
+	(void)c;
+	if (strcmp(name, "reg") != 0 || index > 1U) {
+		return -1;
+	}
+	*value = dma2_reg[index];
+	return 0;
+}
+static sint32 dma_get_interrupt(void *c, const char *name, uint32 index, AthrillDeviceIrqLine *line)
+{
+	static const uint32 irqs[8] = { 56U, 57U, 58U, 59U, 60U, 68U, 69U, 70U };
+	(void)c; (void)name;
+	if (index >= 8U) {
+		return -1;
+	}
+	line->value = irqs[index];
+	return 0;
+}
+static sint32 dma_provide(void *c, const AthrillDeviceDmaProviderOps *ops, void *instance)
+{
+	(void)c; (void)ops; (void)instance;
+	return 0;
+}
+static void stm32_dma_reset(void)
+{
+	static AthrillDeviceNodeOps node_ops;
+	static AthrillDeviceResourceOps resources;
+	static AthrillDeviceNode node;
+	AthrillDeviceCreateArgs args;
+	AthrillDeviceConnectArgs connect;
+	if (dma2 != NULL) {
+		athrill_device_stm32_dma_model.destroy(dma2);
+		dma2 = NULL;
+	}
+	memset(&node_ops, 0, sizeof(node_ops));
+	node_ops.get_u32 = dma_get_u32;
+	memset(&resources, 0, sizeof(resources));
+	resources.get_interrupt = dma_get_interrupt;
+	resources.dma_provide = dma_provide;
+	node.path = "/soc/dma@40026400";
+	node.matched_compatible = "st,stm32-dma-v1";
+	node.ops = &node_ops;
+	args.target_ops = athrill_device_host();
+	args.target = NULL;
+	args.node = &node;
+	connect.resources = &resources;
+	connect.context = NULL;
+	if (athrill_device_stm32_dma_model.create(&args, &dma2) != 0 ||
+	    athrill_device_stm32_dma_model.connect(dma2, &connect) != 0 ||
+	    athrill_device_stm32_dma_model.reset(dma2) != 0) {
+		printf("DMA model setup failed\n");
+	}
+}
+static void stm32_dma_write(uint32 addr, uint32 size, uint32 value)
+{
+	(void)athrill_device_stm32_dma_model.mmio->write(dma2, addr, size, value);
+}
+static uint32 stm32_dma_read(uint32 addr)
+{
+	uint64 value = 0U;
+	(void)athrill_device_stm32_dma_model.mmio->read(dma2, addr, 4U, &value);
+	return (uint32)value;
+}
+
 /* stubs */
+/* no configuration values (the host table, which the DMA model now uses) */
+Std_ReturnType cpuemu_get_devcfg_value(const char *key, uint32 *value)
+{
+	(void)key;
+	(void)value;
+	return STD_E_NOENT;
+}
+
 static uint64 now;
 static uint32 raised[128];
 static uint8 active[128];

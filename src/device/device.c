@@ -6,7 +6,6 @@
 #include "peripheral/stm32_periph_probe.h"
 #include "sensor/sensor_source.h"
 #include "board/board_profile.h"
-#include "peripheral/stm32_dma.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32h7_sdmmc.h"
 #include "device_tree.h"
@@ -65,8 +64,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	arm_m_scs_reset();
 	arm_m_dwt_reset();
 	stm32_probe_init();
-	stm32_dma_set_h7(stm32_board_is_h7());
-	stm32_dma_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();
