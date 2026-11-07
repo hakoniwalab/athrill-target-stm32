@@ -108,8 +108,7 @@ if(ATHRILL_STM32_COVERAGE)
 endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
-  src/device/device.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_uart_tcp.c
+  src/device/device.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
@@ -176,22 +175,6 @@ if(BUILD_TESTING)
   target_include_directories(test_arm_m_dwt PRIVATE src/device)
   target_link_libraries(test_arm_m_dwt PRIVATE athrill_stm32_config)
   add_test(NAME device-arm-m-dwt COMMAND test_arm_m_dwt)
-  add_executable(test_stm32_uart test/device/test_host_stub.c test/device/test_stm32_uart.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c)
-  stm32_target(test_stm32_uart)
-  target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
-  target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-stm32-uart COMMAND test_stm32_uart)
-  add_test(NAME device-stm32-uart-spec-gaps COMMAND test_stm32_uart spec-gaps)
-  set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
-  # USART transmit DMA with the real DMA model
-  add_executable(test_uart_dma_tx test/device/test_host_stub.c test/device/test_uart_dma_tx.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c)
-  stm32_target(test_uart_dma_tx)
-  target_include_directories(test_uart_dma_tx PRIVATE src/device src/debugger/executor)
-  target_link_libraries(test_uart_dma_tx PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-uart-dma-tx COMMAND test_uart_dma_tx)
-  add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
-  set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
   add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
     ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
@@ -235,10 +218,17 @@ if(BUILD_TESTING)
   target_link_libraries(test_host_function PRIVATE ${CMAKE_DL_LIBS})
   add_dependencies(test_host_function test_host_function_library)
   add_test(NAME cpu-host-function COMMAND test_host_function)
+  # The bare-metal tests print on USART3 (the console by default). The USART
+  # is an athrill-device model built from a Devicetree, so they run with the
+  # Pixhawk 4 board (F7, USART3 enabled); nothing else of the board is used.
+  set(STM32_TEST_DTB "${ATHRILL_DEVICE_DIR}/boards/pixhawk4/pixhawk4.dtb")
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/device_config.txt" _hello_config)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt"
+    "${_hello_config}DEVICE_CONFIG_DEVICE_TREE ${STM32_TEST_DTB}\n")
   # Bare-metal hello world (test/hello, prebuilt ELF from the Docker toolchain).
   add_test(NAME hello-usart3
     COMMAND athrill3 -c1 -m "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/memory.txt"
-            -d "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/device_config.txt"
+            -d "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt"
             -t 100000 "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/hello.elf")
   set_tests_properties(hello-usart3 PROPERTIES PASS_REGULAR_EXPRESSION "Hello, Athrill STM32!")
   # Instruction tests (test/insn): every encoding of the instructions run
@@ -246,10 +236,12 @@ if(BUILD_TESTING)
   # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t} COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t})
+    set_tests_properties(insn-${t} PROPERTIES ENVIRONMENT "INSN_DEVICE_TREE=${STM32_TEST_DTB}")
   endforeach()
   # Every instruction test also with the pseudo-code only (DEVICE_CONFIG_ARM_FP_MODE and _EXEC_MODE strict).
   foreach(t insn dp dp2 ls br mx sy dsp fpm fpa fpc exc)
     add_test(NAME insn-${t}-strict COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/insn/run.sh" $<TARGET_FILE:athrill3> ${t} strict)
+    set_tests_properties(insn-${t}-strict PROPERTIES ENVIRONMENT "INSN_DEVICE_TREE=${STM32_TEST_DTB}")
   endforeach()
 
   # Runtime files such as log.txt and model images belong to the build tree.

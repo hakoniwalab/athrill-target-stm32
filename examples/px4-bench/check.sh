@@ -131,9 +131,11 @@ else
 	FAILED=1
 fi
 echo "regression reference (athrill-device boards/pixhawk4/regression/bench.txt)"
-# Without the two Devicetree lines (the DTB's local path and its hash), so the
-# C path and the Devicetree path compare with the same value.
-grep -av -e "^DEVICE_CONFIG_DEVICE_TREE = " -e "^DEVICE_TREE sha256=" run1/console.txt > run1/console.norm || true
+# The firmware's console: without Athrill's own lines, the configuration
+# values it echoes when a key is read ("DEVICE_CONFIG_<KEY> = <value>": which
+# keys are echoed depends on who reads them, the target or an athrill-device
+# model) and the Devicetree hash.
+grep -av -e "^DEVICE_CONFIG_[A-Z0-9_]* = " -e "^DEVICE_TREE sha256=" run1/console.txt > run1/console.norm || true
 regression_check "$REFERENCE" "$ELF" "$(grep -a 'steps=' run1/stderr.txt | sed 's/.*steps=//' | tail -1)" run1 run1/stderr.txt || FAILED=1
 if [ $FAILED = 0 ]; then
 	echo "ALL PASS"

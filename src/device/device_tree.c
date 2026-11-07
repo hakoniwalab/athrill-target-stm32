@@ -25,7 +25,6 @@
 #include "device.h"
 #include "mpu.h"
 #include "peripheral/stm32_sdmmc.h"
-#include "peripheral/stm32_uart.h"
 #include "sensor/sensor_source.h"
 #include "std_errno.h"
 #include "target_cpu.h"
@@ -37,22 +36,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_UART_ENDPOINTS 16U
 #define MAX_GPIO_LINES 192U
 #define MAX_GPIO_SUBSCRIBERS 384U
 #define MAX_DMA_CHANNELS 64U
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 32U
 #define MAX_PLUGIN_MAPPING 1024U
-
-typedef struct {
-	const AthrillDeviceUartPeripheralOps *ops;
-	void *instance;
-	AthrillDeviceNodeId controller;
-	AthrillDeviceNodeId peripheral;
-	uint32 number;
-	std_bool active;
-} UartEndpoint;
 
 typedef struct {
 	uint64 handle;
@@ -79,7 +68,6 @@ typedef struct {
 } DmaChannel;
 
 typedef struct {
-	UartEndpoint uart[MAX_UART_ENDPOINTS];
 	GpioLine gpio[MAX_GPIO_LINES];
 	GpioSubscriber gpio_subscribers[MAX_GPIO_SUBSCRIBERS];
 	DmaChannel dma[MAX_DMA_CHANNELS];
@@ -107,113 +95,6 @@ static sint32 node_path_address(const char *path, uint32 *address)
 	}
 	*address = (uint32)value;
 	return 0;
-}
-
-static sint32 target_uart_bind(void *context, AthrillDeviceNodeId controller,
-                               const AthrillDeviceUartPeripheralOps *ops, void *instance, AthrillDeviceUartEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i;
-	for (i = 0U; i < MAX_UART_ENDPOINTS; i++)
-		if (!target->uart[i].active) {
-			break;
-		}
-	if (i == MAX_UART_ENDPOINTS || ops == NULL) {
-		return -1;
-	}
-	target->uart[i].ops = ops;
-	target->uart[i].instance = instance;
-	target->uart[i].controller = controller;
-	target->uart[i].active = TRUE;
-	endpoint->value = i + 1U;
-	return 0;
-}
-static sint32 target_uart_peripheral(void *context, AthrillDeviceUartEndpoint endpoint, uint8 data)
-{
-	Stm32DeviceTreeTarget *t = context;
-	uint64 i = endpoint.value;
-	if (i == 0U || i > MAX_UART_ENDPOINTS || !t->uart[i - 1U].active ||
-	    t->uart[i - 1U].ops->receive_byte == NULL) {
-		return -1;
-	}
-	return t->uart[i - 1U].ops->receive_byte(t->uart[i - 1U].instance, data);
-}
-static sint32 target_uart_controller(void *context, AthrillDeviceUartEndpoint endpoint, uint8 data)
-{
-	(void)context;
-	(void)endpoint;
-	(void)data;
-	return 0;
-}
-
-static UartEndpoint *uart_endpoint(Stm32DeviceTreeTarget *target,
-	AthrillDeviceUartEndpoint endpoint)
-{
-	return endpoint.value > 0U && endpoint.value <= MAX_UART_ENDPOINTS &&
-		target->uart[endpoint.value - 1U].active ?
-		&target->uart[endpoint.value - 1U] : NULL;
-}
-
-static void target_uart_bridge_transmit(void *instance, uint8 data)
-{
-	UartEndpoint *endpoint = instance;
-	(void)endpoint->ops->receive_byte(endpoint->instance, data);
-}
-
-static const Stm32UartChipOps target_uart_bridge_ops = {
-	target_uart_bridge_transmit
-};
-
-static sint32 target_uart_bind_nodes(void *context,
-	const AthrillDeviceNode *controller,
-	const AthrillDeviceNode *peripheral,
-	const AthrillDeviceUartPeripheralOps *ops, void *instance,
-	AthrillDeviceUartEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	UartEndpoint *bound;
-	uint32 address, number;
-	if (controller == NULL || peripheral == NULL ||
-	    node_path_address(controller->path, &address) != 0) {
-		return -1;
-	}
-	switch (address) {
-	case 0x40011000U: number = 1U; break;
-	case 0x40004400U: number = 2U; break;
-	case 0x40004800U: number = 3U; break;
-	case 0x40004c00U: number = 4U; break;
-	case 0x40005000U: number = 5U; break;
-	case 0x40011400U: number = 6U; break;
-	case 0x40007800U: number = 7U; break;
-	case 0x40007c00U: number = 8U; break;
-	default: return -1;
-	}
-	if (target_uart_bind(context, controller->id, ops, instance, endpoint) != 0) {
-		return -1;
-	}
-	bound = uart_endpoint(target, *endpoint);
-	if (bound == NULL) {
-		return -1;
-	}
-	bound->peripheral = peripheral->id;
-	bound->number = number;
-	stm32_uart_attach(number, &target_uart_bridge_ops, bound);
-	return 0;
-}
-
-static sint32 target_uart_send_from_node(void *context,
-	AthrillDeviceNodeId peripheral, uint8 data)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i;
-	for (i = 0U; i < MAX_UART_ENDPOINTS; i++) {
-		if (target->uart[i].active &&
-		    target->uart[i].peripheral == peripheral) {
-			return stm32_uart_chip_send(target->uart[i].number, data) ==
-				STD_E_OK ? 0 : -1;
-		}
-	}
-	return -1;
 }
 
 static uint64 spec_handle(const AthrillDeviceSpecifier *spec)
@@ -447,9 +328,6 @@ static sint32 target_model_adapter_connect(void *context,
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
 	    (strcmp(adapter_name, "stm32-dma") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
 	    (strcmp(adapter_name, "stm32-sdmmc") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
@@ -551,11 +429,12 @@ static const AthrillDeviceTargetOps target_ops = {
 	/* TO BE REMOVED bridge operations: this file */
 	NULL, NULL, NULL,	/* spi_bind, spi_set_chip_select, spi_exchange_byte: the SPI controllers are athrill-device models */
 	NULL, NULL,	/* i2c_bind, i2c_transfer: the I2C controller is an athrill-device model */
-	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
+	NULL, NULL, NULL,	/* uart_bind, uart_peripheral, uart_controller: the UARTs are athrill-device models */
+	target_gpio_resolve, target_gpio_read,
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
 	target_model_adapter_connect, NULL /* spi_bind_node */, stm32_host_value,
-	target_sensor_sample, NULL /* i2c_bind_node */, target_uart_bind_nodes,
-	target_uart_send_from_node, target_gps_sample, target_actuator_output,
+	target_sensor_sample, NULL /* i2c_bind_node */, NULL /* uart_bind_nodes */,
+	NULL /* uart_send_from_node */, target_gps_sample, target_actuator_output,
 	target_gpio_outputs,
 	/* ABI 1.10 REQUIRED operations: target_host.c */
 	stm32_host_console_write, stm32_host_end_batch
