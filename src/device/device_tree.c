@@ -786,8 +786,6 @@ static sint32 target_model_adapter_connect(void *context,
 	     strcmp(node->matched_compatible, "st,stm32h7-pwr") == 0) ||
 	    (strcmp(adapter_name, "stm32h7-spi") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32h7-spi") == 0) ||
-	    (strcmp(adapter_name, "stm32h7-dmamux") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-dmamux") == 0) ||
 	    (strcmp(adapter_name, "stm32h7-boot-register") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-bdma") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-watchdog") == 0 ||

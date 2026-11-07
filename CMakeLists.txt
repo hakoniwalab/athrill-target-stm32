@@ -118,7 +118,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
   ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c
   src/device/target_host.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c
   src/device/sensor/sensor_source.c
   ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
   ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
@@ -190,7 +189,7 @@ if(BUILD_TESTING)
   set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
   # USART transmit DMA with the real DMA model
   add_executable(test_uart_dma_tx test/device/test_host_stub.c test/device/test_uart_dma_tx.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c)
+    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c)
   stm32_target(test_uart_dma_tx)
   target_include_directories(test_uart_dma_tx PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_uart_dma_tx PRIVATE athrill_stm32_config athrill_device)
@@ -238,7 +237,7 @@ if(BUILD_TESTING)
     ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
     ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
     test/fixtures/peripheral/stm32_gpio.c test/fixtures/peripheral/stm32_exti.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c test/fixtures/memory/fm25v02.c)
+    test/fixtures/memory/fm25v02.c)
   stm32_target(test_stm32h7_spi)
   target_include_directories(test_stm32h7_spi PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)

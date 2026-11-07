@@ -16,7 +16,6 @@
 #include <string.h>
 #include "peripheral/stm32_uart.h"
 #include "peripheral/stm32_dma.h"
-#include "peripheral/stm32_dmamux.h"
 #include "peripheral/stm32_spi.h"
 #include "device.h"
 #include "bus.h"
@@ -204,7 +203,6 @@ static void check_str(int line, const char *what, const char *got, const char *w
 #define S0_TCIF		(1U << 5)
 #define DMA1_S0_IRQ	11U
 
-#define DMAMUX1		0x40020800U
 #define H7_USART2_RX_REQUEST 43U
 #define H7_USART2_TX_REQUEST 44U
 
@@ -319,12 +317,10 @@ static void setup_rx_circular(std_bool h7)
 	stm32_dma_set_h7(h7);
 	dma1 = h7 ? H7_DMA1 : F7_DMA1;
 	stm32_dma_reset();
-	stm32_dmamux_reset();
-	if (h7) {
-		/* RM0433 table 122: DMAMUX1 channel 5 -> DMA1 stream 5. */
-		stm32_dmamux_write(DMAMUX1 + (5U * 4U), 4U, H7_USART2_RX_REQUEST);
-	}
-	else {
+	/* H7: RM0433 table 122 selects USART2_RX (request 43) on DMAMUX1 channel
+	 * 5 for DMA1 stream 5. The DMAMUX is an athrill-device model and the DMA
+	 * model does not read it yet (test_h7_dmamux_routing). */
+	if (!h7) {
 		/* RM0410 table 27: USART2_RX is DMA1 channel 4. */
 		cr |= CHSEL_4;
 	}
@@ -378,8 +374,9 @@ static void setup_h7_route(uint32 request)
 	stm32_dma_set_h7(TRUE);
 	dma1 = H7_DMA1;
 	stm32_dma_reset();
-	stm32_dmamux_reset();
-	stm32_dmamux_write(DMAMUX1, 4U, request); /* channel 0 -> DMA1 stream 0 */
+	/* The request DMAMUX1 channel 0 would select for DMA1 stream 0. The DMAMUX
+	 * is an athrill-device model; the DMA model routes by PAR only. */
+	(void)request;
 	stm32_dma_write(dma1 + S0NDTR, 4U, 1U);
 	stm32_dma_write(dma1 + S0PAR, 4U, USART2 + RDR);
 	stm32_dma_write(dma1 + S0M0AR, 4U, RAM_BASE + 0x20U);
@@ -389,7 +386,9 @@ static void setup_h7_route(uint32 request)
 /*
  * Known defect, kept as WILL_FAIL: RM0433 17.4.4 says DMAREQ_ID=0 selects
  * no line, and table 122 assigns USART2_RX request 43. The model currently
- * routes solely by PAR, ignoring the channel's DMAMUX selection.
+ * routes solely by PAR, ignoring the channel's DMAMUX selection. When the DMA
+ * moves to athrill-device (hakoniwalab/athrill-device#13 step 4-5), it reads
+ * the selection from the DMAMUX model and this test goes with it.
  */
 static void test_h7_dmamux_routing(void)
 {
