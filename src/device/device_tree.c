@@ -1,5 +1,17 @@
 /*
  * athrill-device target adapter for the STM32 target.
+ *
+ * Builds the Devicetree runtime (athrill_device_build) and hands it the full
+ * AthrillDeviceTargetOps table:
+ *   REQUIRED operations   implemented in target_host.c (stm32_host_*)
+ *   TO BE REMOVED bridges implemented here: they connect Devicetree nodes to
+ *                         models still in the target (SPI, UART, I2C, DMA,
+ *                         GPIO lines, sensor source) and go when those models
+ *                         move to athrill-device (hakoniwalab/athrill-device#13)
+ * Calls into target_host.c: the REQUIRED operations through the table,
+ * stm32_host_value/stm32_host_config_string for host values and plugin
+ * mappings, stm32_host_reset_values at each build.
+ *
  * Copyright 2026 Hakoniwa Laboratory
  * SPDX-License-Identifier: MIT
  */
@@ -20,6 +32,7 @@
 #include "sensor/sensor_source.h"
 #include "std_errno.h"
 #include "target_cpu.h"
+#include "target_host.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -27,7 +40,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_MMIO_ADAPTERS 64U
 #define MAX_SPI_ENDPOINTS 32U
 #define MAX_I2C_ENDPOINTS 32U
 #define MAX_UART_ENDPOINTS 16U
@@ -37,13 +49,6 @@
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 32U
 #define MAX_PLUGIN_MAPPING 1024U
-
-typedef struct {
-	const AthrillDeviceMmioOps *ops;
-	void *instance;
-	uint32 region_index;
-	std_bool active;
-} MmioAdapter;
 
 typedef struct {
 	const AthrillDeviceSpiPeripheralOps *ops;
@@ -99,7 +104,6 @@ typedef struct {
 } DmaChannel;
 
 typedef struct {
-	MmioAdapter mmio[MAX_MMIO_ADAPTERS];
 	SpiEndpoint spi[MAX_SPI_ENDPOINTS];
 	I2cEndpoint i2c[MAX_I2C_ENDPOINTS];
 	UartEndpoint uart[MAX_UART_ENDPOINTS];
@@ -113,250 +117,7 @@ static Stm32DeviceTreeTarget target_context;
 static AthrillDeviceRuntime *device_tree_runtime;
 static std_bool destroy_registered;
 
-typedef struct {
-	char key[64];
-	char value[32];
-} NumericHostValue;
-static NumericHostValue numeric_host_values[MAX_HOST_VALUES];
-static uint32 numeric_host_value_count;
 static char plugin_mappings[MAX_PLUGINS][MAX_PLUGIN_MAPPING];
-
-static MmioAdapter *mmio_of(MpuAddressRegionType *region)
-{
-	return (MmioAdapter *)region->data;
-}
-
-/* Match the legacy F7 bus path: only reads that consume or expose a moving
- * serial stream end a CPU batch.  Register-only peripherals (timer, GPIO,
- * EXTI) can be read without ticking all devices between instructions. */
-static void mmio_read_batch_barrier(AthrillAddrType address)
-{
-	if (stm32_spi_owns(address) || stm32_uart_owns(address) ||
-	    stm32_sdmmc_owns(address)) {
-		stm32_device_accessed = TRUE;
-	}
-}
-
-static Std_ReturnType mmio_get8(MpuAddressRegionType *region, CoreIdType core,
-                                AthrillAddrType address, uint8 *data)
-{
-	uint64 value;
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	mmio_read_batch_barrier(address);
-	if (!adapter->active ||
-	    adapter->ops->read(adapter->instance, address, 1U, &value) != 0) {
-		return STD_E_INVALID;
-	}
-	*data = (uint8)value;
-	return STD_E_OK;
-}
-static Std_ReturnType mmio_get16(MpuAddressRegionType *region, CoreIdType core,
-                                 AthrillAddrType address, uint16 *data)
-{
-	uint64 value;
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	mmio_read_batch_barrier(address);
-	if (!adapter->active ||
-	    adapter->ops->read(adapter->instance, address, 2U, &value) != 0) {
-		return STD_E_INVALID;
-	}
-	*data = (uint16)value;
-	return STD_E_OK;
-}
-static Std_ReturnType mmio_get32(MpuAddressRegionType *region, CoreIdType core,
-                                 AthrillAddrType address, uint32 *data)
-{
-	uint64 value;
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	mmio_read_batch_barrier(address);
-	if (!adapter->active ||
-	    adapter->ops->read(adapter->instance, address, 4U, &value) != 0) {
-		return STD_E_INVALID;
-	}
-	*data = (uint32)value;
-	return STD_E_OK;
-}
-static Std_ReturnType mmio_put8(MpuAddressRegionType *region, CoreIdType core,
-                                AthrillAddrType address, uint8 data)
-{
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	stm32_device_accessed = TRUE;
-	return (!adapter->active ||
-	        adapter->ops->write(adapter->instance, address, 1U, data) != 0) ? STD_E_INVALID : STD_E_OK;
-}
-static Std_ReturnType mmio_put16(MpuAddressRegionType *region, CoreIdType core,
-                                 AthrillAddrType address, uint16 data)
-{
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	stm32_device_accessed = TRUE;
-	return (!adapter->active ||
-	        adapter->ops->write(adapter->instance, address, 2U, data) != 0) ? STD_E_INVALID : STD_E_OK;
-}
-static Std_ReturnType mmio_put32(MpuAddressRegionType *region, CoreIdType core,
-                                 AthrillAddrType address, uint32 data)
-{
-	MmioAdapter *adapter = mmio_of(region);
-	(void)core;
-	stm32_device_accessed = TRUE;
-	return (!adapter->active ||
-	        adapter->ops->write(adapter->instance, address, 4U, data) != 0) ? STD_E_INVALID : STD_E_OK;
-}
-static Std_ReturnType mmio_pointer(MpuAddressRegionType *region, CoreIdType core,
-                                   AthrillAddrType address, uint8 **data)
-{
-	(void)region;
-	(void)core;
-	(void)address;
-	(void)data;
-	return STD_E_INVALID;
-}
-static MpuAddressRegionOperationType mmio_region_ops = {
-	mmio_get8, mmio_get16, mmio_get32, mmio_put8, mmio_put16, mmio_put32, mmio_pointer
-};
-
-static sint32 target_mmio_register(void *context, uint64 address, uint64 size,
-                                   const AthrillDeviceMmioOps *ops, void *instance, AthrillDeviceMmioToken *token)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i;
-	MpuAddressRegionType *maps;
-	if (address > 0xffffffffULL || size == 0U || size > 0xffffffffULL ||
-	    address + size > 0x100000000ULL) {
-		return -1;
-	}
-	for (i = 0U; i < MAX_MMIO_ADAPTERS; i++)
-		if (!target->mmio[i].active) {
-			break;
-		}
-	if (i == MAX_MMIO_ADAPTERS) {
-		return -1;
-	}
-	target->mmio[i].ops = ops;
-	target->mmio[i].instance = instance;
-	target->mmio[i].active = TRUE;
-	maps = realloc(mpu_address_map.dynamic_map, sizeof(*maps) * (mpu_address_map.dynamic_map_num + 1U));
-	if (maps == NULL) {
-		target->mmio[i].active = FALSE;
-		return -1;
-	}
-	mpu_address_map.dynamic_map = maps;
-	target->mmio[i].region_index = mpu_address_map.dynamic_map_num;
-	maps[target->mmio[i].region_index].type = DEVICE;
-	maps[target->mmio[i].region_index].is_malloc = FALSE;
-	maps[target->mmio[i].region_index].permission = MPU_ADDRESS_REGION_PERM_ALL;
-	maps[target->mmio[i].region_index].start = (AthrillAddrType)address;
-	maps[target->mmio[i].region_index].size = (AthrillAddrType)size;
-	maps[target->mmio[i].region_index].mask = MPU_ADDRESS_REGION_MASK_ALL;
-	maps[target->mmio[i].region_index].data = (uint8 *)&target->mmio[i];
-	maps[target->mmio[i].region_index].ops = &mmio_region_ops;
-	mpu_address_map.dynamic_map_num++;
-	token->value = (uint64)i + 1U;
-	return 0;
-}
-
-static void target_mmio_unregister(void *context, AthrillDeviceMmioToken token)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint64 i = token.value;
-	if (i == 0U || i > MAX_MMIO_ADAPTERS) {
-		return;
-	}
-	i--;
-	if (target->mmio[i].active) {
-		target->mmio[i].active = FALSE;
-		if (target->mmio[i].region_index < mpu_address_map.dynamic_map_num) {
-			mpu_address_map.dynamic_map[target->mmio[i].region_index].size = 0U;
-		}
-	}
-}
-
-static sint32 target_irq_resolve(void *context, const AthrillDeviceSpecifier *spec,
-                                 AthrillDeviceIrqLine *line)
-{
-	(void)context;
-	if (spec == NULL || spec->cell_count == 0U) {
-		return -1;
-	}
-	line->value = spec->cells[0];
-	return line->value < virtual_cpu.cores[0].core.m.num_irq ? 0 : -1;
-}
-static sint32 target_irq_set(void *context, AthrillDeviceIrqLine line, std_bool asserted)
-{
-	TargetCoreType *core = &virtual_cpu.cores[0].core;
-	(void)context;
-	if (line.value >= core->m.num_irq) {
-		return -1;
-	}
-	if (asserted) {
-		return intc_raise_intr((uint32)line.value);
-	}
-	if (core->m.active[ARM_M_EXC_IRQ0 + (uint32)line.value] == 0U)
-		core->m.pending[ARM_M_EXC_IRQ0 +
-		                (uint32)line.value] = 0U;
-	return 0;
-}
-static std_bool target_irq_active(void *context, AthrillDeviceIrqLine line)
-{
-	(void)context;
-	return line.value <= 0xffffffffU ? intc_irq_active((uint32)line.value) : FALSE;
-}
-static uint64 target_time_now(void *context)
-{
-	(void)context;
-	return cpuemu_get_clock();
-}
-static uint64 target_time_frequency(void *context)
-{
-	uint32 mhz = 216U;
-	(void)context;
-	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
-	return (uint64)mhz * 1000000U;
-}
-static sint32 target_clock_frequency(void *context, AthrillDeviceNodeId node,
-                                     const char *clock_name, uint64 *frequency)
-{
-	(void)context;
-	(void)node;
-	(void)clock_name;
-	*frequency = target_time_frequency(NULL);
-	return 0;
-}
-
-static sint32 target_memory_read(void *context, uint64 address, void *data, uint32 size)
-{
-	uint32 i;
-	(void)context;
-	if (address > 0xffffffffULL || address + size > 0x100000000ULL) {
-		return -1;
-	}
-	for (i = 0U; i < size;
-	     i++)
-		if (bus_get_data8(0U, (AthrillAddrType)(address + i),
-		                  &((uint8 *)data)[i]) != STD_E_OK) {
-			return -1;
-		}
-	return 0;
-}
-static sint32 target_memory_write(void *context, uint64 address, const void *data, uint32 size)
-{
-	uint32 i;
-	(void)context;
-	if (address > 0xffffffffULL || address + size > 0x100000000ULL) {
-		return -1;
-	}
-	for (i = 0U; i < size;
-	     i++)
-		if (bus_put_data8(0U, (AthrillAddrType)(address + i),
-		                  ((const uint8 *)data)[i]) != STD_E_OK) {
-			return -1;
-		}
-	return 0;
-}
 
 static sint32 target_spi_bind(void *context, AthrillDeviceNodeId controller, uint32 chip_select,
                               const AthrillDeviceSpecifier *gpio, const AthrillDeviceSpiPeripheralOps *ops, void *instance,
@@ -1033,42 +794,6 @@ static sint32 target_model_adapter_connect(void *context,
 	return -1;
 }
 
-static Std_ReturnType config_string_silent(const char *key, char **value);
-
-static sint32 target_host_value(void *context, const char *key,
-	const char **value)
-{
-	char *configured = NULL;
-	uint32 number;
-	uint32 i;
-	(void)context;
-	if (key == NULL || value == NULL) {
-		return -1;
-	}
-	if (config_string_silent(key, &configured) == STD_E_OK) {
-		*value = configured;
-		return 0;
-	}
-	for (i = 0U; i < numeric_host_value_count; i++) {
-		if (strcmp(numeric_host_values[i].key, key) == 0) {
-			*value = numeric_host_values[i].value;
-			return 0;
-		}
-	}
-	if ((cpuemu_get_devcfg_value(key, &number) != STD_E_OK &&
-	     cpuemu_get_devcfg_value_hex(key, &number) != STD_E_OK) ||
-	    numeric_host_value_count >= MAX_HOST_VALUES || strlen(key) >=
-	    sizeof(numeric_host_values[0].key)) {
-		return -1;
-	}
-	strcpy(numeric_host_values[numeric_host_value_count].key, key);
-	snprintf(numeric_host_values[numeric_host_value_count].value,
-		sizeof(numeric_host_values[0].value), "%u", number);
-	*value = numeric_host_values[numeric_host_value_count].value;
-	numeric_host_value_count++;
-	return 0;
-}
-
 static sint32 target_sensor_sample(void *context,
 	AthrillDeviceSensorSample *sample)
 {
@@ -1122,40 +847,19 @@ static sint32 target_actuator_output(void *context, const float32 *values,
 
 static const AthrillDeviceTargetOps target_ops = {
 	ATHRILL_DEVICE_ABI_MAJOR, ATHRILL_DEVICE_ABI_MINOR, sizeof(AthrillDeviceTargetOps),
-	target_mmio_register, target_mmio_unregister, target_irq_resolve, target_irq_set, target_irq_active,
-	target_time_now, target_time_frequency, target_clock_frequency, target_memory_read, target_memory_write,
+	/* REQUIRED operations: target_host.c */
+	stm32_host_mmio_register, stm32_host_mmio_unregister, stm32_host_irq_resolve, stm32_host_irq_set,
+	stm32_host_irq_is_active, stm32_host_time_now, stm32_host_time_frequency_hz,
+	stm32_host_clock_frequency_hz, stm32_host_memory_read, stm32_host_memory_write,
+	/* TO BE REMOVED bridge operations: this file */
 	target_spi_bind, target_spi_select, target_spi_exchange, target_i2c_bind, target_i2c_transfer,
 	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
-	target_model_adapter_connect, target_spi_bind_node, target_host_value,
+	target_model_adapter_connect, target_spi_bind_node, stm32_host_value,
 	target_sensor_sample, target_i2c_bind_node, target_uart_bind_nodes,
 	target_uart_send_from_node, target_gps_sample, target_actuator_output,
 	target_gpio_outputs
 };
-
-static Std_ReturnType config_string_silent(const char *key, char **value)
-{
-	int saved_stdout, null_fd;
-	Std_ReturnType result;
-	(void)fflush(stdout);
-	saved_stdout = dup(STDOUT_FILENO);
-	null_fd = open("/dev/null", O_WRONLY);
-	if (saved_stdout < 0 || null_fd < 0 || dup2(null_fd, STDOUT_FILENO) < 0) {
-		if (saved_stdout >= 0) {
-			close(saved_stdout);
-		}
-		if (null_fd >= 0) {
-			close(null_fd);
-		}
-		return cpuemu_get_devcfg_string(key, value);
-	}
-	result = cpuemu_get_devcfg_string(key, value);
-	(void)fflush(stdout);
-	(void)dup2(saved_stdout, STDOUT_FILENO);
-	(void)close(saved_stdout);
-	(void)close(null_fd);
-	return result;
-}
 
 static uint32 collect_host_values(AthrillDeviceHostValue values[MAX_HOST_VALUES])
 {
@@ -1173,7 +877,7 @@ static uint32 collect_host_values(AthrillDeviceHostValue values[MAX_HOST_VALUES]
 	const char *value;
 	for (i = 0U; i < sizeof(keys) / sizeof(keys[0]) && count < MAX_HOST_VALUES; i++) {
 		value = NULL;
-		if (target_host_value(NULL, keys[i], &value) == 0) {
+		if (stm32_host_value(NULL, keys[i], &value) == 0) {
 			values[count].key = keys[i];
 			values[count].value = value;
 			count++;
@@ -1191,7 +895,7 @@ static int collect_plugins(AthrillDevicePluginPath plugins[MAX_PLUGINS])
 		char *equals;
 		snprintf(key, sizeof(key), "DEVICE_CONFIG_DEVICE_PLUGIN_%u", i);
 		mapping = NULL;
-		if (config_string_silent(key, &mapping) != STD_E_OK) {
+		if (stm32_host_config_string(key, &mapping) != STD_E_OK) {
 			break;
 		}
 		if (strlen(mapping) >= sizeof(plugin_mappings[i])) {
@@ -1231,7 +935,7 @@ std_bool stm32_device_tree_build(void)
 	char *legacy_value = NULL;
 	int plugin_count;
 	stm32_device_tree_destroy();
-	numeric_host_value_count = 0U;
+	stm32_host_reset_values();
 	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_DEVICE_TREE", &path) != STD_E_OK) {
 		return FALSE;
 	}

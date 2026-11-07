@@ -123,6 +123,7 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32_spi.c
   src/device/peripheral/stm32_spi_bindings.c
   src/device/peripheral/stm32h7_spi.c
+  src/device/target_host.c
   src/device/peripheral/stm32_dmamux.c
   src/device/sensor/sensor_source.c
   src/device/sensor/ms5611.c
