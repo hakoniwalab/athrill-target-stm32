@@ -115,7 +115,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/stm32h7_boot.c
   src/device/target_host.c
   src/device/sensor/sensor_source.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
   ${STM32_MODELS_DIR}/memory/sdcard.c
   ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
   ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c
@@ -176,7 +175,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_arm_m_dwt PRIVATE athrill_stm32_config)
   add_test(NAME device-arm-m-dwt COMMAND test_arm_m_dwt)
   add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
-    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
+    ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config athrill_device)

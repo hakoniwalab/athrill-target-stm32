@@ -326,8 +326,6 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32-dma") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
 	    (strcmp(adapter_name, "stm32-sdmmc") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
