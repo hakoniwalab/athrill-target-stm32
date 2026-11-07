@@ -18,6 +18,14 @@ typedef struct {
 	Stm32BindKind kind;
 } Stm32SpiBinding;
 
+/* Table rows. Naming rule: the variable is spelt from the SVD names,
+ *   <REG>_OFFSET         register offset   BIND_OFFSET(SR)       -> SR_OFFSET      <- "SR"
+ *   <REG>_<FIELD>        field mask        BIND_MASK(SR, RXNE)   -> SR_RXNE        <- "SR", "RXNE"
+ *   <REG>_<FIELD>_SHIFT  field lsb         BIND_SHIFT(SR, FRLVL) -> SR_FRLVL_SHIFT <- "SR", "FRLVL" */
+#define BIND_OFFSET(r)    { &r##_OFFSET, #r, NULL, STM32_BIND_OFFSET }
+#define BIND_MASK(r, f)   { &r##_##f, #r, #f, STM32_BIND_MASK }
+#define BIND_SHIFT(r, f)  { &r##_##f##_SHIFT, #r, #f, STM32_BIND_SHIFT }
+
 void stm32_spi_bind(const char *compatible, const char *soc, const Stm32SpiBinding *table, uint32 count);
 
 #endif

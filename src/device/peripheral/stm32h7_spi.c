@@ -14,29 +14,29 @@
 
 /* Register interpretation: offsets and bits come from the bindings
  * (spec/bindings/st-stm32-spi-v2__h7_gen.yaml), resolved once at reset. */
-static uint32 SPI_CR1, SPI_CFG1, SPI_IER, SPI_SR, SPI_IFCR, SPI_TXDR, SPI_RXDR;
+static uint32 CR1_OFFSET, CFG1_OFFSET, IER_OFFSET, SR_OFFSET, IFCR_OFFSET, TXDR_OFFSET, RXDR_OFFSET;
 static uint32 CR1_SPE, CR1_CSTART, CR1_CSUSP, SR_RXP, SR_TXP, SR_EOT, SR_SUSP, SR_TXC, IER_EOTIE;
 #define RX_FIFO_SIZE	16U
 
 static void bind_registers(void)
 {
 	static const Stm32SpiBinding table[] = {
-		{ &SPI_CR1, "CR1", NULL, STM32_BIND_OFFSET },
-		{ &SPI_CFG1, "CFG1", NULL, STM32_BIND_OFFSET },
-		{ &SPI_IER, "IER", NULL, STM32_BIND_OFFSET },
-		{ &SPI_SR, "SR", NULL, STM32_BIND_OFFSET },
-		{ &SPI_IFCR, "IFCR", NULL, STM32_BIND_OFFSET },
-		{ &SPI_TXDR, "TXDR", NULL, STM32_BIND_OFFSET },
-		{ &SPI_RXDR, "RXDR", NULL, STM32_BIND_OFFSET },
-		{ &CR1_SPE, "CR1", "SPE", STM32_BIND_MASK },
-		{ &CR1_CSTART, "CR1", "CSTART", STM32_BIND_MASK },
-		{ &CR1_CSUSP, "CR1", "CSUSP", STM32_BIND_MASK },
-		{ &SR_RXP, "SR", "RXP", STM32_BIND_MASK },
-		{ &SR_TXP, "SR", "TXP", STM32_BIND_MASK },
-		{ &SR_EOT, "SR", "EOT", STM32_BIND_MASK },
-		{ &SR_SUSP, "SR", "SUSP", STM32_BIND_MASK },
-		{ &SR_TXC, "SR", "TXC", STM32_BIND_MASK },
-		{ &IER_EOTIE, "IER", "EOTIE", STM32_BIND_MASK },
+		BIND_OFFSET(CR1),
+		BIND_OFFSET(CFG1),
+		BIND_OFFSET(IER),
+		BIND_OFFSET(SR),
+		BIND_OFFSET(IFCR),
+		BIND_OFFSET(TXDR),
+		BIND_OFFSET(RXDR),
+		BIND_MASK(CR1, SPE),
+		BIND_MASK(CR1, CSTART),
+		BIND_MASK(CR1, CSUSP),
+		BIND_MASK(SR, RXP),
+		BIND_MASK(SR, TXP),
+		BIND_MASK(SR, EOT),
+		BIND_MASK(SR, SUSP),
+		BIND_MASK(SR, TXC),
+		BIND_MASK(IER, EOTIE),
 	};
 	stm32_spi_bind("st,stm32h7-spi", "st,stm32h7", table, sizeof(table) / sizeof(table[0]));
 }
@@ -122,21 +122,21 @@ uint32 stm32h7_spi_read(uint32 addr, uint32 size)
 	uint32 value = 0U;
 	uint32 i;
 
-	if (offset == SPI_SR) {
+	if (offset == SR_OFFSET) {
 		value = SR_TXP | SR_EOT | SR_SUSP | SR_TXC;
 		if (s->count != 0U) {
 			value |= SR_RXP;
 		}
 		return value;
 	}
-	if (offset == SPI_RXDR) {
+	if (offset == RXDR_OFFSET) {
 		for (i = 0U; i < size; i++) {
 			value |= (uint32)pop(s) << (8U * i);
 		}
 		return value;
 	}
 	value = (offset < SPI_REGS) ? s->regs[offset / 4U] : 0U;
-	if ((offset == SPI_CR1) && ((value & CR1_CSUSP) != 0U)) {
+	if ((offset == CR1_OFFSET) && ((value & CR1_CSUSP) != 0U)) {
 		value &= ~CR1_CSTART;
 		s->regs[offset / 4U] = value;
 	}
@@ -150,23 +150,23 @@ void stm32h7_spi_write(uint32 addr, uint32 size, uint32 value)
 	uint32 shift = 8U * ((addr - s->base) & 3U);
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 
-	if (offset == SPI_TXDR) {
+	if (offset == TXDR_OFFSET) {
 		(void)exchange(s, size, value, TRUE);
 		return;
 	}
-	if ((offset == SPI_SR) || (offset == SPI_IFCR)) {
+	if ((offset == SR_OFFSET) || (offset == IFCR_OFFSET)) {
 		return;
 	}
 	if (offset < SPI_REGS) {
 		s->regs[offset / 4U] = (s->regs[offset / 4U] & ~mask) | ((value << shift) & mask);
-		if ((offset == SPI_CR1) && ((s->regs[offset / 4U] & CR1_SPE) == 0U)) {
+		if ((offset == CR1_OFFSET) && ((s->regs[offset / 4U] & CR1_SPE) == 0U)) {
 			s->head = 0U;
 			s->count = 0U;
 		}
 		/* EOT/TXC are already true for the instantaneous exchange.  NuttX
 		 * enables EOTIE after the DMA completes and waits for this IRQ. */
-		if (((offset == SPI_IER) || (offset == SPI_CR1))
-			&& ((s->regs[SPI_IER / 4U] & IER_EOTIE) != 0U)) {
+		if (((offset == IER_OFFSET) || (offset == CR1_OFFSET))
+			&& ((s->regs[IER_OFFSET / 4U] & IER_EOTIE) != 0U)) {
 			(void)intc_raise_intr(s->irq);
 		}
 	}
@@ -177,10 +177,10 @@ std_bool stm32h7_spi_dma_exchange(uint32 txdr, uint32 size, uint32 value,
 {
 	H7SpiType *s = spi_of(txdr);
 
-	if ((s == NULL) || (((txdr - s->base) & ~3U) != SPI_TXDR)) {
+	if ((s == NULL) || (((txdr - s->base) & ~3U) != TXDR_OFFSET)) {
 		return FALSE;
 	}
-	*rxdr = s->base + SPI_RXDR;
+	*rxdr = s->base + RXDR_OFFSET;
 	*response = exchange(s, size, value, FALSE);
 	return TRUE;
 }
@@ -196,7 +196,7 @@ void stm32h7_spi_reset(void)
 		for (k = 0U; k < (SPI_REGS / 4U); k++) {
 			spis[i].regs[k] = 0U;
 		}
-		spis[i].regs[SPI_CFG1 / 4U] = 7U; /* DSIZE: eight-bit data */
+		spis[i].regs[CFG1_OFFSET / 4U] = 7U; /* DSIZE: eight-bit data */
 		spis[i].head = 0U;
 		spis[i].count = 0U;
 	}
