@@ -160,3 +160,8 @@ DT_COUNT=$(sed -n 's/^SAMPLES .* steps=//p' "$WORK/dt/emulator.log" | tail -1)
 python3 "$DIR/compare-armed-traces.py" \
 	"$WORK/c/sensor-device.trace" "$WORK/dt/sensor-device.trace"
 echo "PASS: armed C/DT traces and state are byte-identical ($C_COUNT instructions)"
+
+# The Devicetree run against the board's regression reference in athrill-device.
+. "$DIR/../regression.sh"
+echo "regression reference (athrill-device boards/pixhawk6c/regression/armed.txt)"
+regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt"
