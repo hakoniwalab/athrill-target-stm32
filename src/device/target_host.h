@@ -43,6 +43,28 @@ sint32 stm32_host_memory_read(void *context, uint64 address, void *data, uint32 
 sint32 stm32_host_memory_write(void *context, uint64 address, const void *data, uint32 size);
 sint32 stm32_host_value(void *context, const char *key, const char **value);
 
+/* Short forms for the target models: one call each, through the table. */
+static inline uint64 stm32_host_clock(void)
+{
+	return stm32_host_ops()->time_now(NULL);
+}
+
+static inline void stm32_host_raise(uint32 irq)
+{
+	AthrillDeviceIrqLine line;
+
+	line.value = irq;
+	(void)stm32_host_ops()->irq_set(NULL, line, TRUE);
+}
+
+static inline std_bool stm32_host_irq_pending(uint32 irq)
+{
+	AthrillDeviceIrqLine line;
+
+	line.value = irq;
+	return stm32_host_ops()->irq_is_active(NULL, line);
+}
+
 /* A configuration string without the core's echo on stdout. */
 Std_ReturnType stm32_host_config_string(const char *key, char **value);
 /* Forget the numeric host values cached by stm32_host_value (new build). */

@@ -5,7 +5,7 @@
 #include "stm32_sdmmc.h"
 #include "stm32_dma.h"
 #include "athrill_protocol_sd.h"
-#include "cpuemu_ops.h"
+#include "target_host.h"
 #include "device.h"
 #include <stdlib.h>
 #include <string.h>
@@ -168,8 +168,8 @@ static void update_interrupt(void)
 	uint32 rose = level & ~sd.asserted;
 
 	sd.asserted = level;
-	if ((level != 0U) && ((rose != 0U) || !intc_irq_active(SDMMC_IRQ))) {
-		(void)intc_raise_intr(SDMMC_IRQ);
+	if ((level != 0U) && ((rose != 0U) || !stm32_host_irq_pending(SDMMC_IRQ))) {
+		stm32_host_raise(SDMMC_IRQ);
 	}
 }
 
@@ -294,7 +294,7 @@ uint32 stm32_sdmmc_read(uint32 addr)
 	uint32 value = 0U;
 	uint32 i;
 
-	advance_to(cpuemu_get_clock());
+	advance_to(stm32_host_clock());
 	switch (offset) {
 	case R_STA:
 		return status();
@@ -325,7 +325,7 @@ void stm32_sdmmc_write(uint32 addr, uint32 size, uint32 value)
 	uint32 mask = ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U)) << shift;
 	uint32 i;
 
-	advance_to(cpuemu_get_clock());
+	advance_to(stm32_host_clock());
 	value = (value << shift) & mask;
 	if (offset >= R_FIFO) {
 		if (fifo_write_mode()) {
@@ -402,8 +402,8 @@ void stm32_sdmmc_tick(DeviceClockType *clock)
 	advance_to(clock->clock);
 	/* the interrupt is a level: pending again while an enabled flag stays set after the handler */
 	sd.asserted = status() & reg(R_MASK);
-	if ((sd.asserted != 0U) && !intc_irq_active(SDMMC_IRQ)) {
-		(void)intc_raise_intr(SDMMC_IRQ);
+	if ((sd.asserted != 0U) && !stm32_host_irq_pending(SDMMC_IRQ)) {
+		stm32_host_raise(SDMMC_IRQ);
 	}
 	if (sd.done_at != 0U) {
 		until = (sd.done_at > sd.now) ? (sd.done_at - sd.now) : 1U;

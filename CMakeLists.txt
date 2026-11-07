@@ -202,7 +202,7 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32_tim PRIVATE src/device)
   target_link_libraries(test_stm32_tim PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32-tim COMMAND test_stm32_tim)
-  add_executable(test_stm32_uart test/device/test_stm32_uart.c src/device/peripheral/stm32_uart.c)
+  add_executable(test_stm32_uart test/device/test_host_stub.c test/device/test_stm32_uart.c src/device/peripheral/stm32_uart.c)
   stm32_target(test_stm32_uart)
   target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config athrill_device)
@@ -210,7 +210,7 @@ if(BUILD_TESTING)
   add_test(NAME device-stm32-uart-spec-gaps COMMAND test_stm32_uart spec-gaps)
   set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
   # USART transmit DMA with the real DMA model
-  add_executable(test_uart_dma_tx test/device/test_uart_dma_tx.c src/device/peripheral/stm32_uart.c
+  add_executable(test_uart_dma_tx test/device/test_host_stub.c test/device/test_uart_dma_tx.c src/device/peripheral/stm32_uart.c
     src/device/peripheral/stm32_dma.c src/device/peripheral/stm32_dmamux.c)
   stm32_target(test_uart_dma_tx)
   target_include_directories(test_uart_dma_tx PRIVATE src/device src/debugger/executor)
@@ -231,7 +231,7 @@ if(BUILD_TESTING)
   target_include_directories(test_dma_icm20689 PRIVATE src/device)
   target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
-  add_executable(test_i2c_ist8310 test/device/test_i2c_ist8310.c src/device/peripheral/stm32_i2c.c
+  add_executable(test_i2c_ist8310 test/device/test_host_stub.c test/device/test_i2c_ist8310.c src/device/peripheral/stm32_i2c.c
     src/device/sensor/ist8310.c)
   stm32_target(test_i2c_ist8310)
   target_include_directories(test_i2c_ist8310 PRIVATE src/device)
@@ -247,13 +247,13 @@ if(BUILD_TESTING)
   target_include_directories(test_fm25v02 PRIVATE src/device)
   target_link_libraries(test_fm25v02 PRIVATE athrill_stm32_config)
   add_test(NAME device-fm25v02 COMMAND test_fm25v02)
-  add_executable(test_sdmmc_sdcard test/device/test_sdmmc_sdcard.c src/device/peripheral/stm32_sdmmc.c
+  add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c src/device/peripheral/stm32_sdmmc.c
     src/device/peripheral/stm32_dma.c src/device/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
-  add_executable(test_stm32h7_sdmmc test/device/test_stm32h7_sdmmc.c
+  add_executable(test_stm32h7_sdmmc test/device/test_host_stub.c test/device/test_stm32h7_sdmmc.c
     src/device/peripheral/stm32h7_sdmmc.c src/device/memory/sdcard.c)
   stm32_target(test_stm32h7_sdmmc)
   target_include_directories(test_stm32h7_sdmmc PRIVATE src/device)
