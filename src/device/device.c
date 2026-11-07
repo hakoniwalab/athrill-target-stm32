@@ -1,4 +1,5 @@
 #include "device.h"
+#include <stdio.h>
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
@@ -58,6 +59,35 @@ static uint32 cpu_mhz(void)
 	return mhz;
 }
 
+/*
+ * The order device_supply_clock() ticks the devices in, written once: the
+ * calls and the start-up log (TARGET_TICK lines; "devicetree" is where the
+ * athrill-device models tick, in the order of its DEVICE_TICK lines). The
+ * regression references record this order, so a change is reported.
+ */
+#define TARGET_TICKS(X) \
+	X(arm_m_scs, arm_m_scs_tick(clock)) \
+	X(stm32_uart_tcp, stm32_uart_tcp_tick()) \
+	X(stm32_uart, stm32_uart_tick(clock)) \
+	X(stm32_i2c, stm32_i2c_tick()) \
+	X(stm32_sdmmc, stm32_sdmmc_tick(clock)) \
+	X(stm32h7_sdmmc, stm32h7_sdmmc_tick(clock)) \
+	X(devicetree, stm32_device_tree_tick(clock))
+
+static void log_tick_order(void)
+{
+	static const char *const names[] = {
+#define TICK_NAME(name, call)	#name,
+		TARGET_TICKS(TICK_NAME)
+#undef TICK_NAME
+	};
+	uint32 i;
+
+	for (i = 0U; i < sizeof(names) / sizeof(names[0]); i++) {
+		fprintf(stderr, "TARGET_TICK index=%u name=%s\n", i, names[i]);
+	}
+}
+
 void device_init(CpuType *cpu, DeviceClockType *clock)
 {
 	(void)cpu;
@@ -85,19 +115,16 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	 * without one, Athrill runs the CPU with these controllers and no board. */
 	(void)stm32_device_tree_build();
 	stm32_uart_tcp_attach();
+	log_tick_order();
 }
 
 void device_supply_clock(DeviceClockType *clock)
 {
 	clock->can_skip_clock = TRUE;
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
-	arm_m_scs_tick(clock);
-	stm32_uart_tcp_tick();
-	stm32_uart_tick(clock);
-	stm32_i2c_tick();
-	stm32_sdmmc_tick(clock);
-	stm32h7_sdmmc_tick(clock);
-	stm32_device_tree_tick(clock);
+#define TICK_CALL(name, call)	call;
+	TARGET_TICKS(TICK_CALL)
+#undef TICK_CALL
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {
