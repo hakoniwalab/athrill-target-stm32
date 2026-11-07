@@ -23,7 +23,6 @@
 #include "stm32_spi.h"
 #include "stm32h7_spi.h"
 #include "stm32_dma.h"
-#include "stm32_i2c.h"
 #include "stm32_sdmmc.h"
 #include "stm32h7_boot.h"
 #include "board/board_profile.h"
@@ -110,9 +109,6 @@ static const char *trace_owner(uint32 addr)
 	if (stm32_dma_owns(addr)) {
 		return "dma";
 	}
-	if (stm32_i2c_owns(addr)) {
-		return "i2c";
-	}
 	if (stm32_board_is_h7()) {
 		if (stm32h7_spi_owns(addr)) {
 			return "h7spi";
@@ -167,9 +163,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	if (stm32_dma_owns(a)) {
 		return stm32_dma_read(a);
 	}
-	if (stm32_i2c_owns(a)) {
-		return stm32_i2c_read(a);
-	}
 	if (stm32_sdmmc_owns(a)) {
 		return stm32_sdmmc_read(a);
 	}
@@ -217,10 +210,6 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 		stm32_dma_write(addr, size, value);
 		return;
 	}
-	if (stm32_i2c_owns(a)) {
-		stm32_i2c_write(addr, size, value);
-		return;
-	}
 	if (stm32_sdmmc_owns(a)) {
 		stm32_sdmmc_write(addr, size, value);
 		return;
@@ -248,11 +237,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 		*value = stm32_dma_read(aligned);
 		return TRUE;
 	}
-	if (stm32_i2c_owns(addr)) {
-		stm32_device_accessed = TRUE;
-		*value = stm32_i2c_read(addr);
-		return TRUE;
-	}
 	if (stm32h7_spi_owns(addr)) {
 		stm32_device_accessed = TRUE;
 		*value = stm32h7_spi_read(addr, size) << (8U * (addr & 3U));
@@ -269,10 +253,6 @@ static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
-		return TRUE;
-	}
-	if (stm32_i2c_owns(addr)) {
-		stm32_i2c_write(addr, size, value);
 		return TRUE;
 	}
 	if (stm32h7_spi_owns(addr)) {

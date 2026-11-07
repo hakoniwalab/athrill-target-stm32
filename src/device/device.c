@@ -11,7 +11,6 @@
 #include "sensor/sensor_source.h"
 #include "board/board_profile.h"
 #include "peripheral/stm32_dma.h"
-#include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32h7_sdmmc.h"
 #include "device_tree.h"
@@ -68,7 +67,6 @@ static uint32 cpu_mhz(void)
 	X(arm_m_scs, arm_m_scs_tick(clock)) \
 	X(stm32_uart_tcp, stm32_uart_tcp_tick()) \
 	X(stm32_uart, stm32_uart_tick(clock)) \
-	X(stm32_i2c, stm32_i2c_tick()) \
 	X(stm32_sdmmc, stm32_sdmmc_tick(clock)) \
 	X(stm32h7_sdmmc, stm32h7_sdmmc_tick(clock)) \
 	X(devicetree, stm32_device_tree_tick(clock))
@@ -104,8 +102,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	stm32_dma_reset();
 	stm32_spi_reset();
 	stm32h7_spi_reset();
-	stm32_i2c_set_h7(stm32_board_is_h7());
-	stm32_i2c_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	stm32h7_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
 	sensor_source_reset();

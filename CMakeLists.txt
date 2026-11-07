@@ -120,7 +120,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/target_host.c
   src/device/sensor/sensor_source.c
   ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
-  ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
   ${STM32_MODELS_DIR}/memory/sdcard.c
   ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
   ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c
@@ -209,12 +208,6 @@ if(BUILD_TESTING)
   target_include_directories(test_dma_icm20689 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
   target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
-  add_executable(test_i2c_ist8310 test/device/test_host_stub.c test/device/test_i2c_ist8310.c ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
-    test/fixtures/sensor/ist8310.c)
-  stm32_target(test_i2c_ist8310)
-  target_include_directories(test_i2c_ist8310 PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
-  target_link_libraries(test_i2c_ist8310 PRIVATE athrill_stm32_config athrill_device)
-  add_test(NAME device-i2c-ist8310 COMMAND test_i2c_ist8310)
   add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
     ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
