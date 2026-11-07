@@ -134,7 +134,7 @@ echo "regression reference (athrill-device boards/pixhawk4/regression/bench.txt)
 # Without the two Devicetree lines (the DTB's local path and its hash), so the
 # C path and the Devicetree path compare with the same value.
 grep -av -e "^DEVICE_CONFIG_DEVICE_TREE = " -e "^DEVICE_TREE sha256=" run1/console.txt > run1/console.norm || true
-regression_check "$REFERENCE" "$ELF" "$(grep -a 'steps=' run1/stderr.txt | sed 's/.*steps=//' | tail -1)" run1 || FAILED=1
+regression_check "$REFERENCE" "$ELF" "$(grep -a 'steps=' run1/stderr.txt | sed 's/.*steps=//' | tail -1)" run1 run1/stderr.txt || FAILED=1
 if [ $FAILED = 0 ]; then
 	echo "ALL PASS"
 else

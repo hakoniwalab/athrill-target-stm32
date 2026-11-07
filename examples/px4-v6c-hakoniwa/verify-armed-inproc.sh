@@ -117,4 +117,4 @@ echo "PASS: armed and took off ($DT_COUNT instructions)"
 # The run against the board's regression reference in athrill-device.
 . "$DIR/../regression.sh"
 echo "regression reference (athrill-device boards/pixhawk6c/regression/armed.txt)"
-regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt"
+regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt" "$WORK/dt/emulator.log"
