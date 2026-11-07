@@ -244,7 +244,7 @@ if(BUILD_TESTING)
     src/device/peripheral/stm32h7_sdmmc.c src/device/memory/sdcard.c)
   stm32_target(test_stm32h7_sdmmc)
   target_include_directories(test_stm32h7_sdmmc PRIVATE src/device)
-  target_link_libraries(test_stm32h7_sdmmc PRIVATE athrill_stm32_config)
+  target_link_libraries(test_stm32h7_sdmmc PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-sdmmc COMMAND test_stm32h7_sdmmc)
   add_executable(test_stm32h7_boot test/device/test_stm32h7_boot.c
     src/device/peripheral/stm32h7_boot.c src/device/board/board_profile.c)

@@ -1,22 +1,17 @@
 /*
- * Early STM32H743 peripherals from RM0433.  Clock and regulator ready bits
- * complete immediately in virtual time.  Other early registers retain the
- * bytes written to them.  The first access to an unmodelled 1 KiB block is
- * reported as an H7-STUB entry for the next implementation stage.
+ * Explicit STM32H743 boot-time peripherals from RM0433.  Clock and regulator
+ * ready bits complete immediately in virtual time.  Other listed registers
+ * retain the bytes written to them; addresses outside the listed peripherals
+ * are rejected instead of becoming a generic register file.
  */
 #include "stm32h7_boot.h"
 #include "stm32h7_sdmmc.h"
 #include "board/board_profile.h"
 #include "device.h"
-#include <stdio.h>
 #include <string.h>
 
 #define H7_D2_BASE 0x40000000U
 #define H7_D2_SIZE 0x00080000U
-#define H7_F7_AHB2_BASE 0x50000000U
-#define H7_F7_AHB2_SIZE 0x00070000U
-#define H7_SYSMEM_LOW_BASE 0x1FF00000U
-#define H7_SYSMEM_LOW_SIZE 0x00010000U
 
 #define RCC_BASE       0x58024400U
 #define RCC_CR         (RCC_BASE + 0x00U)
@@ -34,8 +29,13 @@
 #define SYSCFG_BASE    0x58000400U
 #define RTC_BASE       0x58004000U
 #define RTC_ICSR       (RTC_BASE + 0x0CU)
+#define IWDG_BASE      0x58004800U
 #define OTG_FS_GRSTCTL (STM32H7_OTG_FS_BASE + 0x10U)
 #define ADC12_BASE     0x40022000U
+#define FDCAN1_BASE    0x4000A000U
+#define FDCAN2_BASE    0x4000A400U
+#define FDCAN_RAM_BASE 0x4000AC00U
+#define FDCAN_RAM_SIZE 0x00002800U
 #define ADC3_BASE      0x58026000U
 #define ADC_ISR        0x00U
 #define ADC_CR         0x08U
@@ -45,15 +45,11 @@
 #define RNG_DR         (RNG_BASE + 0x08U)
 #define SDMMC2_BASE    0x48022400U
 #define SDMMC_STA      (SDMMC2_BASE + 0x34U)
-#define I2C1_BASE      0x40005400U
-#define I2C2_BASE      0x40005800U
-#define I2C4_BASE      0x58001C00U
-#define I2C_CR2_OFFSET 0x04U
-#define I2C_ISR_OFFSET 0x18U
-#define I2C_ICR_OFFSET 0x1CU
-
-#define GPIO_BASE      0x58020000U
-#define GPIO_END       0x58022C00U
+#define BDMA_BASE      0x58025400U
+#define AXI_TARG7_BASE 0x51008000U
+#define AXI_TARG7_SIZE 0x00000400U
+#define SYSMEM_DATA_BASE 0x1FF1E800U
+#define SYSMEM_DATA_SIZE 0x00000100U
 
 uint8 stm32h7_otg_fs_data[STM32H7_OTG_FS_SIZE];
 uint8 stm32h7_ahb2_data[STM32H7_AHB2_SIZE];
@@ -64,12 +60,6 @@ uint8 stm32h7_dbgmcu_data[STM32H7_DBGMCU_SIZE];
 uint8 stm32h7_sysmem_high_data[STM32H7_SYSMEM_HIGH_SIZE];
 
 static uint8 h7_d2_data[H7_D2_SIZE];
-static uint8 h7_f7_ahb2_data[H7_F7_AHB2_SIZE];
-static uint8 h7_sysmem_low_data[H7_SYSMEM_LOW_SIZE];
-
-#define REPORTED_BLOCKS 256U
-static uint32 reported_blocks[REPORTED_BLOCKS];
-static uint32 reported_count;
 static uint32 rng_value;
 
 typedef struct {
@@ -79,16 +69,26 @@ typedef struct {
 } H7RegionType;
 
 static const H7RegionType regions[] = {
-	{ H7_D2_BASE, H7_D2_SIZE, h7_d2_data },
+	{ FDCAN1_BASE, 0x400U, &h7_d2_data[FDCAN1_BASE - H7_D2_BASE] },
+	{ FDCAN2_BASE, 0x400U, &h7_d2_data[FDCAN2_BASE - H7_D2_BASE] },
+	{ FDCAN_RAM_BASE, FDCAN_RAM_SIZE,
+		&h7_d2_data[FDCAN_RAM_BASE - H7_D2_BASE] },
+	{ ADC12_BASE, 0x400U, &h7_d2_data[ADC12_BASE - H7_D2_BASE] },
 	{ STM32H7_OTG_FS_BASE, STM32H7_OTG_FS_SIZE, stm32h7_otg_fs_data },
-	{ STM32H7_AHB2_BASE, STM32H7_AHB2_SIZE, stm32h7_ahb2_data },
-	{ H7_F7_AHB2_BASE, H7_F7_AHB2_SIZE, h7_f7_ahb2_data },
-	{ STM32H7_AXI_BASE, STM32H7_AXI_SIZE, stm32h7_axi_data },
-	{ STM32H7_D1_BASE, STM32H7_D1_SIZE, stm32h7_d1_data },
-	{ STM32H7_D3_BASE, STM32H7_D3_SIZE, stm32h7_d3_data },
+	{ RNG_BASE, 0x400U, &stm32h7_ahb2_data[RNG_BASE - STM32H7_AHB2_BASE] },
+	{ AXI_TARG7_BASE, AXI_TARG7_SIZE,
+		&stm32h7_axi_data[AXI_TARG7_BASE - STM32H7_AXI_BASE] },
+	{ FLASH_BASE, 0x400U, &stm32h7_d1_data[FLASH_BASE - STM32H7_D1_BASE] },
+	{ SYSCFG_BASE, 0x400U, &stm32h7_d3_data[SYSCFG_BASE - STM32H7_D3_BASE] },
+	{ RTC_BASE, 0x400U, &stm32h7_d3_data[RTC_BASE - STM32H7_D3_BASE] },
+	{ IWDG_BASE, 0x400U, &stm32h7_d3_data[IWDG_BASE - STM32H7_D3_BASE] },
+	{ RCC_BASE, 0x400U, &stm32h7_d3_data[RCC_BASE - STM32H7_D3_BASE] },
+	{ PWR_BASE, 0x400U, &stm32h7_d3_data[PWR_BASE - STM32H7_D3_BASE] },
+	{ BDMA_BASE, 0x400U, &stm32h7_d3_data[BDMA_BASE - STM32H7_D3_BASE] },
+	{ ADC3_BASE, 0x400U, &stm32h7_d3_data[ADC3_BASE - STM32H7_D3_BASE] },
 	{ STM32H7_DBGMCU_BASE, STM32H7_DBGMCU_SIZE, stm32h7_dbgmcu_data },
-	{ H7_SYSMEM_LOW_BASE, H7_SYSMEM_LOW_SIZE, h7_sysmem_low_data },
-	{ STM32H7_SYSMEM_HIGH_BASE, STM32H7_SYSMEM_HIGH_SIZE, stm32h7_sysmem_high_data },
+	{ SYSMEM_DATA_BASE, SYSMEM_DATA_SIZE,
+		&stm32h7_sysmem_high_data[SYSMEM_DATA_BASE - STM32H7_SYSMEM_HIGH_BASE] },
 };
 
 static const H7RegionType *region_of(uint32 addr, uint32 size)
@@ -103,14 +103,6 @@ static const H7RegionType *region_of(uint32 addr, uint32 size)
 		}
 	}
 	return NULL;
-}
-
-static std_bool f7_only_address(uint32 addr)
-{
-	/* These H7-reserved blocks are the F7 PWR, SYSCFG/EXTI, RCC and FLASH. */
-	return ((addr >= 0x40007000U) && (addr < 0x40007400U))
-		|| ((addr >= 0x40013800U) && (addr < 0x40014000U))
-		|| ((addr >= 0x40023800U) && (addr < 0x40024000U));
 }
 
 static uint32 stored_word(const H7RegionType *region, uint32 addr)
@@ -130,42 +122,6 @@ static void store_bytes(const H7RegionType *region, uint32 addr, uint32 size, ui
 	for (i = 0U; i < size; i++) {
 		region->data[offset + i] = (uint8)(value >> (8U * i));
 	}
-}
-
-static std_bool modelled_block(uint32 addr)
-{
-	return ((addr >= RCC_BASE) && (addr < (RCC_BASE + 0x400U)))
-		|| ((addr >= PWR_BASE) && (addr < (PWR_BASE + 0x400U)))
-		|| ((addr >= FLASH_BASE) && (addr < (FLASH_BASE + 0x400U)))
-		|| ((addr >= SYSCFG_BASE) && (addr < (SYSCFG_BASE + 0x400U)))
-		|| ((addr >= GPIO_BASE) && (addr < GPIO_END))
-		|| ((addr >= RTC_BASE) && (addr < (RTC_BASE + 0x400U)))
-		|| ((addr >= ADC12_BASE) && (addr < (ADC12_BASE + 0x400U)))
-		|| ((addr >= ADC3_BASE) && (addr < (ADC3_BASE + 0x400U)))
-		|| ((addr >= RNG_BASE) && (addr < (RNG_BASE + 0x400U)))
-		|| ((addr >= SDMMC2_BASE) && (addr < (SDMMC2_BASE + 0x400U)))
-		|| ((addr >= STM32H7_DBGMCU_BASE) && (addr < (STM32H7_DBGMCU_BASE + STM32H7_DBGMCU_SIZE)))
-		|| ((addr >= H7_SYSMEM_LOW_BASE) && (addr < (H7_SYSMEM_LOW_BASE + H7_SYSMEM_LOW_SIZE)))
-		|| ((addr >= STM32H7_SYSMEM_HIGH_BASE) && (addr < (STM32H7_SYSMEM_HIGH_BASE + STM32H7_SYSMEM_HIGH_SIZE)));
-}
-
-static void report_stub(uint32 addr, const char *what)
-{
-	uint32 block = addr & ~0x3FFU;
-	uint32 i;
-
-	if (modelled_block(addr)) {
-		return;
-	}
-	for (i = 0U; i < reported_count; i++) {
-		if (reported_blocks[i] == block) {
-			return;
-		}
-	}
-	if (reported_count < REPORTED_BLOCKS) {
-		reported_blocks[reported_count++] = block;
-	}
-	fprintf(stderr, "H7-STUB: first %s at 0x%08x (block 0x%08x)\n", what, addr, block);
 }
 
 static uint32 adc_read(const H7RegionType *region, uint32 addr, uint32 value)
@@ -190,19 +146,13 @@ static uint32 adc_read(const H7RegionType *region, uint32 addr, uint32 value)
 	return value;
 }
 
-static std_bool i2c_register(uint32 addr, uint32 offset)
-{
-	return (addr == (I2C1_BASE + offset)) || (addr == (I2C2_BASE + offset))
-		|| (addr == (I2C4_BASE + offset));
-}
-
 Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 {
 	const H7RegionType *region;
 	uint32 a = addr & ~3U;
 	uint32 v;
 
-	if (!stm32_board_is_h7() || f7_only_address(addr)) {
+	if (!stm32_board_is_h7()) {
 		return STD_E_SEGV;
 	}
 	if (stm32h7_sdmmc_owns(addr)) {
@@ -215,7 +165,6 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 	if (region == NULL) {
 		return STD_E_SEGV;
 	}
-	report_stub(addr, "read");
 	v = stored_word(region, a);
 	switch (a) {
 	case RCC_CR:
@@ -274,9 +223,8 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 Std_ReturnType stm32h7_boot_write(uint32 addr, uint32 size, uint32 value)
 {
 	const H7RegionType *region;
-	uint32 a = addr & ~3U;
 
-	if (!stm32_board_is_h7() || f7_only_address(addr)) {
+	if (!stm32_board_is_h7()) {
 		return STD_E_SEGV;
 	}
 	if (stm32h7_sdmmc_owns(addr)) {
@@ -287,20 +235,7 @@ Std_ReturnType stm32h7_boot_write(uint32 addr, uint32 size, uint32 value)
 	if (region == NULL) {
 		return STD_E_SEGV;
 	}
-	report_stub(addr, "write");
 	store_bytes(region, addr, size, value);
-	if (i2c_register(a, I2C_CR2_OFFSET) && ((value & (1U << 13)) != 0U)) {
-		/* No chip is attached in stage 1: START completes with NACK and STOP. */
-		store_bytes(region_of(a + (I2C_ISR_OFFSET - I2C_CR2_OFFSET), 4U),
-			a + (I2C_ISR_OFFSET - I2C_CR2_OFFSET), 4U, (1U << 0) | (1U << 4) | (1U << 5));
-	}
-	else if (i2c_register(a, I2C_ICR_OFFSET)) {
-		uint32 isr_addr = a - (I2C_ICR_OFFSET - I2C_ISR_OFFSET);
-		const H7RegionType *isr_region = region_of(isr_addr, 4U);
-		uint32 isr = stored_word(isr_region, isr_addr);
-
-		store_bytes(isr_region, isr_addr, 4U, isr & ~(value & 0x3F38U));
-	}
 	return STD_E_OK;
 }
 
@@ -315,7 +250,6 @@ void stm32h7_boot_reset(void)
 	for (i = 0U; i < (sizeof(regions) / sizeof(regions[0])); i++) {
 		memset(regions[i].data, 0, regions[i].size);
 	}
-	reported_count = 0U;
 	rng_value = 0x7436C001U;
 
 	/* STM32H743 device ID/revision and 2048 KiB flash size. */
@@ -330,9 +264,6 @@ void stm32h7_boot_reset(void)
 	/* Reset clock source: HSI on and ready. */
 	store_bytes(region_of(RCC_CR, 4U), RCC_CR, 4U, (1U << 0) | (1U << 2));
 	store_bytes(region_of(FLASH_ACR, 4U), FLASH_ACR, 4U, 0U);
-	store_bytes(region_of(I2C1_BASE + I2C_ISR_OFFSET, 4U), I2C1_BASE + I2C_ISR_OFFSET, 4U, 1U);
-	store_bytes(region_of(I2C2_BASE + I2C_ISR_OFFSET, 4U), I2C2_BASE + I2C_ISR_OFFSET, 4U, 1U);
-	store_bytes(region_of(I2C4_BASE + I2C_ISR_OFFSET, 4U), I2C4_BASE + I2C_ISR_OFFSET, 4U, 1U);
 }
 
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)

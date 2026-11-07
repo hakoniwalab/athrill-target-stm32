@@ -97,10 +97,32 @@ int main(void)
 	write32(0x48022438U, 0x1234U);
 	TEST_CHECK(sdmmc_write_addr == 0x48022438U);
 	TEST_CHECK(sdmmc_write_value == 0x1234U);
-	write32(0x58001C04U, 1U << 13);
-	TEST_CHECK((read32(0x58001C18U) & ((1U << 4) | (1U << 5))) == ((1U << 4) | (1U << 5)));
-
 	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
+	write32(0x40080010U, 1U << 0);
+	TEST_CHECK((read32(0x40080010U) & (1U << 31)) != 0U);
+	write32(0x51008108U, 1U);
+	TEST_CHECK(read32(0x51008108U) == 1U);
+	write32(0x58004800U, 0xAAAAU);
+	TEST_CHECK(read32(0x58004800U) == 0xAAAAU);
+	write32(0x58025408U, 0xFFU);
+	TEST_CHECK(read32(0x58025408U) == 0xFFU);
+	write32(0x4000A018U, 0x3U);
+	TEST_CHECK(read32(0x4000A018U) == 0x3U);
+	write32(0x4000A418U, 0x4U);
+	TEST_CHECK(read32(0x4000A418U) == 0x4U);
+	write32(0x4000A7FCU, 0x89ABCDEFU);
+	TEST_CHECK(read32(0x4000A7FCU) == 0x89ABCDEFU);
+	write32(0x4000AC00U, 0x11223344U);
+	TEST_CHECK(read32(0x4000AC00U) == 0x11223344U);
+	write32(0x4000D3FCU, 0x55667788U);
+	TEST_CHECK(read32(0x4000D3FCU) == 0x55667788U);
+	TEST_CHECK(stm32h7_boot_read(0x4000A800U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x4000D400U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x40022400U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x48020000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x51000000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x52000000U, 4U, &value) == STD_E_SEGV);
+	TEST_CHECK(stm32h7_boot_read(0x58024C00U, 4U, &value) == STD_E_SEGV);
 	TEST_CHECK(stm32h7_boot_read(0x40023800U, 4U, &value) == STD_E_SEGV);
 
 	configured_board = "unknown";

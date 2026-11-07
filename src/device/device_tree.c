@@ -7,6 +7,7 @@
 
 #include "athrill_device_if.h"
 #include "board/board.h"
+#include "board/fmu_v6c.h"
 #include "bus.h"
 #include "cpuemu_ops.h"
 #include "device.h"
@@ -427,8 +428,10 @@ static sint32 target_spi_bind_node(void *context,
 	if (controller == NULL || gpio == NULL || gpio->cell_count < 1U ||
 	    node_path_address(controller->path, &controller_address) != 0 ||
 	    node_path_address(gpio->provider_path, &gpio_address) != 0 ||
-	    gpio_address < 0x40020000U || gpio_address > 0x40022800U ||
-	    (gpio_address - 0x40020000U) % 0x400U != 0U) {
+	    !(((gpio_address >= 0x40020000U && gpio_address <= 0x40022800U) ||
+	       (gpio_address >= 0x58020000U && gpio_address <= 0x58022800U)) &&
+	      (gpio_address - (gpio_address >= 0x58020000U ?
+	       0x58020000U : 0x40020000U)) % 0x400U == 0U)) {
 		return -1;
 	}
 	switch (controller_address) {
@@ -440,7 +443,8 @@ static sint32 target_spi_bind_node(void *context,
 	case 0x40015400U: bus = 6U; break;
 	default: return -1;
 	}
-	port = (gpio_address - 0x40020000U) / 0x400U;
+	port = (gpio_address - (gpio_address >= 0x58020000U ?
+		0x58020000U : 0x40020000U)) / 0x400U;
 	pin = gpio->cells[0];
 	if (port > STM32_GPIO_PORT('K') || pin >= 16U ||
 	    target_spi_bind(context, controller->id, chip_select, gpio, ops,
@@ -942,6 +946,10 @@ static sint32 target_model_adapter_connect(void *context,
 	    strcmp(node->matched_compatible, "zephyr,sdmmc-disk") == 0) {
 		AthrillDeviceSpecifier spec;
 		AthrillDeviceGpioLine line;
+		if (strstr(node->path, "/sdmmc@48022400/") != NULL) {
+			(void)fmu_v6c_sdcard_attach();
+			return 0;
+		}
 		if (!board_fmu_v5_sdcard_attach()) {
 			return 0;
 		}
@@ -959,7 +967,7 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-dma") == 0 &&
+	    (strcmp(adapter_name, "stm32-dma") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-dma-v1") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-spi") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-spi-fifo") == 0 ||
@@ -969,7 +977,7 @@ static sint32 target_model_adapter_connect(void *context,
 	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-sdmmc") == 0 &&
+	    (strcmp(adapter_name, "stm32-sdmmc") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-sdmmc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-flash-controller") == 0 ||
@@ -988,6 +996,25 @@ static sint32 target_model_adapter_connect(void *context,
 	     strcmp(node->matched_compatible, "zephyr,crc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-backup-sram") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-backup-sram") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-soc") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32h743") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7") == 0)) ||
+	    (strcmp(adapter_name, "stm32h7-rcc") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32h7-rcc") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-pwr") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32h7-pwr") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-spi") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32h7-spi") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-dmamux") == 0 &&
+	     strcmp(node->matched_compatible, "st,stm32-dmamux") == 0) ||
+	    (strcmp(adapter_name, "stm32h7-boot-register") == 0 &&
+	     (strcmp(node->matched_compatible, "st,stm32-bdma") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32-watchdog") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7-syscfg") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7-axi-target") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7-dbgmcu") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7-system-memory") == 0 ||
+	      strcmp(node->matched_compatible, "st,stm32h7-fdcan") == 0)) ||
 	    (strcmp(adapter_name, "bench-sensor-source") == 0 &&
 	     strcmp(node->matched_compatible, "athrill,bench-sensor-source") == 0)) {
 		return 0;
