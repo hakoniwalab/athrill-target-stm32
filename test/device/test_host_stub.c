@@ -3,7 +3,7 @@
  * tests of the target models. Each operation calls the core stand-in that
  * the test file defines (cpuemu_get_clock, intc_raise_intr, ...), so the
  * tests keep observing the same calls as before the models used
- * stm32_host_ops(). Memory goes to the mpu_get/put_data stand-ins (what the
+ * athrill_device_host(). Memory goes to the mpu_get/put_data stand-ins (what the
  * core bus_get/put_data inline functions call). A test that does not define a
  * stand-in gets 0 / no-op.
  * SPDX-License-Identifier: MIT
@@ -115,7 +115,7 @@ static const AthrillDeviceTargetOps host_ops = {
 	.host_value = host_value,
 };
 
-const AthrillDeviceTargetOps *stm32_host_ops(void)
+const AthrillDeviceTargetOps *athrill_device_host(void)
 {
 	return &host_ops;
 }

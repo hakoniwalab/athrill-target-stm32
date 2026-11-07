@@ -41,8 +41,11 @@ if(ATHRILL_ENABLE_DEVICE_TREE)
   endif()
 endif()
 if(NOT ATHRILL_DEVICE_AVAILABLE)
-  message(FATAL_ERROR "athrill-device is required by the common SPI channel")
+  message(FATAL_ERROR "athrill-device is required: it holds the STM32 models (targets/stm32)")
 endif()
+# The STM32 peripheral models live in athrill-device (hakoniwalab/athrill-device#13
+# step 3) and are compiled here until they are athrill-device models (step 4).
+set(STM32_MODELS_DIR "${ATHRILL_DEVICE_DIR}/targets/stm32")
 
 # Batched execution (cpu_supply_clocks): the core runs up to this many instructions between device ticks.
 add_compile_definitions(ATHRILL_TARGET_BATCH_CLOCKS=1024U)
@@ -55,7 +58,7 @@ if(ATHRILL_ENABLE_EXDEV)
 endif()
 target_link_libraries(athrill_stm32_config INTERFACE Threads::Threads m ${CMAKE_DL_LIBS})
 
-# Hard-coded model values the SVD does not hold (src/device/config/stm32_*_config.h):
+# Hard-coded model values the SVD does not hold (athrill-device targets/stm32/config/stm32_*_config.h):
 # a directory with your own copies of these headers comes before the defaults.
 # The defaults live in their own directory, not next to the sources, because a
 # quoted #include searches the source's directory before the include path.
@@ -65,7 +68,7 @@ if(ATHRILL_STM32_CONFIG_DIR)
   get_filename_component(ATHRILL_STM32_CONFIG_DIR "${ATHRILL_STM32_CONFIG_DIR}" ABSOLUTE)
   list(APPEND STM32_INCLUDES "${ATHRILL_STM32_CONFIG_DIR}")
 endif()
-list(APPEND STM32_INCLUDES "${ATHRILL_TARGET_SOURCE_DIR}/device/config")
+list(APPEND STM32_INCLUDES "${STM32_MODELS_DIR}/config")
 list(APPEND STM32_INCLUDES
     "${ATHRILL_SRC_DIR}" "${ATHRILL_SRC_DIR}/lib/dwarf" "${ATHRILL_SRC_DIR}/bus"
     "${ATHRILL_SRC_DIR}/cpu" "${ATHRILL_SRC_DIR}/device/mpu"
@@ -74,6 +77,7 @@ list(APPEND STM32_INCLUDES
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu" "${ATHRILL_TARGET_SOURCE_DIR}/cpu/config"
     "${ATHRILL_TARGET_SOURCE_DIR}/cpu/decoder" "${ATHRILL_ARM_COMMON_DIR}/include"
     "${ATHRILL_TARGET_SOURCE_DIR}/device" "${ATHRILL_TARGET_SOURCE_DIR}/device/peripheral"
+    "${STM32_MODELS_DIR}" "${STM32_MODELS_DIR}/peripheral"
     "${ATHRILL_TARGET_SOURCE_DIR}/debugger/interaction/inc")
 function(stm32_target name)
   athrill_apply_common_settings(${name})
@@ -112,33 +116,33 @@ if(ATHRILL_STM32_COVERAGE)
 endif()
 
 set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOURCES}
-  src/device/device.c src/device/peripheral/stm32_uart.c
-  src/device/peripheral/stm32_uart_tcp.c
+  src/device/device.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_uart_tcp.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
   src/device/peripheral/stm32_periph_probe.c
   src/device/peripheral/stm32h7_boot.c
   src/device/peripheral/stm32_tim.c
   src/device/peripheral/stm32_gpio.c
-  src/device/peripheral/stm32_spi.c
-  src/device/peripheral/stm32_spi_bindings.c
-  src/device/peripheral/stm32h7_spi.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
+  ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c
   src/device/target_host.c
-  src/device/peripheral/stm32_dmamux.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c
   src/device/sensor/sensor_source.c
   src/device/sensor/ms5611.c
   src/device/sensor/icm20689.c
   src/device/sensor/icm42688p.c
   src/device/sensor/bmi055.c
   src/device/peripheral/stm32_exti.c
-  src/device/peripheral/stm32_dma.c
-  src/device/peripheral/stm32_i2c.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
   src/device/sensor/ist8310.c
   src/device/sensor/ublox.c
   src/device/memory/fm25v02.c
-  src/device/memory/sdcard.c
-  src/device/peripheral/stm32_sdmmc.c
-  src/device/peripheral/stm32h7_sdmmc.c
+  ${STM32_MODELS_DIR}/memory/sdcard.c
+  ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
+  ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c
   src/device/board/board_profile.c
   src/device/board/fmu_v6c.c
   src/device/board/board.c
@@ -202,7 +206,7 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32_tim PRIVATE src/device)
   target_link_libraries(test_stm32_tim PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32-tim COMMAND test_stm32_tim)
-  add_executable(test_stm32_uart test/device/test_host_stub.c test/device/test_stm32_uart.c src/device/peripheral/stm32_uart.c)
+  add_executable(test_stm32_uart test/device/test_host_stub.c test/device/test_stm32_uart.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c)
   stm32_target(test_stm32_uart)
   target_include_directories(test_stm32_uart PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_stm32_uart PRIVATE athrill_stm32_config athrill_device)
@@ -210,8 +214,8 @@ if(BUILD_TESTING)
   add_test(NAME device-stm32-uart-spec-gaps COMMAND test_stm32_uart spec-gaps)
   set_tests_properties(device-stm32-uart-spec-gaps PROPERTIES WILL_FAIL TRUE)
   # USART transmit DMA with the real DMA model
-  add_executable(test_uart_dma_tx test/device/test_host_stub.c test/device/test_uart_dma_tx.c src/device/peripheral/stm32_uart.c
-    src/device/peripheral/stm32_dma.c src/device/peripheral/stm32_dmamux.c)
+  add_executable(test_uart_dma_tx test/device/test_host_stub.c test/device/test_uart_dma_tx.c ${STM32_MODELS_DIR}/peripheral/stm32_uart.c
+    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c)
   stm32_target(test_uart_dma_tx)
   target_include_directories(test_uart_dma_tx PRIVATE src/device src/debugger/executor)
   target_link_libraries(test_uart_dma_tx PRIVATE athrill_stm32_config athrill_device)
@@ -219,19 +223,19 @@ if(BUILD_TESTING)
   add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
   set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
   add_executable(test_spi_ms5611 test/device/test_host_stub.c test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
-    src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32_spi_bindings.c src/device/sensor/ms5611.c)
+    src/device/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c src/device/sensor/ms5611.c)
   stm32_target(test_spi_ms5611)
   target_include_directories(test_spi_ms5611 PRIVATE src/device)
   target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
   add_executable(test_dma_icm20689 test/device/test_host_stub.c test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
-    src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32_spi_bindings.c src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_dma.c
+    src/device/peripheral/stm32_exti.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_dma.c
     src/device/sensor/icm20689.c)
   stm32_target(test_dma_icm20689)
   target_include_directories(test_dma_icm20689 PRIVATE src/device)
   target_link_libraries(test_dma_icm20689 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-dma-icm20689 COMMAND test_dma_icm20689)
-  add_executable(test_i2c_ist8310 test/device/test_host_stub.c test/device/test_i2c_ist8310.c src/device/peripheral/stm32_i2c.c
+  add_executable(test_i2c_ist8310 test/device/test_host_stub.c test/device/test_i2c_ist8310.c ${STM32_MODELS_DIR}/peripheral/stm32_i2c.c
     src/device/sensor/ist8310.c)
   stm32_target(test_i2c_ist8310)
   target_include_directories(test_i2c_ist8310 PRIVATE src/device)
@@ -247,14 +251,14 @@ if(BUILD_TESTING)
   target_include_directories(test_fm25v02 PRIVATE src/device)
   target_link_libraries(test_fm25v02 PRIVATE athrill_stm32_config)
   add_test(NAME device-fm25v02 COMMAND test_fm25v02)
-  add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c src/device/peripheral/stm32_sdmmc.c
-    src/device/peripheral/stm32_dma.c src/device/memory/sdcard.c)
+  add_executable(test_sdmmc_sdcard test/device/test_host_stub.c test/device/test_sdmmc_sdcard.c ${STM32_MODELS_DIR}/peripheral/stm32_sdmmc.c
+    ${STM32_MODELS_DIR}/peripheral/stm32_dma.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_sdmmc_sdcard)
   target_include_directories(test_sdmmc_sdcard PRIVATE src/device)
   target_link_libraries(test_sdmmc_sdcard PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-sdmmc-sdcard COMMAND test_sdmmc_sdcard)
   add_executable(test_stm32h7_sdmmc test/device/test_host_stub.c test/device/test_stm32h7_sdmmc.c
-    src/device/peripheral/stm32h7_sdmmc.c src/device/memory/sdcard.c)
+    ${STM32_MODELS_DIR}/peripheral/stm32h7_sdmmc.c ${STM32_MODELS_DIR}/memory/sdcard.c)
   stm32_target(test_stm32h7_sdmmc)
   target_include_directories(test_stm32h7_sdmmc PRIVATE src/device)
   target_link_libraries(test_stm32h7_sdmmc PRIVATE athrill_stm32_config athrill_device)
@@ -266,16 +270,16 @@ if(BUILD_TESTING)
   target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
   add_executable(test_stm32h7_spi test/device/test_host_stub.c test/device/test_stm32h7_spi.c
-    src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_spi.c
-    src/device/peripheral/stm32_spi_bindings.c
+    ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi.c
+    ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c
     src/device/peripheral/stm32_gpio.c src/device/peripheral/stm32_exti.c
-    src/device/peripheral/stm32_dmamux.c src/device/memory/fm25v02.c)
+    ${STM32_MODELS_DIR}/peripheral/stm32_dmamux.c src/device/memory/fm25v02.c)
   stm32_target(test_stm32h7_spi)
   target_include_directories(test_stm32h7_spi PRIVATE src/device)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
   add_executable(test_stm32h7_spi_frontend test/device/test_host_stub.c test/device/test_stm32h7_spi_frontend.c
-    src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_spi_bindings.c)
+    ${STM32_MODELS_DIR}/peripheral/stm32h7_spi.c ${STM32_MODELS_DIR}/peripheral/stm32_spi_bindings.c)
   stm32_target(test_stm32h7_spi_frontend)
   target_include_directories(test_stm32h7_spi_frontend PRIVATE src/device)
   target_link_libraries(test_stm32h7_spi_frontend PRIVATE athrill_stm32_config athrill_device)
