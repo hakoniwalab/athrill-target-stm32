@@ -396,7 +396,7 @@ static const AthrillDeviceTargetOps host_ops = {
 	/* every TO BE REMOVED bridge operation stays NULL */
 };
 
-const AthrillDeviceTargetOps *stm32_host_ops(void)
+const AthrillDeviceTargetOps *athrill_device_host(void)
 {
 	return &host_ops;
 }

@@ -12,8 +12,8 @@
  *   device_tree.c   builds its full AthrillDeviceTargetOps table from the
  *                   stm32_host_* functions below plus its bridge operations,
  *                   and reads configuration with stm32_host_config_string()
- *   target models   (step 2 of #13) call these services through
- *                   stm32_host_ops() instead of the Athrill core
+ *   models          the ported STM32 models in athrill-device
+ *                   (targets/stm32) call them through athrill_device_host()
  *
  * Copyright 2026 Hakoniwa Laboratory
  * SPDX-License-Identifier: MIT
@@ -21,12 +21,11 @@
 #ifndef ATHRILL_STM32_TARGET_HOST_H
 #define ATHRILL_STM32_TARGET_HOST_H
 
-#include "athrill_device_if.h"
+#include "athrill_device_host.h"
 #include "std_errno.h"
 
-/* The required interface with only the REQUIRED operations; every bridge
- * operation is NULL. The context of every operation is ignored (NULL). */
-const AthrillDeviceTargetOps *stm32_host_ops(void);
+/* athrill_device_host() (declared in athrill-device athrill_device_host.h) is
+ * implemented in target_host.c: the REQUIRED operations, every bridge NULL. */
 
 sint32 stm32_host_mmio_register(void *context, uint64 address, uint64 size,
 	const AthrillDeviceMmioOps *ops, void *instance, AthrillDeviceMmioToken *token);
@@ -42,28 +41,6 @@ sint32 stm32_host_clock_frequency_hz(void *context, AthrillDeviceNodeId node,
 sint32 stm32_host_memory_read(void *context, uint64 address, void *data, uint32 size);
 sint32 stm32_host_memory_write(void *context, uint64 address, const void *data, uint32 size);
 sint32 stm32_host_value(void *context, const char *key, const char **value);
-
-/* Short forms for the target models: one call each, through the table. */
-static inline uint64 stm32_host_clock(void)
-{
-	return stm32_host_ops()->time_now(NULL);
-}
-
-static inline void stm32_host_raise(uint32 irq)
-{
-	AthrillDeviceIrqLine line;
-
-	line.value = irq;
-	(void)stm32_host_ops()->irq_set(NULL, line, TRUE);
-}
-
-static inline std_bool stm32_host_irq_pending(uint32 irq)
-{
-	AthrillDeviceIrqLine line;
-
-	line.value = irq;
-	return stm32_host_ops()->irq_is_active(NULL, line);
-}
 
 /* A configuration string without the core's echo on stdout. */
 Std_ReturnType stm32_host_config_string(const char *key, char **value);
