@@ -89,11 +89,23 @@ static std_bool pc_sampling;		/* DEBUG_PC_SAMPLE_START given */
 static uint32 pc_sample_start;
 static uint64 run_steps;		/* instructions of thumb_execute_run, without sampling */
 static FILE *pc_trace;
+static std_bool pc_trace_clocks;
+uint32 cpu_pc_trace_skip_remaining;
 uint32 cpu_pc_trace_remaining;
 
 void cpu_trace_pc_record(uint32 pc)
 {
-	fprintf(pc_trace, "0x%08X\n", pc);
+	if (cpu_pc_trace_skip_remaining != 0U) {
+		cpu_pc_trace_skip_remaining--;
+		return;
+	}
+	if (pc_trace_clocks) {
+		fprintf(pc_trace, "%llu 0x%08X\n",
+			(unsigned long long)cpuemu_get_clock(), pc);
+	}
+	else {
+		fprintf(pc_trace, "0x%08X\n", pc);
+	}
 	cpu_pc_trace_remaining--;
 	if (cpu_pc_trace_remaining == 0U) {
 		if (fclose(pc_trace) != 0) {
@@ -115,11 +127,15 @@ static void open_pc_trace(void)
 {
 	char *path = NULL;
 	uint32 count = 0U;
+	uint32 skip = 0U;
+	uint32 clocks = 0U;
 	Std_ReturnType has_path;
 	Std_ReturnType has_count;
 
 	has_path = cpuemu_get_devcfg_string("DEVICE_CONFIG_ARM_PC_TRACE_FILE", &path);
 	has_count = cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_PC_TRACE_COUNT", &count);
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_PC_TRACE_SKIP", &skip);
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_ARM_PC_TRACE_CLOCKS", &clocks);
 	if ((has_path != STD_E_OK) && (has_count != STD_E_OK)) {
 		return;
 	}
@@ -132,9 +148,12 @@ static void open_pc_trace(void)
 		fprintf(stderr, "ERROR: cannot open ARM PC trace %s\n", path);
 		return;
 	}
+	cpu_pc_trace_skip_remaining = skip;
 	cpu_pc_trace_remaining = count;
+	pc_trace_clocks = clocks != 0U;
 	atexit(close_pc_trace);
-	fprintf(stderr, "INFO: tracing the first %u instruction PCs to %s\n", count, path);
+	fprintf(stderr, "INFO: tracing %u instruction PCs after skipping %u to %s\n",
+		count, skip, path);
 }
 
 static inline void sample_pc(const TargetCoreType *core)

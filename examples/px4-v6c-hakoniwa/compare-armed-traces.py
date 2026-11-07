@@ -6,8 +6,8 @@ import struct
 import sys
 from pathlib import Path
 
-ACTUATOR_LIMIT = 0.0021  # two 1 us PWM quantization steps
-ALTITUDE_LIMIT_MM = 2
+ACTUATOR_LIMIT = 0.0
+ALTITUDE_LIMIT_MM = 0
 MIN_CLIMB_MM = 2000
 
 
@@ -83,7 +83,7 @@ def main():
               f"C={first_actuator_difference[2]:.9f} DT={first_actuator_difference[3]:.9f}")
     print(f"GPS records={len(c_altitudes)} max_altitude_delta={altitude_max[0]}mm "
           f"time={altitude_max[1]} climb_C={c_climb}mm climb_DT={dt_climb}mm")
-    print("PASS: armed C/DT actuator and altitude traces agree within PWM/GPS resolution")
+    print("PASS: armed C/DT actuator and altitude values are exact")
 
 
 if __name__ == "__main__":

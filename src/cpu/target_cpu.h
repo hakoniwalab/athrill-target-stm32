@@ -72,15 +72,17 @@ void stm32_idle_spin_halt_init(void);
 const char *thumb_instruction_at(const TargetCoreType *core, uint32 address, uint32 *insn, uint32 *length);
 
 /*
- * ARM PC tracing (DEVICE_CONFIG_ARM_PC_TRACE_FILE/_COUNT): the PCs still to
- * record; zero when tracing is off, so the check per instruction stays inline.
+ * ARM PC tracing (DEVICE_CONFIG_ARM_PC_TRACE_FILE/_COUNT/_SKIP): instructions
+ * still to skip and PCs still to record.  Both are zero when tracing is off,
+ * so the check per instruction stays inline.
  */
+extern uint32 cpu_pc_trace_skip_remaining;
 extern uint32 cpu_pc_trace_remaining;
 void cpu_trace_pc_record(uint32 pc);
 
 static inline void cpu_trace_pc(uint32 pc)
 {
-	if (cpu_pc_trace_remaining != 0U) {
+	if (cpu_pc_trace_skip_remaining != 0U || cpu_pc_trace_remaining != 0U) {
 		cpu_trace_pc_record(pc);
 	}
 }
