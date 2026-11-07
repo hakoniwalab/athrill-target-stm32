@@ -5,7 +5,7 @@
  */
 #include "stm32_uart_tcp.h"
 #include "stm32_uart.h"
-#include "cpuemu_ops.h"
+#include "target_host.h"
 #include "std_errno.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -154,6 +155,7 @@ static void open_links(void)
 {
 	uint32 i;
 	char key[64];
+	const char *text = NULL;
 
 	for (i = 0U; i < UART_COUNT; i++) {
 		UartTcpType *l = &links[i];
@@ -167,7 +169,10 @@ static void open_links(void)
 		atomic_init(&l->rx_tail, 0U);
 		l->tx_count = 0U;
 		(void)snprintf(key, sizeof(key), "DEVICE_CONFIG_STM32_UART%u_TCP_PORT", l->number);
-		if ((cpuemu_get_devcfg_value(key, &l->port) != STD_E_OK) || (l->port == 0U) || !listen_on(l)) {
+		if (stm32_host_ops()->host_value(NULL, key, &text) == 0) {
+			l->port = (uint32)strtoul(text, NULL, 10);
+		}
+		if ((l->port == 0U) || !listen_on(l)) {
 			l->port = 0U;
 		}
 	}

@@ -218,13 +218,13 @@ if(BUILD_TESTING)
   add_test(NAME device-uart-dma-tx COMMAND test_uart_dma_tx)
   add_test(NAME device-h7-dmamux-routing-spec-gap COMMAND test_uart_dma_tx dmamux-spec-gap)
   set_tests_properties(device-h7-dmamux-routing-spec-gap PROPERTIES WILL_FAIL TRUE)
-  add_executable(test_spi_ms5611 test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
+  add_executable(test_spi_ms5611 test/device/test_host_stub.c test/device/test_spi_ms5611.c src/device/peripheral/stm32_gpio.c
     src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32_spi_bindings.c src/device/sensor/ms5611.c)
   stm32_target(test_spi_ms5611)
   target_include_directories(test_spi_ms5611 PRIVATE src/device)
   target_link_libraries(test_spi_ms5611 PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-spi-ms5611 COMMAND test_spi_ms5611)
-  add_executable(test_dma_icm20689 test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
+  add_executable(test_dma_icm20689 test/device/test_host_stub.c test/device/test_dma_icm20689.c src/device/peripheral/stm32_gpio.c
     src/device/peripheral/stm32_exti.c src/device/peripheral/stm32_spi.c src/device/peripheral/stm32_spi_bindings.c src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_dma.c
     src/device/sensor/icm20689.c)
   stm32_target(test_dma_icm20689)
@@ -265,7 +265,7 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_boot PRIVATE src/device)
   target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
   add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
-  add_executable(test_stm32h7_spi test/device/test_stm32h7_spi.c
+  add_executable(test_stm32h7_spi test/device/test_host_stub.c test/device/test_stm32h7_spi.c
     src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_spi.c
     src/device/peripheral/stm32_spi_bindings.c
     src/device/peripheral/stm32_gpio.c src/device/peripheral/stm32_exti.c
@@ -274,7 +274,7 @@ if(BUILD_TESTING)
   target_include_directories(test_stm32h7_spi PRIVATE src/device)
   target_link_libraries(test_stm32h7_spi PRIVATE athrill_stm32_config athrill_device)
   add_test(NAME device-stm32h7-spi COMMAND test_stm32h7_spi)
-  add_executable(test_stm32h7_spi_frontend test/device/test_stm32h7_spi_frontend.c
+  add_executable(test_stm32h7_spi_frontend test/device/test_host_stub.c test/device/test_stm32h7_spi_frontend.c
     src/device/peripheral/stm32h7_spi.c src/device/peripheral/stm32_spi_bindings.c)
   stm32_target(test_stm32h7_spi_frontend)
   target_include_directories(test_stm32h7_spi_frontend PRIVATE src/device)

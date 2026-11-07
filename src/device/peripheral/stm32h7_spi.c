@@ -7,8 +7,7 @@
 #include "stm32_spi.h"
 #include "stm32_spi_bindings.h"
 #include "stm32_spi_config.h"
-#include "cpu.h"
-#include "std_device_ops.h"
+#include "target_host.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -174,7 +173,10 @@ void stm32h7_spi_write(uint32 addr, uint32 size, uint32 value)
 		 * enables EOTIE after the DMA completes and waits for this IRQ. */
 		if (((offset == IER_OFFSET) || (offset == CR1_OFFSET))
 			&& ((s->regs[IER_OFFSET / 4U] & IER_EOTIE) != 0U)) {
-			(void)intc_raise_intr(s->irq);
+			AthrillDeviceIrqLine line;
+
+			line.value = s->irq;
+			(void)stm32_host_ops()->irq_set(NULL, line, TRUE);
 		}
 	}
 }

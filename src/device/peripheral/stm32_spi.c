@@ -6,7 +6,7 @@
 #include "stm32_spi_bindings.h"
 #include "stm32_spi_config.h"
 #include "athrill_protocol_spi.h"
-#include "cpuemu_ops.h"
+#include "target_host.h"
 
 #define SPI_BLOCK	0x400U
 #define SPI_WORDS	(SPI_BLOCK / 4U)
@@ -140,7 +140,7 @@ uint8 stm32_spi_chip_exchange(uint32 bus, uint8 mosi)
 	for (i = 0U; i < chip_count; i++) {
 		if ((chips[i].bus == bus) && chips[i].selected) {
 			if (athrill_spi_exchange(chips[i].protocol, mosi, &miso,
-				cpuemu_get_clock()) == 0) {
+				stm32_host_ops()->time_now(NULL)) == 0) {
 				return miso;
 			}
 			return 0xFFU;
@@ -325,12 +325,12 @@ void stm32_spi_pins_changed(uint32 port, uint32 old, uint32 now)
 		if (selected != c->selected) {
 			if (selected) {
 				if (athrill_spi_select(c->protocol, c->selection,
-					cpuemu_get_clock()) == 1) {
+					stm32_host_ops()->time_now(NULL)) == 1) {
 					c->selected = TRUE;
 				}
 			} else {
 				(void)athrill_spi_deselect(c->protocol,
-					cpuemu_get_clock());
+					stm32_host_ops()->time_now(NULL));
 				c->selected = FALSE;
 			}
 		}
