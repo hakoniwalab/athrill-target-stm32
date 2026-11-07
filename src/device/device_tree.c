@@ -24,7 +24,6 @@
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
-#include "peripheral/stm32_i2c.h"
 #include "peripheral/stm32_sdmmc.h"
 #include "peripheral/stm32_spi.h"
 #include "peripheral/stm32_uart.h"
@@ -40,7 +39,6 @@
 #include <unistd.h>
 
 #define MAX_SPI_ENDPOINTS 32U
-#define MAX_I2C_ENDPOINTS 32U
 #define MAX_UART_ENDPOINTS 16U
 #define MAX_GPIO_LINES 192U
 #define MAX_GPIO_SUBSCRIBERS 384U
@@ -56,18 +54,6 @@ typedef struct {
 	uint32 chip_select;
 	std_bool active;
 } SpiEndpoint;
-
-typedef struct {
-	const AthrillDeviceI2cPeripheralOps *ops;
-	void *instance;
-	AthrillDeviceNodeId controller;
-	uint16 address;
-	uint8 pending[256];
-	uint32 pending_count;
-	std_bool reading;
-	std_bool failed;
-	std_bool active;
-} I2cEndpoint;
 
 typedef struct {
 	const AthrillDeviceUartPeripheralOps *ops;
@@ -104,7 +90,6 @@ typedef struct {
 
 typedef struct {
 	SpiEndpoint spi[MAX_SPI_ENDPOINTS];
-	I2cEndpoint i2c[MAX_I2C_ENDPOINTS];
 	UartEndpoint uart[MAX_UART_ENDPOINTS];
 	GpioLine gpio[MAX_GPIO_LINES];
 	GpioSubscriber gpio_subscribers[MAX_GPIO_SUBSCRIBERS];
@@ -238,173 +223,6 @@ static sint32 target_spi_exchange(void *context, AthrillDeviceSpiEndpoint endpoi
 		return -1;
 	}
 	*miso = e->ops->exchange_byte(e->instance, mosi);
-	return 0;
-}
-
-static sint32 target_i2c_bind(void *context, AthrillDeviceNodeId controller, uint16 address,
-                              const AthrillDeviceI2cPeripheralOps *ops, void *instance, AthrillDeviceI2cEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i, j;
-	if (address > 0x7fU || ops == NULL) {
-		return -1;
-	}
-	for (j = 0U; j < MAX_I2C_ENDPOINTS; j++)
-		if (target->i2c[j].active &&
-		    target->i2c[j].controller == controller && target->i2c[j].address == address) {
-			return -1;
-		}
-	for (i = 0U; i < MAX_I2C_ENDPOINTS; i++)
-		if (!target->i2c[i].active) {
-			break;
-		}
-	if (i == MAX_I2C_ENDPOINTS) {
-		return -1;
-	}
-	target->i2c[i].ops = ops;
-	target->i2c[i].instance = instance;
-	target->i2c[i].controller = controller;
-	target->i2c[i].address = address;
-	target->i2c[i].active = TRUE;
-	endpoint->value = i + 1U;
-	return 0;
-}
-static sint32 target_i2c_transfer(void *context, AthrillDeviceI2cEndpoint endpoint,
-                                  AthrillDeviceI2cMessage *messages, uint32 count)
-{
-	Stm32DeviceTreeTarget *t = context;
-	uint64 i = endpoint.value;
-	if (i == 0U || i > MAX_I2C_ENDPOINTS || !t->i2c[i - 1U].active) {
-		return -1;
-	}
-	return t->i2c[i - 1U].ops->transfer(t->i2c[i - 1U].instance, messages, count);
-}
-
-static I2cEndpoint *i2c_endpoint(Stm32DeviceTreeTarget *target,
-	AthrillDeviceI2cEndpoint endpoint)
-{
-	return endpoint.value > 0U && endpoint.value <= MAX_I2C_ENDPOINTS &&
-		target->i2c[endpoint.value - 1U].active ?
-		&target->i2c[endpoint.value - 1U] : NULL;
-}
-
-static sint32 target_i2c_bridge_flush(I2cEndpoint *endpoint,
-	std_bool stop)
-{
-	AthrillDeviceI2cMessage message;
-	if (endpoint->pending_count == 0U) {
-		return 0;
-	}
-	message.data = endpoint->pending;
-	message.size = endpoint->pending_count;
-	message.read = FALSE;
-	message.stop = stop;
-	endpoint->pending_count = 0U;
-	return endpoint->ops->transfer(endpoint->instance, &message, 1U);
-}
-
-static std_bool target_i2c_bridge_start(void *instance, std_bool read)
-{
-	I2cEndpoint *endpoint = instance;
-	if (endpoint->ops->start != NULL) {
-		return endpoint->ops->start(endpoint->instance, read);
-	}
-	if (target_i2c_bridge_flush(endpoint, FALSE) != 0) {
-		endpoint->failed = TRUE;
-		return FALSE;
-	}
-	endpoint->reading = read;
-	return TRUE;
-}
-
-static void target_i2c_bridge_write(void *instance, uint8 data)
-{
-	I2cEndpoint *endpoint = instance;
-	if (endpoint->ops->write_byte != NULL) {
-		endpoint->ops->write_byte(endpoint->instance, data);
-		return;
-	}
-	if (endpoint->pending_count >= sizeof(endpoint->pending)) {
-		endpoint->failed = TRUE;
-		return;
-	}
-	endpoint->pending[endpoint->pending_count++] = data;
-}
-
-static uint8 target_i2c_bridge_read(void *instance)
-{
-	I2cEndpoint *endpoint = instance;
-	AthrillDeviceI2cMessage message;
-	uint8 data = 0xffU;
-	if (endpoint->ops->read_byte != NULL) {
-		return endpoint->ops->read_byte(endpoint->instance);
-	}
-	message.data = &data;
-	message.size = 1U;
-	message.read = TRUE;
-	message.stop = FALSE;
-	if (endpoint->ops->transfer(endpoint->instance, &message, 1U) != 0) {
-		endpoint->failed = TRUE;
-	}
-	return data;
-}
-
-static void target_i2c_bridge_stop(void *instance)
-{
-	I2cEndpoint *endpoint = instance;
-	AthrillDeviceI2cMessage message;
-	if (endpoint->ops->stop != NULL) {
-		endpoint->ops->stop(endpoint->instance);
-		return;
-	}
-	if (endpoint->reading) {
-		message.data = NULL;
-		message.size = 0U;
-		message.read = TRUE;
-		message.stop = TRUE;
-		if (endpoint->ops->transfer(endpoint->instance, &message, 1U) != 0) {
-			endpoint->failed = TRUE;
-		}
-	} else if (target_i2c_bridge_flush(endpoint, TRUE) != 0) {
-		endpoint->failed = TRUE;
-	}
-	endpoint->reading = FALSE;
-}
-
-static const Stm32I2cChipOps target_i2c_bridge_ops = {
-	target_i2c_bridge_start, target_i2c_bridge_write,
-	target_i2c_bridge_read, target_i2c_bridge_stop
-};
-
-static sint32 target_i2c_bind_node(void *context,
-	const AthrillDeviceNode *controller, uint16 address,
-	const AthrillDeviceI2cPeripheralOps *ops, void *instance,
-	AthrillDeviceI2cEndpoint *endpoint)
-{
-	Stm32DeviceTreeTarget *target = context;
-	I2cEndpoint *bound;
-	uint32 controller_address, bus;
-	if (controller == NULL ||
-	    node_path_address(controller->path, &controller_address) != 0) {
-		return -1;
-	}
-	switch (controller_address) {
-	case 0x40005400U: bus = 1U; break;
-	case 0x40005800U: bus = 2U; break;
-	case 0x40005c00U: bus = 3U; break;
-	case 0x40006000U:
-	case 0x58001c00U: bus = 4U; break;
-	default: return -1;
-	}
-	if (target_i2c_bind(context, controller->id, address, ops, instance,
-		endpoint) != 0) {
-		return -1;
-	}
-	bound = i2c_endpoint(target, *endpoint);
-	if (bound == NULL) {
-		return -1;
-	}
-	stm32_i2c_attach(bus, address, &target_i2c_bridge_ops, bound);
 	return 0;
 }
 
@@ -753,8 +571,6 @@ static sint32 target_model_adapter_connect(void *context,
 	    (strcmp(adapter_name, "stm32f7-spi") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-spi-fifo") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-spi") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-i2c") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-i2c-v2") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-uart") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-usart") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-uart") == 0)) ||
@@ -859,11 +675,12 @@ static const AthrillDeviceTargetOps target_ops = {
 	stm32_host_irq_is_active, stm32_host_time_now, stm32_host_time_frequency_hz,
 	stm32_host_clock_frequency_hz, stm32_host_memory_read, stm32_host_memory_write,
 	/* TO BE REMOVED bridge operations: this file */
-	target_spi_bind, target_spi_select, target_spi_exchange, target_i2c_bind, target_i2c_transfer,
+	target_spi_bind, target_spi_select, target_spi_exchange,
+	NULL, NULL,	/* i2c_bind, i2c_transfer: the I2C controller is an athrill-device model */
 	target_uart_bind, target_uart_peripheral, target_uart_controller, target_gpio_resolve, target_gpio_read,
 	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
 	target_model_adapter_connect, target_spi_bind_node, stm32_host_value,
-	target_sensor_sample, target_i2c_bind_node, target_uart_bind_nodes,
+	target_sensor_sample, NULL /* i2c_bind_node */, target_uart_bind_nodes,
 	target_uart_send_from_node, target_gps_sample, target_actuator_output,
 	target_gpio_outputs,
 	/* ABI 1.10 REQUIRED operations: target_host.c */

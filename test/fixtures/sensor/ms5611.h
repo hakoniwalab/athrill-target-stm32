@@ -17,7 +17,15 @@
 
 #include "std_types.h"
 #include "peripheral/stm32_spi.h"
-#include "peripheral/stm32_i2c.h"
+
+/* The I2C chip operations the target's I2C controller used to call (it is an
+ * athrill-device model now); kept for test_v6c_sensors, which calls them. */
+typedef struct {
+	std_bool (*start)(void *chip, std_bool read);
+	void (*write)(void *chip, uint8 data);
+	uint8 (*read)(void *chip);
+	void (*stop)(void *chip);
+} Stm32I2cChipOps;
 
 typedef struct {
 	uint16 prom[8];
