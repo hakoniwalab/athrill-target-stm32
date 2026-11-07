@@ -9,10 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void stm32_spi_bind(const char *compatible, const Stm32SpiBinding *table, uint32 count)
+void stm32_spi_bind(const char *compatible, const char *soc, const Stm32SpiBinding *table, uint32 count)
 {
 	char error[256] = "";
-	const AthrillBindings *b = athrill_bindings_for(compatible, error, sizeof(error));
+	const AthrillBindings *b = athrill_bindings_for(compatible, soc, error, sizeof(error));
 	uint32 i;
 
 	if (b == NULL) {
@@ -21,7 +21,7 @@ void stm32_spi_bind(const char *compatible, const Stm32SpiBinding *table, uint32
 	}
 	for (i = 0U; i < count; i++) {
 		uint32 offset = 0U, lsb = 0U, width = 0U;
-		if (athrill_bindings_find(b, table[i].reg, table[i].field, &offset, &lsb, &width) != 0) {
+		if (athrill_bindings_find(b, NULL, table[i].reg, table[i].field, &offset, &lsb, &width) != 0) {
 			fprintf(stderr, "SPI bindings %s: no %s%s%s\n", compatible, table[i].reg,
 				table[i].field != NULL ? "." : "", table[i].field != NULL ? table[i].field : "");
 			exit(1);
