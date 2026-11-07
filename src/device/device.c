@@ -4,8 +4,6 @@
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
 #include "peripheral/stm32_periph_probe.h"
-#include "peripheral/stm32_uart.h"
-#include "peripheral/stm32_uart_tcp.h"
 #include "sensor/sensor_source.h"
 #include "board/board_profile.h"
 #include "peripheral/stm32_dma.h"
@@ -21,31 +19,6 @@ static std_bool exdev_initialized = FALSE;
 #endif
 
 std_bool stm32_device_accessed = FALSE;
-
-/* The console UART (DEVICE_CONFIG_STM32_CONSOLE_UART, USART3 by default) and its input file. */
-static void uart_reset(void)
-{
-	uint32 console = 3U;
-	uint32 tx_dma = 0U;
-	uint32 rx_delay_ms = 0U;
-	uint32 mhz = 216U;
-	char *rx_file = NULL;
-	char *tx_file = NULL;
-
-	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_CONSOLE_UART", &console);
-	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_UART_TX_DMA", &tx_dma);
-	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_UART_RX_DELAY_MS", &rx_delay_ms);
-	(void)cpuemu_get_devcfg_value("DEVICE_CPU_FREQ", &mhz);
-	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_RX_FILE", &rx_file) != STD_E_OK) {
-		rx_file = NULL;
-	}
-	if (cpuemu_get_devcfg_string("DEVICE_CONFIG_STM32_UART_TX_FILE", &tx_file) != STD_E_OK) {
-		tx_file = NULL;
-	}
-	stm32_uart_set_tx_dma(tx_dma != 0U);
-	stm32_uart_set_rx_file_start((uint64)rx_delay_ms * mhz * 1000U);
-	stm32_uart_reset(console, rx_file, tx_file);
-}
 
 static uint32 cpu_mhz(void)
 {
@@ -63,8 +36,6 @@ static uint32 cpu_mhz(void)
  */
 #define TARGET_TICKS(X) \
 	X(arm_m_scs, arm_m_scs_tick(clock)) \
-	X(stm32_uart_tcp, stm32_uart_tcp_tick()) \
-	X(stm32_uart, stm32_uart_tick(clock)) \
 	X(stm32_sdmmc, stm32_sdmmc_tick(clock)) \
 	X(stm32h7_sdmmc, stm32h7_sdmmc_tick(clock)) \
 	X(devicetree, stm32_device_tree_tick(clock))
@@ -94,8 +65,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	arm_m_scs_reset();
 	arm_m_dwt_reset();
 	stm32_probe_init();
-	stm32_uart_set_h7(stm32_board_is_h7());
-	uart_reset();
 	stm32_dma_set_h7(stm32_board_is_h7());
 	stm32_dma_reset();
 	stm32_sdmmc_reset((uint64)cpu_mhz() * 1000000U);
@@ -104,7 +73,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	/* The board comes only from the Devicetree (DEVICE_CONFIG_DEVICE_TREE);
 	 * without one, Athrill runs the CPU with these controllers and no board. */
 	(void)stm32_device_tree_build();
-	stm32_uart_tcp_attach();
 	log_tick_order();
 }
 

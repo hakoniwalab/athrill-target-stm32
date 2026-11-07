@@ -4,8 +4,8 @@
  * the owner of the MMIO adapter table changed).
  *
  * Dependency on target models (until they move, hakoniwalab/athrill-device#13
- * step 4): mmio_read_batch_barrier() calls stm32_uart_owns() and
- * stm32_sdmmc_owns() (the SPI controllers end the batch themselves). A read of those registers
+ * step 4): mmio_read_batch_barrier() calls stm32_sdmmc_owns() (the SPI
+ * and UART controllers end the batch themselves). A read of those registers
  * consumes or exposes a moving serial stream, so the CPU batch has to end
  * there (stm32_device_accessed). When the models live in athrill-device the
  * model itself reports that its access ends the batch, and this call goes.
@@ -21,7 +21,6 @@
 #include "device.h"
 #include "mpu.h"
 #include "peripheral/stm32_sdmmc.h"
-#include "peripheral/stm32_uart.h"
 #include "target_cpu.h"
 
 #include <fcntl.h>
@@ -59,8 +58,7 @@ static MmioAdapter *mmio_of(MpuAddressRegionType *region)
  * EXTI) can be read without ticking all devices between instructions. */
 static void mmio_read_batch_barrier(AthrillAddrType address)
 {
-	if (stm32_uart_owns(address) ||
-	    stm32_sdmmc_owns(address)) {
+	if (stm32_sdmmc_owns(address)) {
 		stm32_device_accessed = TRUE;
 	}
 }

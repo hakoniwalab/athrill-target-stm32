@@ -1,5 +1,6 @@
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "peripheral/stm32_uart.h"
+#include "athrill_device_stm32_bridge.h"
+#include "std_errno.h"
 #include <stdio.h>
 
 static std_bool serial_escape;
@@ -21,7 +22,7 @@ Std_ReturnType dbg_serial_in(uint8 c, uint8 d)
 			d = '\r';
 		}
 		else {
-			err = stm32_uart_console_input('\\');
+			err = athrill_device_stm32_uart_console_input('\\') ? STD_E_OK : STD_E_LIMIT;
 			if (err != STD_E_OK) {
 				return err;
 			}
@@ -31,7 +32,7 @@ Std_ReturnType dbg_serial_in(uint8 c, uint8 d)
 		serial_escape = TRUE;
 		return STD_E_OK;
 	}
-	return stm32_uart_console_input(d);
+	return athrill_device_stm32_uart_console_input(d) ? STD_E_OK : STD_E_LIMIT;
 }
 bool dbg_serial_getchar(uint8 c, uint8 *d)
 {

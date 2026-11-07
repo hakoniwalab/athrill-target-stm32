@@ -65,8 +65,12 @@ append_device_tree() {
 # Remove only the two startup lines introduced on the DT path. Guest output,
 # the model inventory on stderr and all other configuration lines remain part
 # of the deterministic comparison.
+# The firmware's console: without Athrill's own lines, the configuration
+# values it echoes when a key is read ("DEVICE_CONFIG_<KEY> = <value>": which
+# keys are echoed depends on who reads them, the target or an athrill-device
+# model) and the Devicetree hash.
 normalize_console() {
-	sed -e '/^DEVICE_CONFIG_DEVICE_TREE = /d' \
+	sed -e '/^DEVICE_CONFIG_[A-Z0-9_]* = /d' \
 	    -e '/^DEVICE_TREE sha256=/d' "$1"
 }
 
@@ -110,7 +114,10 @@ echo "ELF sha256: $ELF_SHA"
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
 PUBLISHED_ULOG=5aaa66ebf76d7fde713ef39cb07890dc6cb5de136713fd35732121efef116e3d
 PUBLISHED_FRAM=c1a69ccb3740c797db62233deca689741a76a20692e982acea95c76199ff50e9
-PUBLISHED_CONSOLE=36a05910bf2ca4183818bc822bcefa0d16ebb6382fb29bc5b72cccbf223825ce
+# console: normalised without Athrill's configuration echo lines (re-recorded
+# 2026-11-08 from the release run with the target's UART; the firmware output
+# is unchanged)
+PUBLISHED_CONSOLE=9046f5e3a1952db6eac262b282337c1e22c343a9f95e3409c73845e6c7932582
 PUBLISHED_SD=cdce0b68427e967b4f47fcdf2378496f7970736ed68d8c3c15d575f3391ed16d
 
 rm -rf "$WORK"

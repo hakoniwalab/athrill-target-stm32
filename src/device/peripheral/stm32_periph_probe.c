@@ -5,7 +5,7 @@
  * the regulator, the RTC's synchronisation and initialisation, the USB OTG
  * core's resets, an SD card slot without a card, SPI buses with nothing on
  * them, an ADC whose conversions are always done); the timers PX4 needs are
- * modelled in athrill-device from the Devicetree, and so are the USART/UARTs (stm32_uart.c). The first access to each 1 KiB block of
+ * modelled in athrill-device from the Devicetree,, and so are the USART/UARTs. The first access to each 1 KiB block of
  * registers is reported on stderr.
  *
  * DEVICE_CONFIG_STM32_PROBE_TRACE 1 also reports, on stderr, every access
@@ -19,7 +19,6 @@
 #include "cpu.h"
 #include "cpuemu_ops.h"
 #include "concrete_executor/target/dbg_target_serial.h"
-#include "stm32_uart.h"
 #include "stm32_dma.h"
 #include "stm32_sdmmc.h"
 #include "stm32h7_boot.h"
@@ -101,9 +100,6 @@ static void report(uint32 addr, const char *what)
  * own storage. */
 static const char *trace_owner(uint32 addr)
 {
-	if (stm32_uart_owns(addr)) {
-		return "uart";
-	}
 	if (stm32_dma_owns(addr)) {
 		return "dma";
 	}
@@ -149,9 +145,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 	uint32 v = *word_at(r, a);
 	uint32 i;
 
-	if (stm32_uart_owns(a)) {
-		return stm32_uart_read(a);
-	}
 	if (stm32_dma_owns(a)) {
 		return stm32_dma_read(a);
 	}
@@ -194,10 +187,6 @@ static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint3
 	uint32 a = addr & ~3U;
 	uint32 i;
 
-	if (stm32_uart_owns(a)) {
-		stm32_uart_write(addr, size, value);
-		return;
-	}
 	if (stm32_dma_owns(a)) {
 		stm32_dma_write(addr, size, value);
 		return;
@@ -216,11 +205,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 {
 	uint32 aligned = addr & ~3U;
 
-	if (stm32_uart_owns(addr)) {
-		stm32_device_accessed = TRUE;
-		*value = stm32_uart_read(aligned);
-		return TRUE;
-	}
 	if (stm32_dma_owns(addr)) {
 		*value = stm32_dma_read(aligned);
 		return TRUE;
@@ -230,10 +214,6 @@ static std_bool h7_shared_read(uint32 addr, uint32 size, uint32 *value)
 
 static std_bool h7_shared_write(uint32 addr, uint32 size, uint32 value)
 {
-	if (stm32_uart_owns(addr)) {
-		stm32_uart_write(addr, size, value);
-		return TRUE;
-	}
 	if (stm32_dma_owns(addr)) {
 		stm32_dma_write(addr, size, value);
 		return TRUE;
@@ -254,7 +234,7 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 		return stm32h7_boot_read((uint32)a, 1U, &value) == STD_E_OK
 			? (*d = (uint8)value, STD_E_OK) : STD_E_SEGV;
 	}
-	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+	if (stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
@@ -275,7 +255,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		return stm32h7_boot_read((uint32)a, 2U, &value) == STD_E_OK
 			? (*d = (uint16)value, STD_E_OK) : STD_E_SEGV;
 	}
-	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+	if (stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
@@ -293,7 +273,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 		}
 		return stm32h7_boot_read((uint32)a, 4U, d);
 	}
-	if (stm32_uart_owns((uint32)a) || stm32_sdmmc_owns((uint32)a)) {
+	if (stm32_sdmmc_owns((uint32)a)) {
 		stm32_device_accessed = TRUE;	/* RDR, FIFO: the next data may come at once */
 	}
 	report((uint32)a, "read");
