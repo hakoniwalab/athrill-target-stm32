@@ -28,4 +28,9 @@ typedef struct {
 
 void stm32_spi_bind(const char *compatible, const char *soc, const Stm32SpiBinding *table, uint32 count);
 
+/* Reset values of the SPI's own registers by word (resets[offset / 4], 0
+ * where no register is) and the register window: the end of the last
+ * register in bytes. Stops the emulator when the window exceeds max_words. */
+uint32 stm32_spi_bind_resets(const char *compatible, const char *soc, uint32 *resets, uint32 max_words);
+
 #endif

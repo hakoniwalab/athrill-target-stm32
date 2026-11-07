@@ -55,7 +55,18 @@ if(ATHRILL_ENABLE_EXDEV)
 endif()
 target_link_libraries(athrill_stm32_config INTERFACE Threads::Threads m ${CMAKE_DL_LIBS})
 
-set(STM32_INCLUDES
+# Hard-coded model values the SVD does not hold (src/device/config/stm32_*_config.h):
+# a directory with your own copies of these headers comes before the defaults.
+# The defaults live in their own directory, not next to the sources, because a
+# quoted #include searches the source's directory before the include path.
+set(ATHRILL_STM32_CONFIG_DIR "" CACHE PATH "Directory with user model configuration headers (stm32_*_config.h)")
+set(STM32_INCLUDES)
+if(ATHRILL_STM32_CONFIG_DIR)
+  get_filename_component(ATHRILL_STM32_CONFIG_DIR "${ATHRILL_STM32_CONFIG_DIR}" ABSOLUTE)
+  list(APPEND STM32_INCLUDES "${ATHRILL_STM32_CONFIG_DIR}")
+endif()
+list(APPEND STM32_INCLUDES "${ATHRILL_TARGET_SOURCE_DIR}/device/config")
+list(APPEND STM32_INCLUDES
     "${ATHRILL_SRC_DIR}" "${ATHRILL_SRC_DIR}/lib/dwarf" "${ATHRILL_SRC_DIR}/bus"
     "${ATHRILL_SRC_DIR}/cpu" "${ATHRILL_SRC_DIR}/device/mpu"
     "${ATHRILL_SRC_DIR}/debugger/interaction" "${ATHRILL_SRC_DIR}/debugger/interaction/inc"
