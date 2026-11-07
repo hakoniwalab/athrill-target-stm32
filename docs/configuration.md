@@ -11,10 +11,12 @@ process working directory.
 ## Devicetree-built devices
 
 `DEVICE_CONFIG_DEVICE_TREE path/to/board.dtb` selects the board: its Devicetree (athrill-device `boards/<board>/*.dtb`). Boards are built only from the Devicetree.
-The path is resolved from Athrill's working directory. If the key is absent,
-the legacy C-built board path and its output are unchanged.
+The path is resolved from Athrill's working directory. Without it, no board
+devices are built; `DEVICE_CONFIG_STM32_BOARD` without a Devicetree is an
+error.
 
-Optional model plugins are explicit, zero-based mappings. Enumeration stops
+Optional model plugins are explicit, zero-based mappings,
+`DEVICE_CONFIG_DEVICE_PLUGIN_<n>` with `n` from 0. Enumeration stops
 at the first absent index, and a plugin cannot override a built-in compatible:
 
 ```text
@@ -80,4 +82,5 @@ or TCP link can attach a chip to a non-console UART.
 | `DEVICE_CONFIG_ARM_PC_TRACE_COUNT` | Decimal number of instruction PCs to record. The trace closes after exactly this many records. | No trace. Must be paired with a file path and must be nonzero. | `DEVICE_CONFIG_ARM_PC_TRACE_COUNT 20000000` |
 | `DEVICE_CONFIG_ARM_PC_TRACE_SKIP` | Decimal number of instruction PCs to skip before recording. | `0`. Requires an enabled PC trace; useful for a narrow trace around a late divergence without writing the boot prefix. | `DEVICE_CONFIG_ARM_PC_TRACE_SKIP 3000000000` |
 | `DEVICE_CONFIG_ARM_PC_TRACE_CLOCKS` | Nonzero prefixes every recorded PC with its decimal virtual clock. | `0` (one hexadecimal PC per line). Requires an enabled PC trace. | `DEVICE_CONFIG_ARM_PC_TRACE_CLOCKS 1` |
+| `DEVICE_CONFIG_STM32_PROBE_TRACE` | Nonzero reports on stderr every register access that still reaches the target's peripheral probe instead of a Devicetree model: one line per 1 KiB block and direction, `PROBE_TRACE`, `R` or `W`, the owner, the block address and `pc=` with the PC of the first access. The owner is the target model behind the address (`uart`, `dma`, `dmamux`, `i2c`, `sdmmc`, `spi`, `h7spi`) or the probe's own storage (`h7boot`, `register-file`). A model moved to athrill-device must no longer appear. | `0` (no trace). Host-side only: the instruction count is unchanged. | `DEVICE_CONFIG_STM32_PROBE_TRACE 1` |
 | `DEBUG_PC_SAMPLE_START` | Decimal instruction-clock threshold after which the target records a PC sample every 1000 executed instruction clocks. PCs are accumulated in 64-byte blocks and printed at exit with the final CPU state. | Absent: sampling is disabled, although the final state and empty sample summary are still printed. | `DEBUG_PC_SAMPLE_START 1000000` |

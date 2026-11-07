@@ -7,9 +7,17 @@
  * them, an ADC whose conversions are always done); the timers PX4 needs are
  * modelled in athrill-device from the Devicetree, and so are the USART/UARTs (stm32_uart.c). The first access to each 1 KiB block of
  * registers is reported on stderr.
+ *
+ * DEVICE_CONFIG_STM32_PROBE_TRACE 1 also reports, on stderr, every access
+ * that still reaches this probe: one line per 1 KiB block, direction and
+ * owner (the target model behind the address, or the register file), with
+ * the PC of the first such access. A model moved to athrill-device must no
+ * longer appear (hakoniwalab/athrill-device#13 step 4).
  */
 #include "stm32_periph_probe.h"
 #include "device.h"
+#include "cpu.h"
+#include "cpuemu_ops.h"
 #include "concrete_executor/target/dbg_target_serial.h"
 #include "stm32_uart.h"
 #include "stm32_spi.h"
@@ -28,10 +36,21 @@ uint8 stm32_probe_ahb2_data[STM32_PROBE_AHB2_SIZE];
 uint8 stm32_probe_sysmem_data[STM32_PROBE_SYSMEM_SIZE];
 uint8 stm32_probe_dbgmcu_data[STM32_PROBE_DBGMCU_SIZE];
 
+#define PROBE_TRACE_MAX	4096U
+
+static std_bool trace_enabled;
+static uint32 traced[PROBE_TRACE_MAX];
+static uint32 traced_count;
+
 void stm32_probe_init(void)
 {
 	static const uint8 uid[12] = { 0x41, 0x54, 0x48, 0x52, 0x49, 0x4C, 0x4C, 0x20, 0x53, 0x54, 0x4D, 0x37 };
 	uint32 i;
+	uint32 trace = 0U;
+
+	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_PROBE_TRACE", &trace);
+	trace_enabled = (trace != 0U) ? TRUE : FALSE;
+	traced_count = 0U;
 
 	if (stm32_board_is_h7()) {
 		stm32h7_boot_reset();
@@ -80,6 +99,58 @@ static void report(uint32 addr, const char *what)
 		reported[index] = 1U;
 		fprintf(stderr, "PROBE: first %s at 0x%08x\n", what, addr);
 	}
+}
+
+/* The target model behind an address (the dispatch below), or the probe's
+ * own storage. */
+static const char *trace_owner(uint32 addr)
+{
+	if (stm32_uart_owns(addr)) {
+		return "uart";
+	}
+	if (stm32_dma_owns(addr)) {
+		return "dma";
+	}
+	if (stm32_i2c_owns(addr)) {
+		return "i2c";
+	}
+	if (stm32_board_is_h7()) {
+		if (stm32_dmamux_owns(addr)) {
+			return "dmamux";
+		}
+		if (stm32h7_spi_owns(addr)) {
+			return "h7spi";
+		}
+		return "h7boot";
+	}
+	if (stm32_sdmmc_owns(addr)) {
+		return "sdmmc";
+	}
+	if (stm32_spi_owns(addr)) {
+		return "spi";
+	}
+	return "register-file";
+}
+
+static void trace_access(uint32 addr, std_bool write)
+{
+	uint32 key;
+	uint32 i;
+
+	if (!trace_enabled) {
+		return;
+	}
+	key = (addr & ~0x3FFU) | (write ? 1U : 0U);
+	for (i = 0U; i < traced_count; i++) {
+		if (traced[i] == key) {
+			return;
+		}
+	}
+	if (traced_count < PROBE_TRACE_MAX) {
+		traced[traced_count++] = key;
+	}
+	fprintf(stderr, "PROBE_TRACE %s %s 0x%08x pc=0x%08x\n", write ? "W" : "R",
+		trace_owner(addr), addr & ~0x3FFU, (uint32)virtual_cpu.cores[0].core.reg.pc);
 }
 
 static uint32 *word_at(MpuAddressRegionType *r, uint32 addr)
@@ -227,6 +298,7 @@ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 {
 	uint32 value;
 	(void)c;
+	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
 		if (h7_shared_read((uint32)a, 1U, &value)) {
 			*d = (uint8)(value >> (8U * ((uint32)a & 3U)));
@@ -253,6 +325,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 {
 	uint32 value;
 	(void)c;
+	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
 		if (h7_shared_read((uint32)a, 2U, &value)) {
 			*d = (uint16)(value >> (8U * ((uint32)a & 2U)));
@@ -278,6 +351,7 @@ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
 {
 	(void)c;
+	trace_access((uint32)a, FALSE);
 	if (stm32_board_is_h7()) {
 		if (h7_shared_read((uint32)a, 4U, d)) {
 			return STD_E_OK;
@@ -301,6 +375,7 @@ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
 {
 	(void)c;
+	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
 		if (h7_shared_write((uint32)a, 1U, d)) {
@@ -316,6 +391,7 @@ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTyp
 static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
 {
 	(void)c;
+	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
 		if (h7_shared_write((uint32)a, 2U, d)) {
@@ -331,6 +407,7 @@ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrTy
 static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
 {
 	(void)c;
+	trace_access((uint32)a, TRUE);
 	stm32_device_accessed = TRUE;
 	if (stm32_board_is_h7()) {
 		if (h7_shared_write((uint32)a, 4U, d)) {
