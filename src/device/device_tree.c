@@ -92,6 +92,8 @@ typedef struct {
 
 typedef struct {
 	uint64 handle;
+	uint32 index;
+	const char *name;
 	std_bool asserted;
 	std_bool used;
 } DmaChannel;
@@ -909,14 +911,23 @@ static DmaChannel *dma_channel(Stm32DeviceTreeTarget *target, uint64 handle, std
 	target->dma[free_index].handle = handle;
 	return &target->dma[free_index];
 }
+/* [ADV-SPI-006] accept the SPI tuple order and tx/rx direction. */
+/* [ADV-UART-006] accept the UART tuple order and tx/rx direction. */
 static sint32 target_dma_resolve(void *context, const AthrillDeviceSpecifier *spec,
                                  AthrillDeviceDmaChannel *channel)
 {
-	if (spec == NULL) {
+	DmaChannel *resolved;
+	if (spec == NULL || spec->name == NULL) {
 		return -1;
 	}
 	channel->value = spec_handle(spec);
-	return dma_channel(context, channel->value, TRUE) != NULL ? 0 : -1;
+	resolved = dma_channel(context, channel->value, TRUE);
+	if (resolved == NULL) {
+		return -1;
+	}
+	resolved->index = spec->index;
+	resolved->name = spec->name;
+	return 0;
 }
 static sint32 target_dma_request(void *context, AthrillDeviceDmaChannel channel, std_bool asserted)
 {
