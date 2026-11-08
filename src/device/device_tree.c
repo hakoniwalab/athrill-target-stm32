@@ -33,42 +33,14 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_GPIO_LINES 192U
-#define MAX_GPIO_SUBSCRIBERS 384U
-#define MAX_DMA_CHANNELS 64U
 #define MAX_PLUGINS 32U
 #define MAX_HOST_VALUES 32U
 #define MAX_PLUGIN_MAPPING 1024U
 
+/* The target's own state for the runtime: nothing since the GPIO lines
+ * moved into athrill-device (ABI 1.16); kept as the context pointer. */
 typedef struct {
-	uint64 handle;
-	uint32 port;
-	uint32 pin;
-	std_bool level;
-	std_bool stm32_pin;
-	std_bool used;
-} GpioLine;
-
-typedef struct {
-	uint64 handle;
-	AthrillDeviceGpioEdge callback;
-	void *instance;
-	std_bool used;
-} GpioSubscriber;
-
-typedef struct {
-	uint64 handle;
-	uint32 index;
-	const char *name;
-	std_bool asserted;
-	std_bool used;
-} DmaChannel;
-
-typedef struct {
-	GpioLine gpio[MAX_GPIO_LINES];
-	GpioSubscriber gpio_subscribers[MAX_GPIO_SUBSCRIBERS];
-	DmaChannel dma[MAX_DMA_CHANNELS];
-	uint32 gpio_outputs[11];
+	uint32 unused;
 } Stm32DeviceTreeTarget;
 
 static Stm32DeviceTreeTarget target_context;
@@ -76,203 +48,6 @@ static AthrillDeviceRuntime *device_tree_runtime;
 static std_bool destroy_registered;
 
 static char plugin_mappings[MAX_PLUGINS][MAX_PLUGIN_MAPPING];
-
-static sint32 node_path_address(const char *path, uint32 *address)
-{
-	const char *at;
-	char *end;
-	unsigned long value;
-	if (path == NULL || (at = strrchr(path, '@')) == NULL || at[1] == 0) {
-		return -1;
-	}
-	value = strtoul(at + 1, &end, 16);
-	if (*end != 0 || value > 0xffffffffUL) {
-		return -1;
-	}
-	*address = (uint32)value;
-	return 0;
-}
-
-static uint64 spec_handle(const AthrillDeviceSpecifier *spec)
-{
-	uint64 value = (uint64)spec->provider << 32;
-	uint32 i;
-	for (i = 0U; i < spec->cell_count; i++) {
-		value ^= ((uint64)spec->cells[i]) << ((i % 2U) * 16U);
-	}
-	return value != 0U ? value : 1U;
-}
-static GpioLine *gpio_line(Stm32DeviceTreeTarget *target, uint64 handle, std_bool create)
-{
-	uint32 i, free_index = MAX_GPIO_LINES;
-	for (i = 0U; i < MAX_GPIO_LINES; i++) {
-		if (target->gpio[i].used && target->gpio[i].handle == handle) {
-			return &target->gpio[i];
-		}
-		if (!target->gpio[i].used && free_index == MAX_GPIO_LINES) {
-			free_index = i;
-		}
-	}
-	if (!create || free_index == MAX_GPIO_LINES) {
-		return NULL;
-	}
-	target->gpio[free_index].used = TRUE;
-	target->gpio[free_index].handle = handle;
-	return &target->gpio[free_index];
-}
-static sint32 target_gpio_resolve(void *context, const AthrillDeviceSpecifier *spec,
-                                  AthrillDeviceGpioLine *line)
-{
-	GpioLine *gpio;
-	uint32 address;
-	if (spec == NULL || spec->cell_count == 0U) {
-		return -1;
-	}
-	/* GPIO flags describe the consumer and are not part of a physical line. */
-	if (node_path_address(spec->provider_path, &address) == 0) {
-		line->value = ((uint64)address << 16) ^ spec->cells[0];
-	} else {
-		line->value = ((uint64)spec->provider << 32) ^ spec->cells[0];
-	}
-	if (line->value == 0U) {
-		line->value = 1U;
-	}
-	gpio = gpio_line(context, line->value, TRUE);
-	if (gpio == NULL) {
-		return -1;
-	}
-	if (node_path_address(spec->provider_path, &address) == 0 &&
-	    (((address >= 0x40020000U && address <= 0x40022800U &&
-	       (address - 0x40020000U) % 0x400U == 0U) ||
-	      (address >= 0x58020000U && address <= 0x58022800U &&
-	       (address - 0x58020000U) % 0x400U == 0U))) &&
-	    spec->cells[0] < 16U) {
-		gpio->port = address >= 0x58020000U ?
-			(address - 0x58020000U) / 0x400U :
-			(address - 0x40020000U) / 0x400U;
-		gpio->pin = spec->cells[0];
-		gpio->stm32_pin = TRUE;
-	}
-	return 0;
-}
-static sint32 target_gpio_read(void *context, AthrillDeviceGpioLine line, std_bool *level)
-{
-	GpioLine *g = gpio_line(context, line.value, FALSE);
-	if (g == NULL || level == NULL) {
-		return -1;
-	}
-	*level = g->level;
-	return 0;
-}
-static sint32 target_gpio_drive(void *context, AthrillDeviceGpioLine line, std_bool level)
-{
-	Stm32DeviceTreeTarget *target = context;
-	GpioLine *g = gpio_line(target, line.value, FALSE);
-	uint32 i;
-	if (g == NULL) {
-		return -1;
-	}
-	if (g->level == level) {
-		return 0;
-	}
-	g->level = level;
-	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
-		if (target->gpio_subscribers[i].used &&
-		    target->gpio_subscribers[i].handle == line.value) {
-			target->gpio_subscribers[i].callback(target->gpio_subscribers[i].instance, level);
-		}
-	return 0;
-}
-
-static sint32 target_gpio_outputs(void *context,
-	const AthrillDeviceGpioLine *lines, uint32 count, uint32 levels)
-{
-	Stm32DeviceTreeTarget *target = context;
-	GpioLine *gpio[16];
-	uint32 next, port, index;
-	if (lines == NULL || count == 0U || count > 16U) {
-		return -1;
-	}
-	for (index = 0U; index < count; index++) {
-		gpio[index] = gpio_line(target, lines[index].value, FALSE);
-		if (gpio[index] == NULL || !gpio[index]->stm32_pin ||
-		    gpio[index]->port >= 11U || gpio[index]->pin != index ||
-		    (index != 0U && gpio[index]->port != gpio[0]->port)) {
-			return -1;
-		}
-	}
-	port = gpio[0]->port;
-	next = levels & ((1U << count) - 1U);
-	for (index = 0U; index < count; index++) {
-		gpio[index]->level = (next & (1U << index)) != 0U;
-	}
-	target->gpio_outputs[port] = next;
-	return 0;
-}
-static sint32 target_gpio_subscribe(void *context, AthrillDeviceGpioLine line,
-                                    AthrillDeviceGpioEdge callback, void *instance)
-{
-	Stm32DeviceTreeTarget *target = context;
-	uint32 i;
-	if (gpio_line(target, line.value, FALSE) == NULL || callback == NULL) {
-		return -1;
-	}
-	for (i = 0U; i < MAX_GPIO_SUBSCRIBERS; i++)
-		if (!target->gpio_subscribers[i].used) {
-			target->gpio_subscribers[i].used = TRUE;
-			target->gpio_subscribers[i].handle = line.value;
-			target->gpio_subscribers[i].callback = callback;
-			target->gpio_subscribers[i].instance = instance;
-			return 0;
-		}
-	return -1;
-}
-
-static DmaChannel *dma_channel(Stm32DeviceTreeTarget *target, uint64 handle, std_bool create)
-{
-	uint32 i, free_index = MAX_DMA_CHANNELS;
-	for (i = 0U; i < MAX_DMA_CHANNELS; i++) {
-		if (target->dma[i].used && target->dma[i].handle == handle) {
-			return &target->dma[i];
-		}
-		if (!target->dma[i].used && free_index == MAX_DMA_CHANNELS) {
-			free_index = i;
-		}
-	}
-	if (!create || free_index == MAX_DMA_CHANNELS) {
-		return NULL;
-	}
-	target->dma[free_index].used = TRUE;
-	target->dma[free_index].handle = handle;
-	return &target->dma[free_index];
-}
-/* [ADV-SPI-006] accept the SPI tuple order and tx/rx direction. */
-/* [ADV-UART-006] accept the UART tuple order and tx/rx direction. */
-static sint32 target_dma_resolve(void *context, const AthrillDeviceSpecifier *spec,
-                                 AthrillDeviceDmaChannel *channel)
-{
-	DmaChannel *resolved;
-	if (spec == NULL || spec->name == NULL) {
-		return -1;
-	}
-	channel->value = spec_handle(spec);
-	resolved = dma_channel(context, channel->value, TRUE);
-	if (resolved == NULL) {
-		return -1;
-	}
-	resolved->index = spec->index;
-	resolved->name = spec->name;
-	return 0;
-}
-static sint32 target_dma_request(void *context, AthrillDeviceDmaChannel channel, std_bool asserted)
-{
-	DmaChannel *d = dma_channel(context, channel.value, FALSE);
-	if (d == NULL) {
-		return -1;
-	}
-	d->asserted = asserted;
-	return 0;
-}
 
 static sint32 target_model_adapter_connect(void *context,
 	const AthrillDeviceNode *node, const char *adapter_name)
@@ -364,12 +139,12 @@ static const AthrillDeviceTargetOps target_ops = {
 	NULL, NULL, NULL,	/* spi_bind, spi_set_chip_select, spi_exchange_byte: the SPI controllers are athrill-device models */
 	NULL, NULL,	/* i2c_bind, i2c_transfer: the I2C controller is an athrill-device model */
 	NULL, NULL, NULL,	/* uart_bind, uart_peripheral, uart_controller: the UARTs are athrill-device models */
-	target_gpio_resolve, target_gpio_read,
-	target_gpio_drive, target_gpio_subscribe, target_dma_resolve, target_dma_request,
+	NULL, NULL, NULL, NULL,	/* gpio_resolve, gpio_read, gpio_drive, gpio_subscribe: the runtime's GPIO lines (ABI 1.16) */
+	NULL, NULL,	/* dma_resolve, dma_request: the DMA is an athrill-device model on request lines */
 	target_model_adapter_connect, NULL /* spi_bind_node */, stm32_host_value,
 	target_sensor_sample, NULL /* i2c_bind_node */, NULL /* uart_bind_nodes */,
 	NULL /* uart_send_from_node */, target_gps_sample, target_actuator_output,
-	target_gpio_outputs,
+	NULL,	/* gpio_outputs: the runtime keeps the output levels */
 	/* ABI 1.10 REQUIRED operations: target_host.c */
 	stm32_host_console_write, stm32_host_end_batch
 };
