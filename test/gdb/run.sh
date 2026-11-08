@@ -5,7 +5,9 @@
 # registers, steps one instruction and reads memory. Expected values come
 # from test/hello/start.S, not from Athrill: at the first next_char r0 is
 # USART3 (0x40004800), r1 is the message; the ldrb loads 'H' (0x48) into r2;
-# xPSR has the Thumb bit (0x01000000).
+# xPSR has the Thumb bit (0x01000000). Through the target description
+# (toppers/athrill#85): MSP is the current sp in Thread mode after reset,
+# BASEPRI and s0 are written and read back.
 set -eu
 athrill=$1
 gdb=$2
@@ -32,12 +34,18 @@ printf "R2=%08x\n", \$r2
 printf "BYTE=%02x\n", *(unsigned char *)&message
 set var \$r5 = 0x12345678
 printf "R5=%08x\n", \$r5
+printf "MSPSP=%d\n", \$msp == \$sp
+set var \$basepri = 0x50
+printf "BASEPRI=%02x\n", \$basepri
+set var \$s0 = 1.5
+printf "S0=%f\n", \$s0
 delete
 detach
 EOC
 "$gdb" -batch -x "$work/commands" "$here/hello/hello.elf" > "$work/gdb.log" 2>&1 || true
 cat "$work/gdb.log"
-for expected in "R0=40004800" "XPSR=01000000" "MSG=00000000" "R2=00000048" "BYTE=48" "R5=12345678"; do
+for expected in "R0=40004800" "XPSR=01000000" "MSG=00000000" "R2=00000048" "BYTE=48" "R5=12345678" \
+	"MSPSP=1" "BASEPRI=50" "S0=1.500000"; do
 	if ! grep -q "$expected" "$work/gdb.log"; then
 		echo "FAIL: $expected"
 		exit 1
