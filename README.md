@@ -73,6 +73,22 @@ then add a TCP link to `127.0.0.1:5760` in QGroundControl, arm and take off. The
 (Zurich). [docs/sih.md](docs/sih.md) explains each setting. QGroundControl warns that HITL is enabled
 (`SYS_HITL=2` is how SIH runs) and asks for radio setup: both are expected.
 
+For ArduPilot, take the official binary from ArduPilot's firmware server. ArduPilot is GPL-3.0, so this project
+does not redistribute it; the version directory and the SHA-256 pin the file the results come from (ArduCopter
+V4.7.2 for the Pixhawk 4):
+
+```sh
+curl -LO https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk4/arducopter.elf
+shasum -a 256 arducopter.elf   # cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c
+athrill-target-stm32/examples/ardupilot-bench/run.sh arducopter.elf 4320000000 athrill3-v0.3.0-macos-arm64/athrill3
+python3 athrill-target-stm32/examples/ardupilot-bench/check-mavlink.py athrill-target-stm32/examples/ardupilot-bench/mavlink.raw
+```
+
+ArduCopter boots with its own drivers for 20 virtual seconds and ends with `steps=722036516` and
+`FINAL pc=0x08138a48`, the same on every run. `check-mavlink.py` (needs pymavlink) reports 23 HEARTBEAT messages
+on TELEM1. [examples/ardupilot-bench](examples/ardupilot-bench) and [docs/ardupilot.md](docs/ardupilot.md) have
+more, and [docs/hakoniwa.md](docs/hakoniwa.md#ardupilot) flies it.
+
 ## Fly in Hakoniwa (Processor-in-the-Loop)
 
 The firmware's own drivers read the emulated IMU, barometer, magnetometer and GPS chips. Their samples come from
