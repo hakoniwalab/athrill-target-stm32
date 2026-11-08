@@ -7,3 +7,5 @@ first-boot-config-run.txt
 *.log
 log.txt
 x500-athrill-ardupilot/drone_log*/
+device_config-run.txt
+first-boot-config.tmp
