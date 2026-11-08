@@ -230,6 +230,15 @@ if(BUILD_TESTING)
             -d "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt"
             -t 100000 "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/hello.elf")
   set_tests_properties(hello-usart3 PROPERTIES PASS_REGULAR_EXPRESSION "Hello, Athrill STM32!")
+  # Console input from the debugger (test/console, #64): "serial 0 AB" reaches
+  # USART3 through the console UART model and the firmware echoes it.
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME console-input
+      COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/test/console/run.py"
+              $<TARGET_FILE:athrill3> "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt")
+    set_tests_properties(console-input PROPERTIES PASS_REGULAR_EXPRESSION "\nPASS" TIMEOUT 60)
+  endif()
   # GDB remote debugging (test/gdb): breakpoint, registers, step and memory
   # on the hello world, when an Arm-capable gdb is installed.
   if(ATHRILL_ENABLE_GDB_RSP)

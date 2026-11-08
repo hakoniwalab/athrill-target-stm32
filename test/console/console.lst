@@ -1,0 +1,56 @@
+
+console.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+08000000 <reset_handler-0x8>:
+ 8000000:	20080000 	.word	0x20080000
+ 8000004:	08000009 	.word	0x08000009
+
+08000008 <reset_handler>:
+ 8000008:	4813      	ldr	r0, [pc, #76]	@ (8000058 <ready+0x8>)
+ 800000a:	212d      	movs	r1, #45	@ 0x2d
+ 800000c:	6001      	str	r1, [r0, #0]
+ 800000e:	a110      	add	r1, pc, #64	@ (adr r1, 8000050 <ready>)
+ 8000010:	f000 f80f 	bl	8000032 <puts>
+
+08000014 <receive>:
+ 8000014:	69c3      	ldr	r3, [r0, #28]
+ 8000016:	f013 0f20 	tst.w	r3, #32
+ 800001a:	d0fb      	beq.n	8000014 <receive>
+ 800001c:	6a44      	ldr	r4, [r0, #36]	@ 0x24
+ 800001e:	223c      	movs	r2, #60	@ 0x3c
+ 8000020:	f000 f810 	bl	8000044 <putc>
+ 8000024:	4622      	mov	r2, r4
+ 8000026:	f000 f80d 	bl	8000044 <putc>
+ 800002a:	223e      	movs	r2, #62	@ 0x3e
+ 800002c:	f000 f80a 	bl	8000044 <putc>
+ 8000030:	e7f0      	b.n	8000014 <receive>
+
+08000032 <puts>:
+ 8000032:	b500      	push	{lr}
+
+08000034 <puts_next>:
+ 8000034:	f811 2b01 	ldrb.w	r2, [r1], #1
+ 8000038:	2a00      	cmp	r2, #0
+ 800003a:	d002      	beq.n	8000042 <puts_done>
+ 800003c:	f000 f802 	bl	8000044 <putc>
+ 8000040:	e7f8      	b.n	8000034 <puts_next>
+
+08000042 <puts_done>:
+ 8000042:	bd00      	pop	{pc}
+
+08000044 <putc>:
+ 8000044:	69c3      	ldr	r3, [r0, #28]
+ 8000046:	f013 0f80 	tst.w	r3, #128	@ 0x80
+ 800004a:	d0fb      	beq.n	8000044 <putc>
+ 800004c:	6282      	str	r2, [r0, #40]	@ 0x28
+ 800004e:	4770      	bx	lr
+
+08000050 <ready>:
+ 8000050:	44414552 	.word	0x44414552
+ 8000054:	0a59      	.short	0x0a59
+ 8000056:	00          	.byte	0x00
+ 8000057:	00          	.byte	0x00
+ 8000058:	40004800 	.word	0x40004800
