@@ -24,7 +24,8 @@ in CI on Linux and macOS ([ctest workflow](../.github/workflows/ctest.yml)).
 | Comparison with Renode (whole chip, boot logs, traces, speed) | planned; Renode is not in the toolchain image yet |
 | NuttX ostest on an STM32F7 board configuration | planned |
 | ChibiOS / ArduPilot | planned (stage 3) |
-| CI: CTest on Linux and macOS | in place ([ctest workflow](../.github/workflows/ctest.yml)); the SIH verification in CI is planned |
+| CI: CTest on Linux and macOS | in place ([ctest workflow](../.github/workflows/ctest.yml)) |
+| CI: PX4 bench (compared with the regression reference) and SIH verification without MAVLink, on Linux, with the v0.1.1 release firmware | in place ([px4 workflow](../.github/workflows/px4.yml)) |
 
 ## 1. Toolchain (Docker)
 
