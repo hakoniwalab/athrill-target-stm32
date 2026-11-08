@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: 5d41e8267ea639609e81416dfc41106dc4ff0adf
+          ref: bc8d76aa386e995d4c94e0f13144886a108f043f
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: b9bc6a58064d215d8b54f661babf21a1c3cc158f
+          ref: ff23daf380cab7b483dbf5f84f52a49d837898ea
           path: athrill-device
       - name: libyaml (athrill-device bindings loader), gdb-multiarch (GDB remote test, Linux)
         run: |

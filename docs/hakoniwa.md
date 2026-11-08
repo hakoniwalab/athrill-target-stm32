@@ -81,9 +81,9 @@ Devicetree from this athrill-device checkout, next to `athrill-target-stm32`:
 ```bash
 cd "$HOME/athrill-hakoniwa"
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout 5d41e82
+git -C athrill checkout bc8d76a
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout b9bc6a5
+git -C athrill-device checkout ff23daf
 cmake -S athrill-device/board/common -B athrill-device/build-stm32 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32 \
   -DHAKO_PDU_REGISTRY_DIR="$PWD/hakoniwa-core-pro/hakoniwa-pdu-registry"

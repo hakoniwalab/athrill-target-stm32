@@ -56,7 +56,7 @@ tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
 tar xzf zephyr-samples-v0.3.0.tar.gz
 git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout b9bc6a5
+git -C athrill-device checkout ff23daf
 athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi zephyr-samples-v0.3.0/philosophers-nucleo_f767zi.elf 10 athrill3-v0.3.0-macos-arm64/athrill3
 ```
 
@@ -152,11 +152,11 @@ Place four repositories side by side, at the versions these results come from:
 
 ```sh
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout 5d41e82
+git -C athrill checkout bc8d76a
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout b9bc6a5
+git -C athrill-device checkout ff23daf
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
