@@ -54,25 +54,19 @@ int main(void)
 	TEST_CHECK(stm32h7_boot_read(0x58024400U, 4U, &value) != STD_E_OK);
 	TEST_CHECK(stm32h7_boot_write(0x58024804U, 4U, 0U) != STD_E_OK);
 	TEST_CHECK(stm32h7_boot_read(0x52002010U, 4U, &value) != STD_E_OK);
-	write32(0x5800400CU, 1U << 7);
-	TEST_CHECK((read32(0x5800400CU) & ((1U << 5) | (1U << 6)))
-		== ((1U << 5) | (1U << 6)));
-
-	write32(0x58026008U, (1U << 31) | 1U);
-	TEST_CHECK((read32(0x58026008U) & (1U << 31)) == 0U);
-	TEST_CHECK((read32(0x58026000U) & 1U) != 0U);
-	TEST_CHECK(read32(0x58026040U) == 0U);
+	/* RTC, ADC3, OTG FS, IWDG, RNG are athrill-device register blocks too */
+	TEST_CHECK(stm32h7_boot_read(0x5800400CU, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_read(0x58026000U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_read(0x40080010U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x58004800U, 4U, 0U) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_read(0x48021808U, 4U, &value) != STD_E_OK);
 	/* SDMMC2 is an athrill-device model with its own window: the boot
 	 * regions do not take its addresses (hakoniwalab/athrill-device#13 4-6) */
 	TEST_CHECK(stm32h7_boot_read(0x48022434U, 4U, &value) != STD_E_OK);
 	TEST_CHECK(stm32h7_boot_write(0x48022438U, 4U, 0x1234U) != STD_E_OK);
 	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
-	write32(0x40080010U, 1U << 0);
-	TEST_CHECK((read32(0x40080010U) & (1U << 31)) != 0U);
 	write32(0x51008108U, 1U);
 	TEST_CHECK(read32(0x51008108U) == 1U);
-	write32(0x58004800U, 0xAAAAU);
-	TEST_CHECK(read32(0x58004800U) == 0xAAAAU);
 	write32(0x58025408U, 0xFFU);
 	TEST_CHECK(read32(0x58025408U) == 0xFFU);
 	write32(0x4000A018U, 0x3U);

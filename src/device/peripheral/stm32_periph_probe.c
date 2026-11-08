@@ -61,13 +61,6 @@ void stm32_probe_init(void)
 	stm32_probe_dbgmcu_data[3] = 0x10U;
 }
 
-#define RTC_ISR		0x4000280CU
-#define OTG_FS_GRSTCTL	0x50000010U
-#define ADC1_SR		0x40012000U
-
-static const uint32 spi_bases[] = {
-	0x40013000U, 0x40003800U, 0x40003C00U, 0x40013400U, 0x40015000U, 0x40015400U,
-};
 
 static uint8 reported[(STM32_PROBE_APB_AHB1_SIZE + STM32_PROBE_AHB2_SIZE) / 1024U];
 
@@ -123,31 +116,11 @@ static uint32 *word_at(MpuAddressRegionType *r, uint32 addr)
 	return (uint32 *)&r->data[(addr & ~3U) - (uint32)r->start];
 }
 
-/* The value read, with the ready bits. */
+/* The value read: what was written (the read rules are in athrill-device's
+ * register blocks now). */
 static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 {
-	uint32 a = addr & ~3U;
-	uint32 v = *word_at(r, a);
-	uint32 i;
-
-	for (i = 0U; i < sizeof(spi_bases) / sizeof(spi_bases[0]); i++) {
-		if (a == spi_bases[i] + 0x08U) {
-			return v | 0x3U;	/* SR: TXE, RXNE */
-		}
-		if (a == spi_bases[i] + 0x0CU) {
-			return 0xFFFFU;		/* DR: nothing on the bus */
-		}
-	}
-	switch (a) {
-	case RTC_ISR:	/* RSF (registers synchronised); INITF follows INIT */
-		return v | (1U << 5) | ((v & (1U << 7)) >> 1);
-	case OTG_FS_GRSTCTL:	/* CSRST, RXFFLSH, TXFFLSH done; AHBIDL */
-		return (v & ~0x31U) | (1U << 31);
-	case ADC1_SR:	/* EOC: a conversion is always done (DR keeps 0) */
-		return v | (1U << 1);
-	default:
-		return v;
-	}
+	return *word_at(r, addr & ~3U);
 }
 
 static void write_bytes(MpuAddressRegionType *r, uint32 addr, uint32 size, uint32 value)
