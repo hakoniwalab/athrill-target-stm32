@@ -19,19 +19,6 @@ Std_ReturnType cpuemu_get_devcfg_string(const char *key, char **value)
 	return STD_E_OK;
 }
 
-static uint32 read32(uint32 addr)
-{
-	uint32 value = 0U;
-
-	TEST_CHECK(stm32h7_boot_read(addr, 4U, &value) == STD_E_OK);
-	return value;
-}
-
-static void write32(uint32 addr, uint32 value)
-{
-	TEST_CHECK(stm32h7_boot_write(addr, 4U, value) == STD_E_OK);
-}
-
 int main(void)
 {
 	uint32 value;
@@ -64,21 +51,14 @@ int main(void)
 	 * regions do not take its addresses (hakoniwalab/athrill-device#13 4-6) */
 	TEST_CHECK(stm32h7_boot_read(0x48022434U, 4U, &value) != STD_E_OK);
 	TEST_CHECK(stm32h7_boot_write(0x48022438U, 4U, 0x1234U) != STD_E_OK);
-	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
-	write32(0x51008108U, 1U);
-	TEST_CHECK(read32(0x51008108U) == 1U);
-	write32(0x58025408U, 0xFFU);
-	TEST_CHECK(read32(0x58025408U) == 0xFFU);
-	write32(0x4000A018U, 0x3U);
-	TEST_CHECK(read32(0x4000A018U) == 0x3U);
-	write32(0x4000A418U, 0x4U);
-	TEST_CHECK(read32(0x4000A418U) == 0x4U);
-	write32(0x4000A7FCU, 0x89ABCDEFU);
-	TEST_CHECK(read32(0x4000A7FCU) == 0x89ABCDEFU);
-	write32(0x4000AC00U, 0x11223344U);
-	TEST_CHECK(read32(0x4000AC00U) == 0x11223344U);
-	write32(0x4000D3FCU, 0x55667788U);
-	TEST_CHECK(read32(0x4000D3FCU) == 0x55667788U);
+	/* DBGMCU, the unique ID, AXI, BDMA, FDCAN and its RAM too: the boot
+	 * regions take no address now */
+	TEST_CHECK(stm32h7_boot_read(0x5C001000U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_read(0x1FF1E800U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x51008108U, 4U, 1U) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x58025408U, 4U, 0xFFU) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x4000A018U, 4U, 0x3U) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x4000AC00U, 4U, 0U) != STD_E_OK);
 	TEST_CHECK(stm32h7_boot_read(0x4000A800U, 4U, &value) == STD_E_SEGV);
 	TEST_CHECK(stm32h7_boot_read(0x4000D400U, 4U, &value) == STD_E_SEGV);
 	TEST_CHECK(stm32h7_boot_read(0x40022400U, 4U, &value) == STD_E_SEGV);

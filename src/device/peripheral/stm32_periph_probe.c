@@ -37,8 +37,6 @@ static uint32 traced_count;
 
 void stm32_probe_init(void)
 {
-	static const uint8 uid[12] = { 0x41, 0x54, 0x48, 0x52, 0x49, 0x4C, 0x4C, 0x20, 0x53, 0x54, 0x4D, 0x37 };
-	uint32 i;
 	uint32 trace = 0U;
 
 	(void)cpuemu_get_devcfg_value("DEVICE_CONFIG_STM32_PROBE_TRACE", &trace);
@@ -49,16 +47,6 @@ void stm32_probe_init(void)
 		stm32h7_boot_reset();
 		return;
 	}
-	for (i = 0U; i < sizeof(uid); i++) {
-		stm32_probe_sysmem_data[0xF420U + i] = uid[i];
-	}
-	stm32_probe_sysmem_data[0xF442U] = 0x00U;	/* 2048 KiB of flash */
-	stm32_probe_sysmem_data[0xF443U] = 0x08U;
-	/* DBGMCU_IDCODE: REV_ID 0x1001 (revision Z), DEV_ID 0x451 (STM32F76x/77x) */
-	stm32_probe_dbgmcu_data[0] = 0x51U;
-	stm32_probe_dbgmcu_data[1] = 0x64U;
-	stm32_probe_dbgmcu_data[2] = 0x01U;
-	stm32_probe_dbgmcu_data[3] = 0x10U;
 }
 
 
