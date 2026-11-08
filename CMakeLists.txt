@@ -17,6 +17,24 @@ get_filename_component(ATHRILL_SOURCE_DIR "${ATHRILL_SOURCE_DIR}" ABSOLUTE BASE_
 set(ATHRILL_ARM_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../athrill-arm-common" CACHE PATH "athrill-arm-common checkout")
 get_filename_component(ATHRILL_ARM_COMMON_DIR "${ATHRILL_ARM_COMMON_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(ATHRILL_ADDRESS_WIDTH 32 CACHE STRING "Athrill bus address width" FORCE)
+# GDB remote debugging (athrill3 -g<port>): on when the core has the GDB RSP
+# server (toppers/athrill 3.1.0 or later) and the host has POSIX sockets.
+set(_stm32_gdb_rsp_api "${ATHRILL_SOURCE_DIR}/src/debugger/rsp/gdb_rsp_target.h")
+if(EXISTS "${_stm32_gdb_rsp_api}" AND UNIX)
+  set(_stm32_gdb_rsp_default ON)
+else()
+  set(_stm32_gdb_rsp_default OFF)
+endif()
+option(ATHRILL_ENABLE_GDB_RSP "Enable GDB remote debugging (athrill3 -g<port>)" ${_stm32_gdb_rsp_default})
+if(ATHRILL_ENABLE_GDB_RSP AND NOT EXISTS "${_stm32_gdb_rsp_api}")
+  message(FATAL_ERROR "ATHRILL_ENABLE_GDB_RSP needs an Athrill core with src/debugger/rsp "
+    "(toppers/athrill 3.1.0 or later); update the core or set it OFF")
+endif()
+if(ATHRILL_ENABLE_GDB_RSP AND NOT UNIX)
+  message(FATAL_ERROR "GDB remote debugging needs POSIX sockets; set ATHRILL_ENABLE_GDB_RSP OFF")
+endif()
+unset(_stm32_gdb_rsp_default)
+unset(_stm32_gdb_rsp_api)
 include("${ATHRILL_SOURCE_DIR}/cmake/AthrillCore.cmake")
 add_subdirectory(examples/host-functions)
 set(ATHRILL_TARGET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -212,6 +230,19 @@ if(BUILD_TESTING)
             -d "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt"
             -t 100000 "${CMAKE_CURRENT_SOURCE_DIR}/test/hello/hello.elf")
   set_tests_properties(hello-usart3 PROPERTIES PASS_REGULAR_EXPRESSION "Hello, Athrill STM32!")
+  # GDB remote debugging (test/gdb): breakpoint, registers, step and memory
+  # on the hello world, when an Arm-capable gdb is installed.
+  if(ATHRILL_ENABLE_GDB_RSP)
+    find_program(STM32_TEST_GDB NAMES gdb-multiarch arm-none-eabi-gdb)
+    if(STM32_TEST_GDB)
+      add_test(NAME gdb-remote-hello
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/test/gdb/run.sh" $<TARGET_FILE:athrill3>
+                "${STM32_TEST_GDB}" "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt" 23457)
+      set_tests_properties(gdb-remote-hello PROPERTIES PASS_REGULAR_EXPRESSION "^PASS|\nPASS" TIMEOUT 60)
+    else()
+      message(STATUS "gdb-remote-hello not registered: no gdb-multiarch or arm-none-eabi-gdb")
+    endif()
+  endif()
   # Instruction tests (test/insn): every encoding of the instructions run
   # through athrill-arm-common, compared with the output of the same
   # program on QEMU (test/insn/build.sh makes the ELFs and the expected output).
