@@ -74,3 +74,6 @@ log.txt
 *.profraw
 *.profdata
 build-coverage/
+
+# Zephyr samples: sources, SDK, builds and runs
+examples/zephyr/work/

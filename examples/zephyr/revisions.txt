@@ -1,0 +1,8 @@
+# The sources of the Zephyr samples (read by build.sh). The Zephyr revision
+# is the one the athrill-device boards include; the modules are the ones
+# its west.yml names.
+zephyr f3fc249035296b87c75fa808b3abf78829fe9378
+cmsis 512cc7e895e8491696b61f7ba8066b4a182569b8
+cmsis_6 1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8
+hal_stm32 2fd0502dd5e02aa3e95a2f01278fdf27e42d7229
+sdk 1.0.1
