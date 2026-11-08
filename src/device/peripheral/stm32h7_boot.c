@@ -13,24 +13,10 @@
 #define H7_D2_SIZE 0x00080000U
 
 #define SYSCFG_BASE    0x58000400U
-#define RTC_BASE       0x58004000U
-#define RTC_ICSR       (RTC_BASE + 0x0CU)
-#define IWDG_BASE      0x58004800U
-#define OTG_FS_GRSTCTL (STM32H7_OTG_FS_BASE + 0x10U)
-#define ADC12_BASE     0x40022000U
 #define FDCAN1_BASE    0x4000A000U
 #define FDCAN2_BASE    0x4000A400U
 #define FDCAN_RAM_BASE 0x4000AC00U
 #define FDCAN_RAM_SIZE 0x00002800U
-#define ADC3_BASE      0x58026000U
-#define ADC_ISR        0x00U
-#define ADC_CR         0x08U
-#define ADC_DR         0x40U
-#define RNG_BASE       0x48021800U
-#define RNG_SR         (RNG_BASE + 0x04U)
-#define RNG_DR         (RNG_BASE + 0x08U)
-#define SDMMC2_BASE    0x48022400U
-#define SDMMC_STA      (SDMMC2_BASE + 0x34U)
 #define BDMA_BASE      0x58025400U
 #define AXI_TARG7_BASE 0x51008000U
 #define AXI_TARG7_SIZE 0x00000400U
@@ -46,7 +32,6 @@ uint8 stm32h7_dbgmcu_data[STM32H7_DBGMCU_SIZE];
 uint8 stm32h7_sysmem_high_data[STM32H7_SYSMEM_HIGH_SIZE];
 
 static uint8 h7_d2_data[H7_D2_SIZE];
-static uint32 rng_value;
 
 typedef struct {
 	uint32 base;
@@ -59,16 +44,10 @@ static const H7RegionType regions[] = {
 	{ FDCAN2_BASE, 0x400U, &h7_d2_data[FDCAN2_BASE - H7_D2_BASE] },
 	{ FDCAN_RAM_BASE, FDCAN_RAM_SIZE,
 		&h7_d2_data[FDCAN_RAM_BASE - H7_D2_BASE] },
-	{ ADC12_BASE, 0x400U, &h7_d2_data[ADC12_BASE - H7_D2_BASE] },
-	{ STM32H7_OTG_FS_BASE, STM32H7_OTG_FS_SIZE, stm32h7_otg_fs_data },
-	{ RNG_BASE, 0x400U, &stm32h7_ahb2_data[RNG_BASE - STM32H7_AHB2_BASE] },
 	{ AXI_TARG7_BASE, AXI_TARG7_SIZE,
 		&stm32h7_axi_data[AXI_TARG7_BASE - STM32H7_AXI_BASE] },
 	{ SYSCFG_BASE, 0x400U, &stm32h7_d3_data[SYSCFG_BASE - STM32H7_D3_BASE] },
-	{ RTC_BASE, 0x400U, &stm32h7_d3_data[RTC_BASE - STM32H7_D3_BASE] },
-	{ IWDG_BASE, 0x400U, &stm32h7_d3_data[IWDG_BASE - STM32H7_D3_BASE] },
 	{ BDMA_BASE, 0x400U, &stm32h7_d3_data[BDMA_BASE - STM32H7_D3_BASE] },
-	{ ADC3_BASE, 0x400U, &stm32h7_d3_data[ADC3_BASE - STM32H7_D3_BASE] },
 	{ STM32H7_DBGMCU_BASE, STM32H7_DBGMCU_SIZE, stm32h7_dbgmcu_data },
 	{ SYSMEM_DATA_BASE, SYSMEM_DATA_SIZE,
 		&stm32h7_sysmem_high_data[SYSMEM_DATA_BASE - STM32H7_SYSMEM_HIGH_BASE] },
@@ -107,32 +86,9 @@ static void store_bytes(const H7RegionType *region, uint32 addr, uint32 size, ui
 	}
 }
 
-static uint32 adc_read(const H7RegionType *region, uint32 addr, uint32 value)
-{
-	uint32 base = (addr >= ADC3_BASE) ? ADC3_BASE : ADC12_BASE;
-	uint32 offset = (addr & ~3U) - base;
-	uint32 cr = stored_word(region, base + ADC_CR);
-
-	if (offset == ADC_ISR) {
-		/* ADRDY after ADEN, EOC/EOS after a conversion start. */
-		value |= ((cr & 1U) != 0U) ? 1U : 0U;
-		value |= ((cr & (1U << 2)) != 0U) ? ((1U << 2) | (1U << 3)) : 0U;
-	}
-	else if (offset == ADC_CR) {
-		/* Hardware clears ADCAL and ADDIS when their actions complete. */
-		value &= ~((1U << 31) | (1U << 1));
-	}
-	else if (offset == ADC_DR) {
-		/* A deterministic low board-ID voltage selects the baseline revision. */
-		value = 0U;
-	}
-	return value;
-}
-
 Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 {
 	const H7RegionType *region;
-	uint32 a = addr & ~3U;
 	uint32 v;
 
 	if (!stm32_board_is_h7()) {
@@ -142,32 +98,7 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 	if (region == NULL) {
 		return STD_E_SEGV;
 	}
-	v = stored_word(region, a);
-	switch (a) {
-	case RTC_ICSR:
-		v |= (1U << 5) | ((v & (1U << 7)) >> 1); /* RSF, INITF */
-		break;
-	case OTG_FS_GRSTCTL:
-		v = (v & ~0x31U) | (1U << 31); /* resets complete, AHB idle */
-		break;
-	case RNG_SR:
-		v |= 1U; /* DRDY */
-		break;
-	case RNG_DR:
-		rng_value = (rng_value * 1664525U) + 1013904223U;
-		v = rng_value;
-		break;
-	case SDMMC_STA:
-		/* A no-response command is sent; response commands time out with no card. */
-		v |= (1U << 2) | (1U << 7);
-		break;
-	default:
-		if (((a >= ADC12_BASE) && (a < (ADC12_BASE + 0x400U)))
-			|| ((a >= ADC3_BASE) && (a < (ADC3_BASE + 0x400U)))) {
-			v = adc_read(region, a, v);
-		}
-		break;
-	}
+	v = stored_word(region, addr & ~3U);
 	*value = (v >> (8U * (addr & 3U)))
 		& ((size >= 4U) ? 0xFFFFFFFFU : ((1U << (8U * size)) - 1U));
 	return STD_E_OK;
@@ -199,7 +130,6 @@ void stm32h7_boot_reset(void)
 	for (i = 0U; i < (sizeof(regions) / sizeof(regions[0])); i++) {
 		memset(regions[i].data, 0, regions[i].size);
 	}
-	rng_value = 0x7436C001U;
 
 	/* STM32H743 device ID/revision and 2048 KiB flash size. */
 	stm32h7_dbgmcu_data[0] = 0x50U;

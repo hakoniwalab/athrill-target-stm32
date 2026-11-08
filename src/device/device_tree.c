@@ -291,15 +291,6 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-rtc") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-rtc") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-adc") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-adc") == 0) ||
-	    (strcmp(adapter_name, "stm32f7-rng") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32-rng") == 0 ||
-	      strcmp(node->matched_compatible, "zephyr,entropy") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-otgfs") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32-otgfs") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-crc") == 0 &&
 	     strcmp(node->matched_compatible, "zephyr,crc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-backup-sram") == 0 &&
@@ -309,7 +300,6 @@ static sint32 target_model_adapter_connect(void *context,
 	      strcmp(node->matched_compatible, "st,stm32h7") == 0)) ||
 	    (strcmp(adapter_name, "stm32h7-boot-register") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-bdma") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32-watchdog") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32h7-syscfg") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32h7-axi-target") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32h7-dbgmcu") == 0 ||
