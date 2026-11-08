@@ -48,6 +48,9 @@ typedef struct TargetCoreTypeTag {
     uint64 internal_cycle;
 } TargetCoreType;
 
+/* The NVIC of the board (lines, priority bits), from its Devicetree (cpu_config.c). */
+void stm32_cpu_configure_nvic(uint32 num_irq, uint32 priority_bits);
+
 static inline AthrillAddrType cpu_get_pc(const TargetCoreType *core) { return core->reg.pc; }
 static inline uint32 cpu_get_sp(const TargetCoreType *core) { return core->reg.r[CPU_REG_SP]; }
 
