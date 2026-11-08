@@ -1,4 +1,8 @@
 /*
+ * Test fixture copy (the target's sensor source moved to athrill-device as
+ * the bench sensor source model, hakoniwalab/athrill-device#13 step 4-8c):
+ * the types and functions the fixture chips use; the tests stub them.
+ *
  * Where the sensor chips get their samples: the Hakoniwa sensor device
  * (an Athrill EXDEV of hakoniwa-drone-pro, devices/athrill), mapped by
  * memory.txt at DEVICE_CONFIG_STM32_SENSOR_DEVICE (0x60000000 by default)

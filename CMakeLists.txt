@@ -112,7 +112,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
   src/device/target_host.c
-  src/device/sensor/sensor_source.c
   src/device/board/board_profile.c
   src/debugger/executor/concrete_executor/dbg_target_cpu.c
   src/debugger/executor/concrete_executor/dbg_target_serial.c)
@@ -178,7 +177,7 @@ if(BUILD_TESTING)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
     test/fixtures/sensor/bmi055.c test/fixtures/sensor/icm42688p.c test/fixtures/sensor/ms5611.c)
   stm32_target(test_v6c_sensors)
-  target_include_directories(test_v6c_sensors PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device src/device/sensor)
+  target_include_directories(test_v6c_sensors PRIVATE test/fixtures test/fixtures/peripheral test/fixtures/sensor test/fixtures/memory src/device)
   target_link_libraries(test_v6c_sensors PRIVATE athrill_stm32_config)
   add_test(NAME device-v6c-sensors COMMAND test_v6c_sensors)
   # The fast executors against the generic ones (src/cpu/thumb_fast.c).
