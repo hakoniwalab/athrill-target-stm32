@@ -23,11 +23,11 @@ jobs:
         with:
           path: athrill-target-stm32
       # the core and the shared Arm pseudo-code, at the commits the README pins
-      - name: "athrill v3.1.0 (host functions, idle/spin halt, GDB server)"
+      - name: "athrill after 3.1.0 (host functions, idle/spin halt, GDB server with target description)"
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: ed4edd6e7dbcc624dd7bce4d19b471ab27db2ffa
+          ref: 5d41e8267ea639609e81416dfc41106dc4ff0adf
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4

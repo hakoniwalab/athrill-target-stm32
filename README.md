@@ -86,13 +86,13 @@ AUX1–AUX4 rather than PX4IO's MAIN outputs.
 ### 1. Build Athrill STM32
 
 Place four repositories side by side, at the versions these results come
-from (Athrill 3.1.0, with host functions, the core idle/spin halt and the GDB
-server; athrill-arm-common moves on; athrill-device builds the boards from
+from (Athrill after 3.1.0, with host functions, the core idle/spin halt and
+the GDB server with target descriptions; athrill-arm-common moves on; athrill-device builds the boards from
 their Devicetrees):
 
 ```sh
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout v3.1.0
+git -C athrill checkout 5d41e82
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
