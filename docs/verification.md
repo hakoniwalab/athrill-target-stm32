@@ -169,7 +169,15 @@ executors, no host FPU). PX4 v1.17.0 on the Mac:
 | strict | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
 
 The whole 1 GB SD card image is the same bit for bit, and the fast paths
-give exactly the pseudo-code's results over the whole flight. The blank
+give exactly the pseudo-code's results over the whole flight.
+
+These are the values of the release run. Since the SDMMC became an
+athrill-device model, the run differs from them. The F7 SDMMC's write DMA
+now completes when the stream has filled the FIFO, before the data end on
+the bus, as on the chip. Before, it completed at the end of the bus time.
+With the old timing put back, the old values return. `verify.sh` compares
+with the run re-recorded for that change. The determinism shown here still
+holds: the three runs are identical, and every flight check passes. The blank
 SD card image is written by `make-sd-image.sh` the same on every host
 (python3, the macOS `newfs_msdos` layout with a fixed serial). Formatting
 it with the host's tools does not do: `mkfs.vfat` on Linux chooses another

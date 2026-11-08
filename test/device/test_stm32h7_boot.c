@@ -5,27 +5,6 @@
 #include "../test_check.h"
 #include <stdio.h>
 
-/* The SDMMC2 behavior is tested separately; these stubs check boot-region routing. */
-static uint32 sdmmc_write_addr;
-static uint32 sdmmc_write_value;
-
-std_bool stm32h7_sdmmc_owns(uint32 addr)
-{
-	return (addr >= 0x48022400U) && (addr < 0x48022800U);
-}
-
-uint32 stm32h7_sdmmc_read(uint32 addr)
-{
-	(void)addr;
-	return 0x44332211U;
-}
-
-void stm32h7_sdmmc_write(uint32 addr, uint32 size, uint32 value)
-{
-	sdmmc_write_addr = addr;
-	(void)size;
-	sdmmc_write_value = value;
-}
 #include <string.h>
 
 std_bool stm32_device_accessed;
@@ -93,10 +72,10 @@ int main(void)
 	TEST_CHECK((read32(0x58026008U) & (1U << 31)) == 0U);
 	TEST_CHECK((read32(0x58026000U) & 1U) != 0U);
 	TEST_CHECK(read32(0x58026040U) == 0U);
-	TEST_CHECK(read32(0x48022434U) == 0x44332211U);
-	write32(0x48022438U, 0x1234U);
-	TEST_CHECK(sdmmc_write_addr == 0x48022438U);
-	TEST_CHECK(sdmmc_write_value == 0x1234U);
+	/* SDMMC2 is an athrill-device model with its own window: the boot
+	 * regions do not take its addresses (hakoniwalab/athrill-device#13 4-6) */
+	TEST_CHECK(stm32h7_boot_read(0x48022434U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x48022438U, 4U, 0x1234U) != STD_E_OK);
 	TEST_CHECK((read32(0x5C001000U) & 0xFFFU) == 0x450U);
 	write32(0x40080010U, 1U << 0);
 	TEST_CHECK((read32(0x40080010U) & (1U << 31)) != 0U);
