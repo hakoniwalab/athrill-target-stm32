@@ -48,7 +48,15 @@ done
 [ -e "$AIRFRAME" ] || { echo "missing airframe: $AIRFRAME" >&2; exit 2; }
 
 mkdir -p "$WORK"
+# The seeds (fram.bin, sd.img: the first boot's result) are made anew for
+# every verification, so the result does not depend on images left in this
+# checkout, and checked against the reference before the run.
+rm -f "$DIR/fram.bin" "$DIR/sd.img"
 "$DIR/prepare.sh" "$ELF" "$ATHRILL" >"$WORK/prepare.log" 2>&1
+. "$DIR/../regression.sh"
+echo "seeds (athrill-device boards/pixhawk6c/regression/armed.txt)"
+SEEDS_OK=1
+regression_seed_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DIR" || SEEDS_OK=0
 
 prepare_run()
 {
@@ -115,6 +123,6 @@ DT_COUNT=$(sed -n 's/^SAMPLES .* steps=//p' "$WORK/dt/emulator.log" | tail -1)
 echo "PASS: armed and took off ($DT_COUNT instructions)"
 
 # The run against the board's regression reference in athrill-device.
-. "$DIR/../regression.sh"
 echo "regression reference (athrill-device boards/pixhawk6c/regression/armed.txt)"
 regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt" "$WORK/dt/emulator.log"
+[ "$SEEDS_OK" -eq 1 ] || { echo "the seeds differ from the reference: see the first boot ($DIR/first-boot.log)"; exit 1; }
