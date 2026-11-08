@@ -23,11 +23,11 @@ jobs:
         with:
           path: athrill-target-stm32
       # the core and the shared Arm pseudo-code, at the commits the README pins
-      - name: "athrill (after 3.0.0: host functions, idle/spin halt)"
+      - name: "athrill v3.1.0 (host functions, idle/spin halt, GDB server)"
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: 2b9b49f21a9f8ad5e63d396f013ad86d341b29e6
+          ref: ed4edd6e7dbcc624dd7bce4d19b471ab27db2ffa
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4
@@ -42,9 +42,9 @@ jobs:
           repository: hakoniwalab/athrill-device
           ref: e0f3cf8fd185f2629e33bc4b01fbf78f4f65b500
           path: athrill-device
-      - name: libyaml (athrill-device bindings loader)
+      - name: libyaml (athrill-device bindings loader), gdb-multiarch (GDB remote test, Linux)
         run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update -qq && sudo apt-get install -y -qq libyaml-dev pkg-config; else brew install libyaml pkg-config || true; fi
+          if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update -qq && sudo apt-get install -y -qq libyaml-dev pkg-config gdb-multiarch; else brew install libyaml pkg-config || true; fi
       - name: build
         working-directory: athrill-target-stm32
         run: |
