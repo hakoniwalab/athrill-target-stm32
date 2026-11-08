@@ -373,27 +373,3 @@ void stm32_host_reset_values(void)
 	numeric_host_value_count = 0U;
 }
 
-static const AthrillDeviceTargetOps host_ops = {
-	.abi_major = ATHRILL_DEVICE_ABI_MAJOR,
-	.abi_minor = ATHRILL_DEVICE_ABI_MINOR,
-	.struct_size = sizeof(AthrillDeviceTargetOps),
-	.mmio_register = stm32_host_mmio_register,
-	.mmio_unregister = stm32_host_mmio_unregister,
-	.irq_resolve = stm32_host_irq_resolve,
-	.irq_set = stm32_host_irq_set,
-	.irq_is_active = stm32_host_irq_is_active,
-	.time_now = stm32_host_time_now,
-	.time_frequency_hz = stm32_host_time_frequency_hz,
-	.clock_frequency_hz = stm32_host_clock_frequency_hz,
-	.memory_read = stm32_host_memory_read,
-	.memory_write = stm32_host_memory_write,
-	.host_value = stm32_host_value,
-	.console_write = stm32_host_console_write,
-	.end_batch = stm32_host_end_batch,
-	/* every TO BE REMOVED bridge operation stays NULL */
-};
-
-const AthrillDeviceTargetOps *athrill_device_host(void)
-{
-	return &host_ops;
-}

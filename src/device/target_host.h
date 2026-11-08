@@ -4,16 +4,13 @@
  * athrill_device_if.h): MMIO regions, IRQ, time, clock, memory and host
  * configuration values.
  *
- * Responsibility: the CPU-side services only. The bridge operations marked
- * TO BE REMOVED stay in device_tree.c until their models move to
- * athrill-device (hakoniwalab/athrill-device#13).
+ * Responsibility: the CPU-side services only; every peripheral is an
+ * athrill-device model (hakoniwalab/athrill-device#13), so the bridge
+ * operations marked TO BE REMOVED in the table are all NULL.
  *
- * Callers:
- *   device_tree.c   builds its full AthrillDeviceTargetOps table from the
- *                   stm32_host_* functions below plus its bridge operations,
- *                   and reads configuration with stm32_host_config_string()
- *   models          the ported STM32 models in athrill-device
- *                   (targets/stm32) call them through athrill_device_host()
+ * Caller: device_tree.c builds its AthrillDeviceTargetOps table from the
+ * stm32_host_* functions below and reads configuration with
+ * stm32_host_config_string().
  *
  * Copyright 2026 Hakoniwa Laboratory
  * SPDX-License-Identifier: MIT
@@ -21,11 +18,9 @@
 #ifndef ATHRILL_STM32_TARGET_HOST_H
 #define ATHRILL_STM32_TARGET_HOST_H
 
-#include "athrill_device_host.h"
+#include "athrill_device_if.h"
 #include "std_errno.h"
 
-/* athrill_device_host() (declared in athrill-device athrill_device_host.h) is
- * implemented in target_host.c: the REQUIRED operations, every bridge NULL. */
 
 sint32 stm32_host_mmio_register(void *context, uint64 address, uint64 size,
 	const AthrillDeviceMmioOps *ops, void *instance, AthrillDeviceMmioToken *token);
