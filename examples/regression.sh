@@ -8,6 +8,8 @@
 #   firmware_sha256 <hex>
 #   instructions <count>
 #   sha256 <file in the run directory> <hex>
+#   seed_sha256 <file> <hex> (the starting images, e.g. F-RAM and SD card
+#                         after the first boot; regression_seed_check)
 #   tick <device>          (one per line, in tick order)
 # The values are compared only for that firmware. The tick order is the
 # order the devices are ticked in: the target's TARGET_TICK lines, with
@@ -47,6 +49,27 @@ regression_tick_order() {
 # regression_check reference elf instructions run-directory [log]
 # Prints one [PASS]/[FAIL]/[SKIP] line per value; returns 1 on a FAIL.
 # log: the run's stderr, for the tick order.
+# The starting images (seed_sha256 lines), before the run: a first boot
+# that changed is reported as such instead of as a different run.
+regression_seed_check() {	# reference, firmware ELF, directory of the seeds
+	ref=$1
+	failed=0
+	[ -f "$ref" ] || return 0
+	grep -q '^seed_sha256 ' "$ref" || return 0
+	[ "$(awk '$1 == "firmware_sha256" { print $2 }' "$ref")" = "$(regression_sha256 "$2")" ] || return 0
+	for entry in $(awk '$1 == "seed_sha256" { print $2 "=" $3 }' "$ref"); do
+		name=${entry%%=*}
+		want=${entry#*=}
+		if [ -f "$3/$name" ] && [ "$(regression_sha256 "$3/$name")" = "$want" ]; then
+			echo "  [PASS] seed $name = reference"
+		else
+			echo "  [FAIL] seed $name differs from the reference: the first boot changed"
+			failed=1
+		fi
+	done
+	return $failed
+}
+
 regression_check() {
 	ref=$1
 	failed=0
