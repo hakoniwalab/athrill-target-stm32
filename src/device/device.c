@@ -3,7 +3,6 @@
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
-#include "peripheral/stm32_periph_probe.h"
 #include "sensor/sensor_source.h"
 #include "board/board_profile.h"
 #include "device_tree.h"
@@ -51,7 +50,6 @@ void device_init(CpuType *cpu, DeviceClockType *clock)
 	clock->is_halt = FALSE;
 	arm_m_scs_reset();
 	arm_m_dwt_reset();
-	stm32_probe_init();
 	sensor_source_reset();
 	/* The board comes only from the Devicetree (DEVICE_CONFIG_DEVICE_TREE);
 	 * without one, Athrill runs the CPU with these controllers and no board. */
