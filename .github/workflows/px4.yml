@@ -2,7 +2,8 @@
 # change: the bench (PX4's own sensor drivers on the emulated chips, EKF2,
 # preflight check, two identical runs) and the SIH verification without
 # MAVLink (three identical flights in fast and strict mode, and the flight
-# log). The PX4 ELF is built once in PX4's build image and cached.
+# log), with the PX4 ELF of the v0.1.1 release, so the regression
+# references are compared.
 name: px4
 
 on:
@@ -49,27 +50,28 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
 
-      - name: PX4 ELF from the cache
-        id: elf
-        uses: actions/cache@v4
-        with:
-          path: px4-elf
-          key: px4-v1.17.0-fmu-v5-px4-dev-v1.17.0-beta1
-      - name: build PX4 v1.17.0 px4_fmu-v5_default
-        if: steps.elf.outputs.cache-hit != 'true'
+      # the released firmware, the one the regression references in
+      # athrill-device record (a local build is not bit-identical to it)
+      - name: PX4 ELF from the v0.1.1 release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git clone --branch v1.17.0 --depth 1 https://github.com/PX4/PX4-Autopilot.git PX4
-          docker run --rm -v "$PWD/PX4:/src" -w /src px4io/px4-dev:v1.17.0-beta1 make px4_fmu-v5_default
           mkdir -p px4-elf
-          cp PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf px4-elf/
+          gh release download v0.1.1 --repo hakoniwalab/athrill-target-stm32 \
+            --pattern px4_fmu-v5_default.elf --pattern SHA256SUMS --dir px4-elf
+          cd px4-elf
+          grep ' px4_fmu-v5_default.elf$' SHA256SUMS | sha256sum -c -
       - name: tools (reading the SD card image, ULog analysis)
         run: |
           sudo apt-get update
           sudo apt-get install -y mtools python3-numpy
           pip3 install --break-system-packages pyulog
 
+      # the reference must be compared, not skipped
       - name: bench (PX4's sensor drivers)
-        run: athrill-target-stm32/examples/px4-bench/check.sh px4-elf/px4_fmu-v5_default.elf
+        run: |
+          athrill-target-stm32/examples/px4-bench/check.sh px4-elf/px4_fmu-v5_default.elf | tee bench.log
+          if grep -q '\[SKIP\]' bench.log; then exit 1; fi
       # exit status 2 = PARTIAL PASS: A and B passed, C (MAVLink) not run here
       - name: SIH verification (determinism and flight log, no MAVLink)
         run: |
