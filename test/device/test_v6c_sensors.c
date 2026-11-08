@@ -4,7 +4,7 @@
 #include "sensor/bmi055.h"
 #include "sensor/icm42688p.h"
 #include "sensor/ms5611.h"
-#include "sensor/sensor_source.h"
+#include "sensor_source.h"
 
 #define CPU_HZ 480000000ULL
 

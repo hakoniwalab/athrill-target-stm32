@@ -22,7 +22,6 @@
 #include "cpuemu_ops.h"
 #include "device.h"
 #include "mpu.h"
-#include "sensor/sensor_source.h"
 #include "std_errno.h"
 #include "target_cpu.h"
 #include "target_host.h"
@@ -49,86 +48,6 @@ static std_bool destroy_registered;
 
 static char plugin_mappings[MAX_PLUGINS][MAX_PLUGIN_MAPPING];
 
-static sint32 target_model_adapter_connect(void *context,
-	const AthrillDeviceNode *node, const char *adapter_name)
-{
-	(void)context;
-	if (node == NULL || node->matched_compatible == NULL || adapter_name == NULL) {
-		return -1;
-	}
-	/*
-	 * Each exact DT model delegates to the existing C model independently.
-	 * Controllers are reset before the graph is built, so their adapters only
-	 * assert that the matching legacy model is already active.  Leaf adapters
-	 * attach one chip each.  Shared board tick state is reset before either the
-	 * DT graph or the no-DT board_attach path is selected.
-	 */
-	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-crc") == 0 &&
-	     strcmp(node->matched_compatible, "zephyr,crc") == 0) ||
-	    (strcmp(adapter_name, "stm32h7-soc") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32h743") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32h7") == 0)) ||
-	    (strcmp(adapter_name, "bench-sensor-source") == 0 &&
-	     strcmp(node->matched_compatible, "athrill,bench-sensor-source") == 0)) {
-		return 0;
-	}
-	return -1;
-}
-
-static sint32 target_sensor_sample(void *context,
-	AthrillDeviceSensorSample *sample)
-{
-	SensorSampleType source;
-	(void)context;
-	if (sample == NULL) {
-		return -1;
-	}
-	sensor_source_sample(&source);
-	memcpy(sample->acceleration, source.acc, sizeof(source.acc));
-	memcpy(sample->angular_velocity, source.gyro, sizeof(source.gyro));
-	memcpy(sample->magnetic_field, source.mag, sizeof(source.mag));
-	sample->pressure_hpa = source.abs_pressure;
-	sample->temperature_c = source.temperature;
-	return 0;
-}
-
-static sint32 target_gps_sample(void *context, AthrillDeviceGpsSample *sample)
-{
-	GpsSampleType source;
-	(void)context;
-	if (sample == NULL || !sensor_source_gps(&source)) {
-		return -1;
-	}
-	sample->latitude_deg_e7 = source.lat;
-	sample->longitude_deg_e7 = source.lon;
-	sample->altitude_mm = source.alt;
-	sample->horizontal_accuracy_cm = source.eph;
-	sample->vertical_accuracy_cm = source.epv;
-	sample->speed_cm_s = source.vel;
-	sample->velocity_north_cm_s = source.vn;
-	sample->velocity_east_cm_s = source.ve;
-	sample->velocity_down_cm_s = source.vd;
-	sample->course_cdeg = source.cog;
-	sample->fix_type = source.fix_type;
-	sample->satellites = source.satellites;
-	sample->time_usec = source.time_usec;
-	return 0;
-}
-
-static sint32 target_actuator_output(void *context, const float32 *values,
-	uint32 count)
-{
-	(void)context;
-	if (values == NULL) {
-		return -1;
-	}
-	sensor_source_actuators(values, count);
-	return 0;
-}
-
 static const AthrillDeviceTargetOps target_ops = {
 	ATHRILL_DEVICE_ABI_MAJOR, ATHRILL_DEVICE_ABI_MINOR, sizeof(AthrillDeviceTargetOps),
 	/* REQUIRED operations: target_host.c */
@@ -141,9 +60,9 @@ static const AthrillDeviceTargetOps target_ops = {
 	NULL, NULL, NULL,	/* uart_bind, uart_peripheral, uart_controller: the UARTs are athrill-device models */
 	NULL, NULL, NULL, NULL,	/* gpio_resolve, gpio_read, gpio_drive, gpio_subscribe: the runtime's GPIO lines (ABI 1.16) */
 	NULL, NULL,	/* dma_resolve, dma_request: the DMA is an athrill-device model on request lines */
-	target_model_adapter_connect, NULL /* spi_bind_node */, stm32_host_value,
-	target_sensor_sample, NULL /* i2c_bind_node */, NULL /* uart_bind_nodes */,
-	NULL /* uart_send_from_node */, target_gps_sample, target_actuator_output,
+	NULL /* model_adapter_connect: no adapters left */, NULL /* spi_bind_node */, stm32_host_value,
+	NULL /* sensor_sample: the bench sensor source model */, NULL /* i2c_bind_node */, NULL /* uart_bind_nodes */,
+	NULL /* uart_send_from_node */, NULL /* gps_sample */, NULL /* actuator_output */,
 	NULL,	/* gpio_outputs: the runtime keeps the output levels */
 	/* ABI 1.10 REQUIRED operations: target_host.c */
 	stm32_host_console_write, stm32_host_end_batch
