@@ -96,7 +96,7 @@ git -C athrill checkout 5d41e82
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout f7487cc
+git -C athrill-device checkout b9bc6a5
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
