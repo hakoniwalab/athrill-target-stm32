@@ -4,10 +4,9 @@
  * Builds the Devicetree runtime (athrill_device_build) and hands it the full
  * AthrillDeviceTargetOps table:
  *   REQUIRED operations   implemented in target_host.c (stm32_host_*)
- *   TO BE REMOVED bridges implemented here: they connect Devicetree nodes to
- *                         models still in the target (SPI, UART, I2C, DMA,
- *                         GPIO lines, sensor source) and go when those models
- *                         move to athrill-device (hakoniwalab/athrill-device#13)
+ *   TO BE REMOVED bridges all NULL: every peripheral, the GPIO lines and the
+ *                         sensor source are athrill-device models now
+ *                         (hakoniwalab/athrill-device#13)
  * Calls into target_host.c: the REQUIRED operations through the table,
  * stm32_host_value/stm32_host_config_string for host values and plugin
  * mappings, stm32_host_reset_values at each build.
@@ -54,7 +53,7 @@ static const AthrillDeviceTargetOps target_ops = {
 	stm32_host_mmio_register, stm32_host_mmio_unregister, stm32_host_irq_resolve, stm32_host_irq_set,
 	stm32_host_irq_is_active, stm32_host_time_now, stm32_host_time_frequency_hz,
 	stm32_host_clock_frequency_hz, stm32_host_memory_read, stm32_host_memory_write,
-	/* TO BE REMOVED bridge operations: this file */
+	/* TO BE REMOVED bridge operations: all NULL (the layout of ABI 1.x) */
 	NULL, NULL, NULL,	/* spi_bind, spi_set_chip_select, spi_exchange_byte: the SPI controllers are athrill-device models */
 	NULL, NULL,	/* i2c_bind, i2c_transfer: the I2C controller is an athrill-device model */
 	NULL, NULL, NULL,	/* uart_bind, uart_peripheral, uart_controller: the UARTs are athrill-device models */
@@ -212,4 +211,10 @@ void stm32_device_tree_destroy(void)
 		athrill_device_destroy(device_tree_runtime);
 		device_tree_runtime = NULL;
 	}
+}
+
+std_bool stm32_device_tree_console_input(uint8 data)
+{
+	return (device_tree_runtime != NULL &&
+		athrill_device_console_input(device_tree_runtime, 0U, data) == 0) ? TRUE : FALSE;
 }

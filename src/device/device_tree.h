@@ -11,4 +11,9 @@ std_bool stm32_device_tree_build(void);
 void stm32_device_tree_tick(DeviceClockType *clock);
 void stm32_device_tree_destroy(void);
 
+/* A character of the debugger's console input to the console UART (the
+ * athrill-device runtime's console channel 0); FALSE when there is no
+ * console UART or its input queue is full. */
+std_bool stm32_device_tree_console_input(uint8 data);
+
 #endif
