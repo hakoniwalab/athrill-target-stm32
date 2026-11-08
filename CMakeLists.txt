@@ -111,8 +111,6 @@ set(DEVICE_SOURCES ${ATHRILL_DEVICE_COMMON_SOURCES} ${ATHRILL_DEVICE_THREAD_SOUR
   src/device/device.c
   src/device/peripheral/arm_m_scs_device.c
   src/device/peripheral/arm_m_dwt.c
-  src/device/peripheral/stm32_periph_probe.c
-  src/device/peripheral/stm32h7_boot.c
   src/device/target_host.c
   src/device/sensor/sensor_source.c
   src/device/board/board_profile.c
@@ -171,12 +169,12 @@ if(BUILD_TESTING)
   target_include_directories(test_arm_m_dwt PRIVATE src/device)
   target_link_libraries(test_arm_m_dwt PRIVATE athrill_stm32_config)
   add_test(NAME device-arm-m-dwt COMMAND test_arm_m_dwt)
-  add_executable(test_stm32h7_boot test/device/test_stm32h7_boot.c
-    src/device/peripheral/stm32h7_boot.c src/device/board/board_profile.c)
-  stm32_target(test_stm32h7_boot)
-  target_include_directories(test_stm32h7_boot PRIVATE src/device)
-  target_link_libraries(test_stm32h7_boot PRIVATE athrill_stm32_config)
-  add_test(NAME device-stm32h7-boot COMMAND test_stm32h7_boot)
+  add_executable(test_board_profile test/device/test_board_profile.c
+    src/device/board/board_profile.c)
+  stm32_target(test_board_profile)
+  target_include_directories(test_board_profile PRIVATE src/device)
+  target_link_libraries(test_board_profile PRIVATE athrill_stm32_config)
+  add_test(NAME device-board-profile COMMAND test_board_profile)
   add_executable(test_v6c_sensors test/device/test_v6c_sensors.c
     test/fixtures/sensor/bmi055.c test/fixtures/sensor/icm42688p.c test/fixtures/sensor/ms5611.c)
   stm32_target(test_v6c_sensors)
