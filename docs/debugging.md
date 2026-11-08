@@ -46,31 +46,43 @@ VS Code's C/C++ debugger (`"MIMode": "gdb"`, `"miDebuggerServerAddress": "127.0.
 
 ## LLDB
 
-LLDB needs the register layout, which the server does not describe. The
-target definition `tools/lldb/cortex_m_target_definition.py` gives it:
+With a core that sends the target description (toppers/athrill#85), LLDB
+needs nothing else:
 
 ```text
 $ lldb px4_fmu-v5_default.elf
-(lldb) settings set plugin.process.gdb-remote.target-definition-file tools/lldb/cortex_m_target_definition.py
 (lldb) gdb-remote 1234
 (lldb) breakpoint set -n ICM20689::RunImpl
 (lldb) continue
 (lldb) bt
 (lldb) next
-(lldb) register read r0 pc lr
+(lldb) register read r0 pc lr msp basepri fpscr d0
 (lldb) memory read --count 16 $sp
 (lldb) detach
 ```
 
+With Athrill 3.1.0, whose server sends no description, give LLDB the
+register layout with `tools/lldb/cortex_m_target_definition.py` before
+connecting:
+
+```text
+(lldb) settings set plugin.process.gdb-remote.target-definition-file tools/lldb/cortex_m_target_definition.py
+(lldb) gdb-remote 1234
+```
+
 ## What the debugger sees
 
-- Registers: r0-r12, sp (the current stack pointer), lr, pc and xPSR. This is
-  the layout GDB uses for an M-profile ELF without a target description.
+- Registers, with a core that sends the target description
+  (toppers/athrill#85):
+  - r0-r12, sp (the current stack pointer), lr, pc and xPSR;
+  - MSP and PSP;
+  - PRIMASK, BASEPRI and FAULTMASK, which are writable; CONTROL, read only;
+  - the FPU's d0-d15 and FPSCR. GDB also shows s0-s31; LLDB shows d0-d15.
+
   xPSR combines APSR, IPSR and EPSR: the Thumb bit, and the IT bits from
   ITSTATE. Writing xPSR changes only the APSR flags (N Z C V Q, GE).
-- Not yet visible: the FPU registers (s0-s31, fpscr), MSP/PSP and the special
-  registers (PRIMASK, BASEPRI, CONTROL). Showing them needs a target
-  description from the server.
+- With Athrill 3.1.0: r0-r15 and xPSR only, the layout GDB uses for an
+  M-profile ELF without a target description.
 - Breakpoints stop before the instruction at their address, in Thumb code of
   either width. A step runs one instruction (`stepi`); `next` and `step` are
   GDB's and LLDB's own line stepping on top of it.
