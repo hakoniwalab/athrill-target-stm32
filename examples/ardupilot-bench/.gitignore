@@ -4,3 +4,6 @@ mavlink-request.raw
 sd.img
 athrill-pc-trace.txt
 mavlink.raw
+device_config-run.txt
+device_config-full-run.txt
+device_config-trace-run.txt

@@ -1,6 +1,6 @@
 # PX4 on the emulated Pixhawk 4 with Hakoniwa Drone
 
-> **Not working since the boards built by C code were removed (2026-11-07).** The Hakoniwa examples (`examples/px4-hakoniwa`, `examples/ardupilot-hakoniwa`) and `examples/ardupilot-bench` still select their board with `DEVICE_CONFIG_STM32_BOARD` and load the sensor device through `memory.txt` (`DEV`); boards now come only from their Devicetree in athrill-device. They are to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
+> **Not working since the boards built by C code were removed (2026-11-07).** The Hakoniwa examples (`examples/px4-hakoniwa`, `examples/ardupilot-hakoniwa`) still select their board with `DEVICE_CONFIG_STM32_BOARD` and load the sensor device through `memory.txt` (`DEV`); boards now come only from their Devicetree in athrill-device. They are to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
 
 The stock `px4_fmu-v5_default` firmware flies the Hakoniwa Drone x500 in MuJoCo:
 - **Hakoniwa Drone** computes the vehicle and writes its sensor samples to Hakoniwa (`hil_sensor`, `hil_gps`).
