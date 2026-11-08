@@ -23,6 +23,7 @@
 #include "mpu.h"
 #include "std_errno.h"
 #include "target_cpu.h"
+#include "arm_common/arm_m_types.h"
 #include "target_host.h"
 
 #include <fcntl.h>
@@ -176,6 +177,22 @@ std_bool stm32_device_tree_build(void)
 	if (athrill_device_build(&options, &target_ops, &target_context, &device_tree_runtime) != 0) {
 		printf("ERROR: DEVICE_CONFIG_DEVICE_TREE build failed\n");
 		exit(1);
+	}
+	/* The NVIC's size from its node (#62): the lines (athrill,num-irqs, which
+	 * ICTR reports) and the implemented priority bits. */
+	{
+		uint32 num_irq, priority_bits;
+		if (athrill_device_target_node_u32(device_tree_runtime, "arm,v7m-nvic", "athrill,num-irqs",
+				0U, &num_irq) != 0 || num_irq == 0U || num_irq > ARM_M_EXC_NUM - ARM_M_EXC_IRQ0 ||
+		    athrill_device_target_node_u32(device_tree_runtime, "arm,v7m-nvic",
+				"arm,num-irq-priority-bits", 0U, &priority_bits) != 0 ||
+		    priority_bits == 0U || priority_bits > 8U) {
+			printf("DEVICE_TREE_ERROR code=nvic node=arm,v7m-nvic property=athrill,num-irqs "
+			       "reason=needs athrill,num-irqs (1..%u) and arm,num-irq-priority-bits (1..8)\n",
+			       ARM_M_EXC_NUM - ARM_M_EXC_IRQ0);
+			exit(1);
+		}
+		stm32_cpu_configure_nvic(num_irq, priority_bits);
 	}
 	if (!destroy_registered) {
 		if (atexit(stm32_device_tree_destroy) != 0) {

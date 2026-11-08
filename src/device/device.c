@@ -3,7 +3,6 @@
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
-#include "board/board_profile.h"
 #include "device_tree.h"
 #ifdef EXDEV_ENABLE
 #include "athrill_device.h"

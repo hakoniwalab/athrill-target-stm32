@@ -11,10 +11,17 @@
 #include "thumb_fast.h"
 #include "device.h"
 #include "athrill_idle_spin_halt.h"
-#include "board/board_profile.h"
 
 /* STM32F76x/H743: 4 priority bits, FPv5-D16; Cortex-M7 r1p0. */
-#define STM32_PRIORITY_BITS	4U
+/*
+ * The NVIC: its external interrupt lines and implemented priority bits come
+ * from the board's Devicetree (the NVIC node's athrill,num-irqs and
+ * arm,num-irq-priority-bits, stm32_cpu_configure_nvic after the build).
+ * Without a Devicetree (the instruction tests): the architecture's limit of
+ * lines and the STM32 family's 4 priority bits.
+ */
+static uint32 nvic_num_irq = ARM_M_EXC_NUM - ARM_M_EXC_IRQ0;
+static uint32 nvic_priority_bits = 4U;
 #define STM32_CPUID		0x411FC270U
 #define STM32_CCR_WRITABLE	0x0007031BU
 
@@ -38,7 +45,7 @@ COLD_PATH static void reset_core(TargetCoreType *core)
 	memset(core, 0, sizeof(*core));
 	core->core_id = id;
 	core->reset_pending = TRUE;
-	ArmMReset(&core->m, stm32_board_num_irq(), STM32_PRIORITY_BITS, TRUE);
+	ArmMReset(&core->m, nvic_num_irq, nvic_priority_bits, TRUE);
 	core->scs.cpuid = STM32_CPUID;
 	core->scs.ccr_writable = STM32_CCR_WRITABLE;
 }
@@ -237,8 +244,6 @@ void cpu_init(void)
 {
 	CoreIdType i;
 
-	/* The NVIC size and the device map must agree before the first reset. */
-	stm32_board_profile_select();
 	stm32_host_function_init();
 	stm32_idle_spin_halt_init();
 	read_fp_mode();
@@ -463,4 +468,17 @@ AthrillAddrType cpu_get_return_addr(const TargetCoreType *core)
 CoreIdType cpu_get_core_id(const TargetCoreType *core)
 {
 	return core->core_id;
+}
+
+/* The board's NVIC (device_tree.c, after the build, before the first
+ * instruction): the reset state of every core with that size. */
+void stm32_cpu_configure_nvic(uint32 num_irq, uint32 priority_bits)
+{
+	CoreIdType i;
+
+	nvic_num_irq = num_irq;
+	nvic_priority_bits = priority_bits;
+	for (i = 0; i < cpu_config_get_core_id_num(); i++) {
+		ArmMReset(&virtual_cpu.cores[i].core.m, nvic_num_irq, nvic_priority_bits, TRUE);
+	}
 }
