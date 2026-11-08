@@ -1,13 +1,16 @@
 # ArduPilot Pixhawk 4 bench
 
-> **Not working since the boards built by C code were removed (2026-11-07).** This example still selects its board with `DEVICE_CONFIG_STM32_BOARD`; boards now come only from their Devicetree in athrill-device (`boards/<board>/*.dtb`). It is to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
-
-
 This boots an unmodified ArduCopter Pixhawk 4 ELF. The seed F-RAM contains
 `BRD_IO_ENABLE=0`, the normal ArduPilot setting for a board used without its
 IO coprocessor. Without that setting ArduPilot tries to update the absent
 IOMCU, reports `Failed to update IO firmware`, and deliberately remains in
 `AP_BoardConfig::config_error()` before it creates the telemetry links.
+
+The board is Pixhawk 4's Devicetree from athrill-device
+(`boards/pixhawk4/pixhawk4.dtb`): clone hakoniwalab/athrill-device next to
+this repository, or point `ATHRILL_DEVICE_DIR` at it. The run scripts add
+`DEVICE_CONFIG_DEVICE_TREE` to a copy of their configuration
+(`device_config*-run.txt`, ignored by git).
 
 The helper scripts need python3 with pymavlink
 (`python3 -m pip install pymavlink`). Run them from the repository root:
@@ -18,7 +21,11 @@ python3 examples/ardupilot-bench/check-mavlink.py \
   examples/ardupilot-bench/mavlink.raw
 ```
 
-The clock limit above is 20 virtual seconds at 216 MHz. Every run starts
+The clock limit above is 20 virtual seconds at 216 MHz. Athrill then ends
+with `EXIT for timeout` (exit status 1) and reports the run on stderr: with
+the ArduCopter ELF of [docs/ardupilot.md](../../docs/ardupilot.md) it is
+`steps=722036516` and `FINAL pc=0x08138a48`, the same on every run, and
+`check-mavlink.py` reports 23 HEARTBEAT messages. Every run starts
 from the seed: `run.sh` copies `fram-brd-io-disabled.bin` to the ignored,
 writable `fram.bin`. `mavlink.raw` contains only
 raw USART2 (SERIAL1/TELEM1) bytes; ordinary emulator diagnostics still go to
