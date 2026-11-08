@@ -1,7 +1,5 @@
 # PX4 on the emulated Pixhawk 4 with Hakoniwa Drone
 
-> **Not working since the boards built by C code were removed (2026-11-07).** The Hakoniwa examples (`examples/px4-hakoniwa`, `examples/ardupilot-hakoniwa`) still select their board with `DEVICE_CONFIG_STM32_BOARD` and load the sensor device through `memory.txt` (`DEV`); boards now come only from their Devicetree in athrill-device. They are to be replaced by the recipes (hakoniwalab/athrill-device#30); the last working state is the tag `c-path-final`.
-
 The stock `px4_fmu-v5_default` firmware flies the Hakoniwa Drone x500 in MuJoCo:
 - **Hakoniwa Drone** computes the vehicle and writes its sensor samples to Hakoniwa (`hil_sensor`, `hil_gps`).
 - **The emulated chips** of the board (ICM-20689, MS5611, IST8310, u-blox M8) give them to PX4's own drivers.
@@ -13,9 +11,9 @@ What you need, all public:
 - [Hakoniwa Drone](https://github.com/toppers/hakoniwa-drone-core) v5.0.0 or later: the free edition, or
   Hakoniwa Drone PRO. It provides the aircraft service, the airframe `config/drone/x500-athrill-px4` and the PDU
   definition `config/pdudef/drone-pdudef-athrill-px4.json`.
-- The Hakoniwa sensor device, from [athrill-device](https://github.com/hakoniwalab/athrill-device)
-  (`board/common`, built for this board as described in its
-  [board/stm32f7xx](https://github.com/hakoniwalab/athrill-device/blob/main/board/stm32f7xx/README.md)).
+- [athrill-device](https://github.com/hakoniwalab/athrill-device): the board's Devicetree
+  (`boards/pixhawk4/pixhawk4-hakoniwa.dtb`) and the Hakoniwa sensor device (`board/common`), which Athrill loads
+  as the board's plugin.
 - This repository's `athrill3` and the PX4 ELF.
 
 ## What the board adds
@@ -41,7 +39,7 @@ Drone (`brew install glfw`). Everything goes into one workspace:
 ```bash
 mkdir -p "$HOME/athrill-hakoniwa"
 cd "$HOME/athrill-hakoniwa"
-git clone --branch v0.2.0 https://github.com/hakoniwalab/athrill-target-stm32.git
+git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
 ```
 
 ### 1. Hakoniwa core
@@ -77,12 +75,15 @@ unzip -q mac.zip
 ### 3. The sensor device
 
 The Hakoniwa sensor device of [athrill-device](https://github.com/hakoniwalab/athrill-device), built for this
-board (32-bit), against the core of step 1, with the PDU types of the same core:
+board (32-bit), against the core of step 1, with the PDU types of the same core. `run.sh` takes the board's
+Devicetree from this athrill-device checkout, next to `athrill-target-stm32`:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
-git clone --branch v3.0.0 https://github.com/toppers/athrill.git
+git clone https://github.com/toppers/athrill.git
+git -C athrill checkout bc8d76a
 git clone https://github.com/hakoniwalab/athrill-device.git
+git -C athrill-device checkout ff23daf
 cmake -S athrill-device/board/common -B athrill-device/build-stm32 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32 \
   -DHAKO_PDU_REGISTRY_DIR="$PWD/hakoniwa-core-pro/hakoniwa-pdu-registry"
@@ -93,15 +94,15 @@ The result is `athrill-device/build-stm32/libhako_sensor_device.dylib`.
 
 ### 4. athrill3 and PX4
 
-From this repository's release v0.2.0:
+From this repository's release v0.3.0:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.2.0/athrill3-v0.2.0-macos-arm64.tar.gz
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.2.0/px4_fmu-v5_default.elf
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.2.0/SHA256SUMS
+curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/athrill3-v0.3.0-macos-arm64.tar.gz
+curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/px4_fmu-v5_default.elf
+curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/SHA256SUMS
 shasum -a 256 -c --ignore-missing SHA256SUMS
-tar xzf athrill3-v0.2.0-macos-arm64.tar.gz
+tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
 ```
 
 ### 5. Fly
@@ -130,7 +131,7 @@ In the second, PX4 on Athrill:
 ```bash
 cd "$HOME/athrill-hakoniwa"
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-hakoniwa/run.sh \
-  px4_fmu-v5_default.elf athrill3-v0.2.0-macos-arm64/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  px4_fmu-v5_default.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run makes the emulated SD card with the x500 parameters (`docs/px4/x500-hakoniwa-params.sh`) and runs
@@ -157,28 +158,16 @@ To stop, press Ctrl+C in the first two terminals, then run `/usr/local/hakoniwa/
   does not carry the core's libraries: put `/usr/local/hakoniwa/lib` on `LD_LIBRARY_PATH` for it too. It needs
   `libglfw3` and `libopengl0`.
 - The sensor device is `libhako_sensor_device.so`.
-- `athrill3-v0.2.0-linux-x86_64.tar.gz`, checked with `sha256sum -c --ignore-missing SHA256SUMS`.
+- `athrill3-v0.3.0-linux-x86_64.tar.gz`, checked with `sha256sum -c --ignore-missing SHA256SUMS`.
 - `LD_LIBRARY_PATH` in place of `DYLD_LIBRARY_PATH` for `run.sh`.
 
 ## ArduPilot
 
 The official ArduCopter firmware for the Pixhawk 4 (`Pixhawk4`, V4.7.2, from firmware.ardupilot.org) flies the same
-x500 on the same board and the same sensor device. ArduPilot reads the emulated chips with its own drivers. This
-needs this repository after v0.2.0: `examples/ardupilot-hakoniwa` and the u-blox answers that ArduPilot's GPS driver
-needs (planned for v0.3.0). Do steps 1 to 3 above first, in the same workspace.
+x500 on the same board and the same sensor device. ArduPilot reads the emulated chips with its own drivers. Do
+steps 1 to 4 above first, in the same workspace.
 
-### A1. athrill3 from main
-
-```bash
-cd "$HOME/athrill-hakoniwa"
-git -C athrill-target-stm32 checkout main
-git clone https://github.com/hakoniwalab/athrill-arm-common.git
-git -C athrill-arm-common checkout 60d8098
-cmake -S athrill-target-stm32 -B athrill-stm32-build -DCMAKE_BUILD_TYPE=Release
-cmake --build athrill-stm32-build --parallel
-```
-
-### A2. The firmware
+### A1. The firmware
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
@@ -189,7 +178,7 @@ shasum -a 256 arducopter.elf
 The SHA-256 of V4.7.2 is `cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c`. The stable directory
 moves with each release: with another version the parameter names may differ (4.7 renamed many of 4.6's).
 
-### A3. Fly
+### A2. Fly
 
 In the first terminal, Hakoniwa Drone's aircraft service with the ArduPilot airframe of the example. It is the
 x500 of `x500-athrill-px4` without the 4 ms soft delay of the IMU (PX4 SITL's) and with the GPS accuracy ArduPilot
@@ -207,7 +196,7 @@ In the second, ArduCopter on Athrill:
 ```bash
 cd "$HOME/athrill-hakoniwa"
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-hakoniwa/run.sh \
-  arducopter.elf athrill-stm32-build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  arducopter.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run boots ArduCopter on the test vehicle and writes the x500 parameters over MAVLink
@@ -239,8 +228,10 @@ The board configuration (`device_config.txt`) lets a branch to itself wait like 
 
 ## How it is set up
 
-- **Memory**: ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB, and the sensor device at `0x60000000`, out of the
-  STM32's own address map (`run.sh` writes `memory-hakoniwa.txt` with the path you give).
+- **Memory**: ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB (`memory.txt`).
+- **Board**: athrill-device's `boards/pixhawk4/pixhawk4-hakoniwa.dtb`. It is the Pixhawk 4 with the sensor device
+  as the source of the chips' samples and the sink of the PWM outputs. `run.sh` adds `DEVICE_CONFIG_DEVICE_TREE`
+  and the sensor device you give (`DEVICE_CONFIG_DEVICE_PLUGIN_0`) to the configuration of each run.
 - **Device configuration**: [examples/px4-hakoniwa/device_config.txt](../examples/px4-hakoniwa/device_config.txt).
   `HAKO_SENSOR_DEVICE_IRQ 1000` keeps the device's own data-ready interrupt away from the STM32's NVIC: the
   chips raise their own. The F-RAM and SD card files are their own, not the SIH ones (the SD card keeps a
@@ -269,6 +260,14 @@ airframe is below the IST8310's resolution, so the readings of a vehicle at rest
 do not change. It does not stop the arming or the take-off.
 
 ## Results
+
+2026-11-08, after the boards moved to their Devicetree (`run.sh` loads `pixhawk4-hakoniwa.dtb` and the sensor
+device as its plugin), macOS (Apple M2 Pro), Hakoniwa Drone v5.0.0, athrill3 from main with athrill-device main,
+no viewer, from no `fram.bin` and `sd.img`:
+- **PX4** (the ELF of release v0.1.1): first boot 18 s, then `fly.py` 3/3 PASS, 2.49 to 2.52 m in the last 10 s,
+  RTF 1.61 to 1.65.
+- **ArduPilot** (V4.7.2): the parameter write 63 s, then `fly.py` 3/3 PASS, 2.48 to 2.52 m in the last 10 s,
+  RTF 0.99 to 1.09.
 
 2026-11-05, **ArduPilot** (the steps of [ArduPilot](#ardupilot)), macOS (Apple M2 Pro), released Hakoniwa Drone
 v5.0.0 `mac.zip`, athrill3 from main, the sensor device from athrill-device main: from no `fram.bin` and `sd.img`,

@@ -18,7 +18,20 @@ ATHRILL=$(abs "$2")
 DEVICE=$(abs "$3")
 DIR=$(cd "$(dirname "$0")" && pwd)
 cd "$DIR"
-{ cat memory.txt; echo "DEV, 0x60000000, $DEVICE"; } > memory-hakoniwa.txt
+EXAMPLES=$(cd "$DIR/.." && pwd)
+. "$EXAMPLES/boards.sh"
+DTB=$(board_dtb pixhawk4 pixhawk4-hakoniwa)
+if [ ! -f "$DTB" ]; then
+	echo "no $DTB: clone hakoniwalab/athrill-device next to this repository or set ATHRILL_DEVICE_DIR" >&2
+	exit 1
+fi
+# The board from its Devicetree, with the Hakoniwa sensor device as its plugin.
+dt_config() {	# configuration -> configuration for this run
+	{ grep -v -e '^DEVICE_CONFIG_DEVICE_TREE ' -e '^DEVICE_CONFIG_DEVICE_PLUGIN_0 ' "$1"
+	  echo "DEVICE_CONFIG_DEVICE_TREE $DTB"
+	  echo "DEVICE_CONFIG_DEVICE_PLUGIN_0 hakoniwa%2Csensor-device=$DEVICE"; } > "$2"
+}
+dt_config device_config.txt device_config-run.txt
 if [ ! -e sd.img ]; then
 	rm -f sd.img.blank
 	../px4-sih/make-sd-image.sh "$DIR/sd.img.blank"
@@ -27,7 +40,8 @@ if [ ! -e sd.img ]; then
 fi
 if [ ! -e fram.bin ]; then
 	echo "first boot: the x500 parameters into fram.bin (a few minutes) ..."
-	"$ATHRILL" -c1 -m memory-hakoniwa.txt -d first-boot-config.txt -t 8640000000 "$ELF" > first-boot.log 2>&1 || true
+	dt_config first-boot-config.txt first-boot-config-run.txt
+	"$ATHRILL" -c1 -m memory.txt -d first-boot-config-run.txt -t 8640000000 "$ELF" > first-boot.log 2>&1 || true
 	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log; then
 		echo "first boot failed, see $DIR/first-boot.log" >&2
 		rm -f fram.bin
@@ -35,4 +49,4 @@ if [ ! -e fram.bin ]; then
 	fi
 fi
 echo "PX4 on Athrill with Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"
-exec "$ATHRILL" -c1 -m memory-hakoniwa.txt -d device_config.txt -t -1 "$ELF"
+exec "$ATHRILL" -c1 -m memory.txt -d device_config-run.txt -t -1 "$ELF"
