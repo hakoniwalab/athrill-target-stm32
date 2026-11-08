@@ -61,13 +61,6 @@ void stm32_probe_init(void)
 	stm32_probe_dbgmcu_data[3] = 0x10U;
 }
 
-#define RCC_CR		0x40023800U
-#define RCC_CFGR	0x40023808U
-#define RCC_BDCR	0x40023870U
-#define RCC_CSR		0x40023874U
-#define PWR_CR1		0x40007000U
-#define PWR_CSR1	0x40007004U
-#define FLASH_SR	0x40023C0CU
 #define RTC_ISR		0x4000280CU
 #define OTG_FS_GRSTCTL	0x50000010U
 #define ADC1_SR		0x40012000U
@@ -146,17 +139,6 @@ static uint32 read_word(MpuAddressRegionType *r, uint32 addr)
 		}
 	}
 	switch (a) {
-	case RCC_CR:	/* HSIRDY, HSERDY, PLLRDY, PLLI2SRDY, PLLSAIRDY follow their ON bits */
-		return v | ((v & 0x15010001U) << 1);
-	case RCC_CFGR:	/* SWS = SW */
-		return (v & ~0xCU) | ((v & 0x3U) << 2);
-	case RCC_BDCR:	/* LSERDY = LSEON */
-	case RCC_CSR:	/* LSIRDY = LSION */
-		return v | ((v & 1U) << 1);
-	case PWR_CSR1:	/* VOSRDY; ODRDY, ODSWRDY follow CR1's ODEN, ODSWEN; BRR follows BRE */
-		return v | (1U << 14) | (*word_at(r, PWR_CR1) & (3U << 16)) | ((v & (1U << 9)) >> 6);
-	case FLASH_SR:	/* not busy */
-		return v & ~(1U << 16);
 	case RTC_ISR:	/* RSF (registers synchronised); INITF follows INIT */
 		return v | (1U << 5) | ((v & (1U << 7)) >> 1);
 	case OTG_FS_GRSTCTL:	/* CSRST, RXFFLSH, TXFFLSH done; AHBIDL */

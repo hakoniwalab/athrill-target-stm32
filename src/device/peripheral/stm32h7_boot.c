@@ -12,19 +12,6 @@
 #define H7_D2_BASE 0x40000000U
 #define H7_D2_SIZE 0x00080000U
 
-#define RCC_BASE       0x58024400U
-#define RCC_CR         (RCC_BASE + 0x00U)
-#define RCC_CFGR       (RCC_BASE + 0x10U)
-#define RCC_BDCR       (RCC_BASE + 0x70U)
-#define RCC_CSR        (RCC_BASE + 0x74U)
-#define PWR_BASE       0x58024800U
-#define PWR_CSR1       (PWR_BASE + 0x04U)
-#define PWR_CR3        (PWR_BASE + 0x0CU)
-#define PWR_D3CR       (PWR_BASE + 0x18U)
-#define FLASH_BASE     0x52002000U
-#define FLASH_ACR      (FLASH_BASE + 0x00U)
-#define FLASH_SR1      (FLASH_BASE + 0x10U)
-#define FLASH_SR2      (FLASH_BASE + 0x90U)
 #define SYSCFG_BASE    0x58000400U
 #define RTC_BASE       0x58004000U
 #define RTC_ICSR       (RTC_BASE + 0x0CU)
@@ -77,12 +64,9 @@ static const H7RegionType regions[] = {
 	{ RNG_BASE, 0x400U, &stm32h7_ahb2_data[RNG_BASE - STM32H7_AHB2_BASE] },
 	{ AXI_TARG7_BASE, AXI_TARG7_SIZE,
 		&stm32h7_axi_data[AXI_TARG7_BASE - STM32H7_AXI_BASE] },
-	{ FLASH_BASE, 0x400U, &stm32h7_d1_data[FLASH_BASE - STM32H7_D1_BASE] },
 	{ SYSCFG_BASE, 0x400U, &stm32h7_d3_data[SYSCFG_BASE - STM32H7_D3_BASE] },
 	{ RTC_BASE, 0x400U, &stm32h7_d3_data[RTC_BASE - STM32H7_D3_BASE] },
 	{ IWDG_BASE, 0x400U, &stm32h7_d3_data[IWDG_BASE - STM32H7_D3_BASE] },
-	{ RCC_BASE, 0x400U, &stm32h7_d3_data[RCC_BASE - STM32H7_D3_BASE] },
-	{ PWR_BASE, 0x400U, &stm32h7_d3_data[PWR_BASE - STM32H7_D3_BASE] },
 	{ BDMA_BASE, 0x400U, &stm32h7_d3_data[BDMA_BASE - STM32H7_D3_BASE] },
 	{ ADC3_BASE, 0x400U, &stm32h7_d3_data[ADC3_BASE - STM32H7_D3_BASE] },
 	{ STM32H7_DBGMCU_BASE, STM32H7_DBGMCU_SIZE, stm32h7_dbgmcu_data },
@@ -160,30 +144,6 @@ Std_ReturnType stm32h7_boot_read(uint32 addr, uint32 size, uint32 *value)
 	}
 	v = stored_word(region, a);
 	switch (a) {
-	case RCC_CR:
-		/* HSIRDY, CSIRDY, HSI48RDY, HSERDY and PLL1/2/3RDY follow their ON bits. */
-		v |= ((v & (1U << 0)) != 0U) ? (1U << 2) : 0U;
-		v |= (v & ((1U << 7) | (1U << 12) | (1U << 16)
-			| (1U << 24) | (1U << 26) | (1U << 28))) << 1;
-		break;
-	case RCC_CFGR:
-		v = (v & ~(7U << 3)) | ((v & 7U) << 3); /* SWS = SW */
-		break;
-	case RCC_BDCR:
-	case RCC_CSR:
-		v |= (v & 1U) << 1;
-		break;
-	case PWR_CSR1:
-	case PWR_D3CR:
-		v |= 1U << 13; /* ACTVOSRDY / VOSRDY */
-		break;
-	case PWR_CR3:
-		v |= (v & (1U << 24)) << 2; /* USB33RDY follows USB33DEN */
-		break;
-	case FLASH_SR1:
-	case FLASH_SR2:
-		v &= 0x0000FFFFU; /* QW/CRC busy are clear */
-		break;
 	case RTC_ICSR:
 		v |= (1U << 5) | ((v & (1U << 7)) >> 1); /* RSF, INITF */
 		break;
@@ -249,10 +209,6 @@ void stm32h7_boot_reset(void)
 	memcpy(&stm32h7_sysmem_high_data[0xE800U], uid, sizeof(uid));
 	stm32h7_sysmem_high_data[0xE880U] = 0x00U;
 	stm32h7_sysmem_high_data[0xE881U] = 0x08U;
-
-	/* Reset clock source: HSI on and ready. */
-	store_bytes(region_of(RCC_CR, 4U), RCC_CR, 4U, (1U << 0) | (1U << 2));
-	store_bytes(region_of(FLASH_ACR, 4U), FLASH_ACR, 4U, 0U);
 }
 
 static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
