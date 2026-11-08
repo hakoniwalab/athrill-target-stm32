@@ -171,12 +171,13 @@ steps 1 to 4 above first, in the same workspace.
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
-curl -LO https://firmware.ardupilot.org/Copter/stable/Pixhawk4/arducopter.elf
+curl -LO https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk4/arducopter.elf
 shasum -a 256 arducopter.elf
 ```
 
-The SHA-256 of V4.7.2 is `cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c`. The stable directory
-moves with each release: with another version the parameter names may differ (4.7 renamed many of 4.6's).
+The SHA-256 of V4.7.2 is `cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c`. ArduPilot is GPL-3.0, so
+this project does not redistribute it. `stable-4.7.2` keeps this version; `stable` moves with each release, and with
+another version the parameter names may differ (4.7 renamed many of 4.6's).
 
 ### A2. Fly
 
