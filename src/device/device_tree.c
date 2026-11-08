@@ -291,10 +291,6 @@ static sint32 target_model_adapter_connect(void *context,
 	if ((strcmp(adapter_name, "stm32f7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32f765") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32f7") == 0)) ||
-	    (strcmp(adapter_name, "stm32f7-flash") == 0 &&
-	     (strcmp(node->matched_compatible, "st,stm32-flash-controller") == 0 ||
-	      strcmp(node->matched_compatible, "st,stm32f7-flash-controller") == 0 ||
-	      strcmp(node->matched_compatible, "zephyr,flash-controller") == 0)) ||
 	    (strcmp(adapter_name, "stm32f7-rtc") == 0 &&
 	     strcmp(node->matched_compatible, "st,stm32-rtc") == 0) ||
 	    (strcmp(adapter_name, "stm32f7-adc") == 0 &&
@@ -311,10 +307,6 @@ static sint32 target_model_adapter_connect(void *context,
 	    (strcmp(adapter_name, "stm32h7-soc") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32h743") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32h7") == 0)) ||
-	    (strcmp(adapter_name, "stm32h7-rcc") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32h7-rcc") == 0) ||
-	    (strcmp(adapter_name, "stm32h7-pwr") == 0 &&
-	     strcmp(node->matched_compatible, "st,stm32h7-pwr") == 0) ||
 	    (strcmp(adapter_name, "stm32h7-boot-register") == 0 &&
 	     (strcmp(node->matched_compatible, "st,stm32-bdma") == 0 ||
 	      strcmp(node->matched_compatible, "st,stm32-watchdog") == 0 ||

@@ -48,22 +48,12 @@ int main(void)
 	TEST_CHECK(stm32_board_num_irq() == 150U);
 	stm32h7_boot_reset();
 
-	write32(0x58024400U, 1U);
-	TEST_CHECK((read32(0x58024400U) & (1U << 2)) != 0U);
-	write32(0x58024400U, (1U << 12) | (1U << 16) | (1U << 24) | (1U << 26) | (1U << 28));
-	value = read32(0x58024400U);
-	TEST_CHECK((value & ((1U << 13) | (1U << 17) | (1U << 25) | (1U << 27) | (1U << 29)))
-		== ((1U << 13) | (1U << 17) | (1U << 25) | (1U << 27) | (1U << 29)));
-
-	write32(0x58024410U, 3U);
-	TEST_CHECK((read32(0x58024410U) & (7U << 3)) == (3U << 3));
-	TEST_CHECK((read32(0x58024804U) & (1U << 13)) != 0U);
-	TEST_CHECK((read32(0x58024818U) & (1U << 13)) != 0U);
-	write32(0x5802480CU, 1U << 24);
-	TEST_CHECK((read32(0x5802480CU) & (1U << 26)) != 0U);
-
-	write32(0x52002000U, 0x22U);
-	TEST_CHECK(read32(0x52002000U) == 0x22U);
+	/* RCC, PWR and FLASH are athrill-device register blocks with their own
+	 * windows and Devicetree rules (hakoniwalab/athrill-device#13 4-7): the
+	 * boot regions do not take their addresses */
+	TEST_CHECK(stm32h7_boot_read(0x58024400U, 4U, &value) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_write(0x58024804U, 4U, 0U) != STD_E_OK);
+	TEST_CHECK(stm32h7_boot_read(0x52002010U, 4U, &value) != STD_E_OK);
 	write32(0x5800400CU, 1U << 7);
 	TEST_CHECK((read32(0x5800400CU) & ((1U << 5) | (1U << 6)))
 		== ((1U << 5) | (1U << 6)));
