@@ -93,7 +93,7 @@ for run in run1 run2; do
 	mkdir -p "$WORK/$run"
 	cd "$WORK/$run"
 	cp "$HERE/memory.txt" "$HERE/bench.nsh" .
-	{ cat "$HERE/device_config.txt" | grep -v UART2_TCP; echo "DEVICE_CONFIG_STM32_UART_RX_FILE bench.nsh"; } > config.txt
+	{ cat "$HERE/device_config.txt" | grep -v UART2_TCP; echo "DEVICE_CONFIG_STM32_UART_RX_FILE bench.nsh"; echo "DEVICE_CONFIG_STM32_UART_RX_DELAY_MS 1000"; } > config.txt
 	append_device_tree config.txt
 	clone "$WORK/golden/fram.bin" fram.bin
 	clone "$WORK/golden/sd.img" sd.img

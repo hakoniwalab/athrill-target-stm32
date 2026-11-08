@@ -117,13 +117,16 @@ echo "ELF sha256: $ELF_SHA"
 # (before: at the end of the bus time). The flight differs from the release
 # run from that timing on (shown by restoring the old timing: the old values
 # return); every determinism and flight check passes in 3 runs.
+# Re-recorded 2026-11-08: the UART receives whenever UE and RE are set, as
+# on the chip, and the scenario is typed from 1 s on (from 0 s PX4's console
+# setup drops the first character); every determinism and flight check passes.
 # docs/verification.md keeps the release run's values.
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
-PUBLISHED_ULOG=f5e027ad0e09066740f92a480160d647ce2acf3130a1f8acd1abfc3c4a908b33
-PUBLISHED_FRAM=df47fba8e7c01577dd5df410cef35aef60323dbb9785a77d8e0cc3d4f4c274c9
+PUBLISHED_ULOG=b6006b6def93f19c76376f2616d210e676367abaf589143a13b95e82c37c91ac
+PUBLISHED_FRAM=86dab85776be9545d5960ac1850ca907410dcadba7b78031b53dce3836a8351e
 # console: normalised without Athrill's configuration echo lines
-PUBLISHED_CONSOLE=926ac8aa8c8c1ec9935f4fe30b6b4c7d779becd913768b83d18d1f94253d3f08
-PUBLISHED_SD=42a2ae12833203a0f13e6c8bc1db87a1a1e7ea1e62bddf22ca6ee7565d828927
+PUBLISHED_CONSOLE=deb8c6a224567432f9582302c08eff0db380bb0ed5382ea2688e44074aefec8c
+PUBLISHED_SD=84cbe953aa4523abe89fe36d37d7ce387aea01bd9f7d12a12388f5df008e8955
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
@@ -142,6 +145,7 @@ for run in fast1 fast2 strict; do
 	cp "$EXAMPLE/memory.txt" "$HERE/scenario.nsh" .
 	grep -v UART2_TCP "$EXAMPLE/device_config.txt" > config.txt
 	echo "DEVICE_CONFIG_STM32_UART_RX_FILE scenario.nsh" >> config.txt
+	echo "DEVICE_CONFIG_STM32_UART_RX_DELAY_MS 1000" >> config.txt
 	append_device_tree config.txt
 	if [ $run = strict ]; then
 		echo "DEVICE_CONFIG_ARM_FP_MODE strict" >> config.txt
