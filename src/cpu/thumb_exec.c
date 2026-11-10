@@ -400,10 +400,14 @@ Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64
 {
 	Std_ReturnType err = STD_E_OK;
 	uint64 n = 0U;
+	/* idle_ready() is FALSE at any other PC: asked only there */
+	AthrillAddrType idle_pc = athrill_idle_spin_halt_idle_pc();
 
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed && !core->reset_pending
-		&& !core->scs.reset_requested
-		&& !athrill_idle_spin_halt_idle_ready(core->core_id)) {
+		&& !core->scs.reset_requested) {
+		if (((AthrillAddrType)core->reg.pc == idle_pc) && athrill_idle_spin_halt_idle_ready(core->core_id)) {
+			break;
+		}
 		(*clock)++;
 		n++;
 		err = execute_one(core);
