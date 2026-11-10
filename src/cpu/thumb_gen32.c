@@ -9102,3 +9102,40 @@ const ThumbExec32 thumb_gen_executors32[T32_32_ID_NUM] = {
 	[T32_32_VMAXNM_T2_D] = exec_vmaxnm_t2_d,
 	[T32_32_VMINNM_T2_D] = exec_vminnm_t2_d,
 };
+
+#ifdef ATHRILL_ENABLE_JIT
+#include "arm_common/arm_pseudo_fp_arith.h"
+/*
+ * The single-precision arithmetic for the JIT (thumb_exec.c): what
+ * ArmFPArith() does once ArmFPBegin() has passed (condition AL, nothing for
+ * ArmExecuteFPCheck() to do: the JIT checks both before the call), with the
+ * registers d, n, m packed as d | n << 8 | m << 16.
+ */
+#define THUMB_JIT_FP_ARITH(name, op) \
+	Std_ReturnType thumb_jit_fp_##name(TargetCoreType *core, uint32 regs) \
+	{ \
+		uint32 fpscr = ArmFPSCR(core); \
+		uint64 d = ArmFPRead(core, FALSE, regs & 0xFFU); \
+		uint64 n = ArmFPRead(core, FALSE, (regs >> 8) & 0xFFU); \
+		uint64 m = ArmFPRead(core, FALSE, (regs >> 16) & 0xFFU); \
+		uint64 result; \
+		arm_fp_output_type out; \
+		\
+		if (!ArmFPHostFast(core) || !ArmFPHostOperation((uint32)(op), d, n, m, 32U, &fpscr, &result)) { \
+			result = ArmFPOperation((op), d, n, m, 32U, &fpscr); \
+		} \
+		ArmFPSCRWrite(core, fpscr); \
+		ArmFPWrite(core, FALSE, regs & 0xFFU, result, &out); \
+		return STD_E_OK; \
+	}
+
+THUMB_JIT_FP_ARITH(vadd, ArmFPOp_VADD)
+THUMB_JIT_FP_ARITH(vsub, ArmFPOp_VSUB)
+THUMB_JIT_FP_ARITH(vmul, ArmFPOp_VMUL)
+THUMB_JIT_FP_ARITH(vnmul, ArmFPOp_VNMUL)
+THUMB_JIT_FP_ARITH(vdiv, ArmFPOp_VDIV)
+THUMB_JIT_FP_ARITH(vfma, ArmFPOp_VFMA)
+THUMB_JIT_FP_ARITH(vfms, ArmFPOp_VFMS)
+THUMB_JIT_FP_ARITH(vfnms, ArmFPOp_VFNMS)
+#endif /* ATHRILL_ENABLE_JIT */
+

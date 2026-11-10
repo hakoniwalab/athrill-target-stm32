@@ -56,7 +56,7 @@ tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
 tar xzf zephyr-samples-v0.3.0.tar.gz
 git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ff23daf
+git -C athrill-device checkout ab4de28
 athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi zephyr-samples-v0.3.0/philosophers-nucleo_f767zi.elf 10 athrill3-v0.3.0-macos-arm64/athrill3
 ```
 
@@ -124,6 +124,10 @@ ArduPilot also runs this firmware on Renode, so we compared the two on one Apple
 | **Athrill STM32**, a branch to itself waits as `WFI` (no knowledge of the firmware) | **1.583** |
 | Athrill STM32, the idle loop executed as written | 0.62 |
 | Renode, ArduPilot's performance branch | 0.30 |
+| **Athrill STM32 with its JIT and tick skip** (below), branch to itself as `WFI` | **2.30** |
+| **Athrill STM32 with its JIT and tick skip**, the idle loop executed as written | **2.15** |
+
+The last two rows are the mean of 2 runs of 80 virtual seconds on the same Mac (2026-11-10).
 
 The PC traces of the two emulators agree on 411,627 of the 411,873 instructions that Renode traced from reset;
 they differ only where the firmware waits on hardware timing. Athrill is faster because it executes no idle time
@@ -131,6 +135,51 @@ they differ only where the firmware waits on hardware timing. Athrill is faster 
 computes its state from the clock when the firmware reads it. The emulated peripherals differ, so these are
 results for these two configurations, not a normalised comparison.
 [docs/ardupilot.md](docs/ardupilot.md) and [docs/time-skip.md](docs/time-skip.md) have the details.
+
+## Faster: a block JIT and tick skip
+
+Two options make the same runs about 1.8 times faster, **with every output bit-identical**:
+
+- **The JIT** translates each basic block of the firmware into host code once, with [sljit](https://github.com/zherczeg/sljit),
+  and chains the blocks. Instructions it does not translate, device accesses and exceptions take the interpreter's own code.
+- **Tick skip** ([athrill-device](https://github.com/hakoniwalab/athrill-device/blob/main/docs/design/tick-skip.md))
+  ticks a device model only when that tick can change something: a timer before its next event, an idle UART or a GPIO
+  port is skipped.
+
+Real-time factor on an Apple M2 Pro, the same binary, mean of 2 runs (2026-11-10):
+
+| Firmware | Interpreter | JIT | **JIT + tick skip** |
+| --- | ---: | ---: | ---: |
+| PX4 v1.17.0, the fmu-v5 bench (55.6 virtual s) | 1.80 | 2.87 | **3.19** |
+| PX4 v1.17.0 SIH: take off, hover, land (74.1 virtual s) | 1.96 | 3.32 | **3.52** |
+| ArduCopter V4.7.2, branch to itself as `WFI` (80 virtual s) | 1.28 | 1.95 | **2.30** |
+| ArduCopter V4.7.2, the idle loop executed (80 virtual s) | 1.19 | 1.75 | **2.15** |
+| Zephyr `philosophers`, NUCLEO-F767ZI (30 virtual s) | 0.51 | 0.52 | **0.63** |
+
+In every row the three runs give the same output: PX4's console, the SIH run's F-RAM and whole SD card image (equal to
+the published run), ArduCopter's MAVLink bytes, Zephyr's console, and the number of executed instructions. A
+differential test runs the interpreter and the JIT side by side on the same state and compares the whole core after
+every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
+
+Both are off by default. They need the [sljit](https://github.com/zherczeg/sljit) checkout next to `athrill`. From
+`athrill-target-stm32`, after the steps in [Build from source](#build-from-source):
+
+```sh
+git clone https://github.com/zherczeg/sljit.git ../sljit
+git -C ../sljit checkout 23d64b7
+cmake -S . -B build-fast -DCMAKE_BUILD_TYPE=Release -DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON
+cmake --build build-fast --parallel
+```
+
+Then add these two lines to the run's device configuration:
+
+```text
+DEVICE_CONFIG_STM32_JIT 1
+DEVICE_CONFIG_DEVICE_TICK_SKIP 1
+```
+
+The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time in its idle loop,
+which neither option shortens.
 
 ## Bit-identical, and checked
 
@@ -168,11 +217,11 @@ Place four repositories side by side, at the versions these results come from:
 
 ```sh
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout bc8d76a
+git -C athrill checkout a63d4cd
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ff23daf
+git -C athrill-device checkout ab4de28
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 

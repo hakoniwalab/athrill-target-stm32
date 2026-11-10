@@ -119,6 +119,7 @@ add_library(athrill_stm32_cpu STATIC
   src/cpu/thumb_gen32.c
   src/cpu/decoder/t32_decode16.c
   src/cpu/decoder/t32_decode32.c
+  ${ATHRILL_JIT_SOURCES}
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
 stm32_target(athrill_stm32_cpu)
 if(ATHRILL_STM32_COVERAGE)
@@ -197,6 +198,18 @@ if(BUILD_TESTING)
     src/cpu/decoder/t32_decode16.c src/cpu/decoder/t32_decode32.c)
   stm32_target(test_thumb_fast)
   add_test(NAME cpu-thumb-fast COMMAND test_thumb_fast)
+  if(ATHRILL_ENABLE_JIT)
+    add_executable(test_stm32_jit_diff
+      test/cpu/test_stm32_jit_diff.c
+      src/cpu/thumb_exec.c src/cpu/thumb_fast.c src/cpu/thumb_exec16.c src/cpu/thumb_exec32.c
+      src/cpu/thumb_gen16.c src/cpu/thumb_gen32.c
+      src/cpu/decoder/t32_decode16.c src/cpu/decoder/t32_decode32.c
+      ${ATHRILL_JIT_SOURCES} "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
+    stm32_target(test_stm32_jit_diff)
+    target_compile_definitions(test_stm32_jit_diff PRIVATE ATHRILL_STM32_JIT_DIFF_TEST)
+    add_test(NAME stm32-jit-diff COMMAND test_stm32_jit_diff)
+    set_tests_properties(stm32-jit-diff PROPERTIES TIMEOUT 120)
+  endif()
   add_library(test_host_function_library SHARED test/cpu/test_host_function_library.c)
   target_include_directories(test_host_function_library PRIVATE "${ATHRILL_SRC_DIR}/inc")
   add_executable(test_host_function

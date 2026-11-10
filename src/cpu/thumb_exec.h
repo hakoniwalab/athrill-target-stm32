@@ -30,4 +30,16 @@ Std_ReturnType thumb_execute32(TargetCoreType *core, uint32 insn);
 /* Hook for the core-owned branch-to-self halt policy. */
 std_bool thumb_is_branch_to_self(CoreIdType core_id, AthrillAddrType pc);
 
+#ifdef ATHRILL_ENABLE_JIT
+/* thumb_gen32.c: the single-precision arithmetic of the JIT (regs: d | n << 8 | m << 16) */
+Std_ReturnType thumb_jit_fp_vadd(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vsub(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vmul(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vnmul(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vdiv(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vfma(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vfms(TargetCoreType *core, uint32 regs);
+Std_ReturnType thumb_jit_fp_vfnms(TargetCoreType *core, uint32 regs);
+#endif
+
 #endif /* ATHRILL_STM32_THUMB_EXEC_H */
