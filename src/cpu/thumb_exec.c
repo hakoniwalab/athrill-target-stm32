@@ -1364,6 +1364,115 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 }
 
 /*
+ * Floating-point instructions without memory, single precision:
+ *   - VADD, VSUB, VMUL, VNMUL, VDIV, VFMA, VFMS, VFNMS: a direct call of
+ *     their arithmetic (thumb_gen32.c: thumb_jit_fp_*), which is
+ *     ArmFPArith() after its checks;
+ *   - VABS, VNEG, VMOV (register): the sign bit cleared, flipped, or the
+ *     value copied (FPAbs, FPNeg, a move: no exception, no FPSCR change);
+ *   - VMRS (FPSCR to Rt, or its NZCV to APSR), VMOV between Rt and Sn.
+ * Both after the condition (AL in a block) and ArmExecuteFPCheck() with
+ * nothing to do (thumb_jit_fp_ready()); otherwise the C path.
+ */
+static std_bool thumb_jit_native_fp(AthrillJitBuilder *b, const ThumbDecodedType *e, ThumbJitSlow *slow)
+{
+	uint32 insn = e->insn;
+	T32Decode32Id id;
+	Std_ReturnType (*arith)(TargetCoreType *, uint32) = NULL;
+	uint32 d;
+	uint32 n = 0U;
+	uint32 m;
+
+	if (e->length != 4U) {
+		return FALSE;
+	}
+	id = t32_decode32(insn);
+	switch (id) {
+#define TJ_FP3(ID, NAME, FN) \
+	case ID: \
+		d = TJ_SREG(t32w_##NAME##_Vd(insn), t32w_##NAME##_D(insn)); \
+		n = TJ_SREG(t32w_##NAME##_Vn(insn), t32w_##NAME##_N(insn)); \
+		m = TJ_SREG(t32w_##NAME##_Vm(insn), t32w_##NAME##_M(insn)); \
+		arith = FN; \
+		break;
+	TJ_FP3(T32_32_VADD_f_T2_S, VADD_f_T2_S, thumb_jit_fp_vadd)
+	TJ_FP3(T32_32_VSUB_f_T2_S, VSUB_f_T2_S, thumb_jit_fp_vsub)
+	TJ_FP3(T32_32_VMUL_f_T2_S, VMUL_f_T2_S, thumb_jit_fp_vmul)
+	TJ_FP3(T32_32_VNMUL_T1_S, VNMUL_T1_S, thumb_jit_fp_vnmul)
+	TJ_FP3(T32_32_VDIV_T1_S, VDIV_T1_S, thumb_jit_fp_vdiv)
+	TJ_FP3(T32_32_VFMA_T2_S, VFMA_T2_S, thumb_jit_fp_vfma)
+	TJ_FP3(T32_32_VFMS_T2_S, VFMS_T2_S, thumb_jit_fp_vfms)
+	TJ_FP3(T32_32_VFNMS_T1_S, VFNMS_T1_S, thumb_jit_fp_vfnms)
+#undef TJ_FP3
+	case T32_32_VABS_T2_S:
+		d = TJ_SREG(t32w_VABS_T2_S_Vd(insn), t32w_VABS_T2_S_D(insn));
+		m = TJ_SREG(t32w_VABS_T2_S_Vm(insn), t32w_VABS_T2_S_M(insn));
+		break;
+	case T32_32_VNEG_T2_S:
+		d = TJ_SREG(t32w_VNEG_T2_S_Vd(insn), t32w_VNEG_T2_S_D(insn));
+		m = TJ_SREG(t32w_VNEG_T2_S_Vm(insn), t32w_VNEG_T2_S_M(insn));
+		break;
+	case T32_32_VMOV_r_T2_S:
+		d = TJ_SREG(t32w_VMOV_r_T2_S_Vd(insn), t32w_VMOV_r_T2_S_D(insn));
+		m = TJ_SREG(t32w_VMOV_r_T2_S_Vm(insn), t32w_VMOV_r_T2_S_M(insn));
+		break;
+	case T32_32_VMRS_T1_AS:
+		/* VMRS Rt, FPSCR / APSR_nzcv, FPSCR (Rt 15) */
+		d = t32w_VMRS_T1_AS_Rt(insn);
+		m = 0U;
+		if ((d == 13U) || (t32w_VMRS_T1_AS_reg(insn) != 1U)) {
+			return FALSE;
+		}
+		break;
+	case T32_32_VMOV_s_T1:
+		/* VMOV Rt, Sn */
+		d = t32w_VMOV_s_T1_Rt(insn);
+		m = TJ_SREG(t32w_VMOV_s_T1_Vn(insn), t32w_VMOV_s_T1_N(insn));
+		if (d >= 13U) {
+			return FALSE;
+		}
+		break;
+	case T32_32_VMOV_tos_T1:
+		/* VMOV Sn, Rt */
+		d = TJ_SREG(t32w_VMOV_tos_T1_Vn(insn), t32w_VMOV_tos_T1_N(insn));
+		m = t32w_VMOV_tos_T1_Rt(insn);
+		if (m >= 13U) {
+			return FALSE;
+		}
+		break;
+	default:
+		return FALSE;
+	}
+	slow->start = athrill_jit_label_new(b);
+	slow->resume = athrill_jit_label_new(b);
+	slow->entry = e;
+	thumb_jit_fp_ready(b, slow->start);
+	if (arith != NULL) {
+		athrill_jit_call_value(b, (AthrillJitCallValueFunc)(void *)arith, d | (n << 8) | (m << 16));
+	} else if (id == T32_32_VABS_T2_S) {
+		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_S(d), TJ_S(m), athrill_jit_imm(0x7FFFFFFFLL));
+	} else if (id == T32_32_VNEG_T2_S) {
+		athrill_jit_alu(b, ATHRILL_JIT_XOR, TJ_S(d), TJ_S(m), athrill_jit_imm(0x80000000LL));
+	} else if (id == T32_32_VMRS_T1_AS) {
+		if (d == 15U) {
+			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1W, TJ_CORE(reg.fpscr, 4), athrill_jit_imm((sint64)TJ_NZCV));
+			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_APSR, TJ_APSR, athrill_jit_imm((sint64)(~TJ_NZCV & 0xFFFFFFFFU)));
+			athrill_jit_alu(b, ATHRILL_JIT_OR, TJ_APSR, TJ_APSR, TJ_T1W);
+		} else {
+			athrill_jit_mov(b, TJ_R(d), TJ_CORE(reg.fpscr, 4));
+		}
+	} else if (id == T32_32_VMOV_s_T1) {
+		athrill_jit_mov(b, TJ_R(d), TJ_S(m));
+	} else if (id == T32_32_VMOV_tos_T1) {
+		athrill_jit_mov(b, TJ_S(d), TJ_R(m));
+	} else {
+		athrill_jit_mov(b, TJ_S(d), TJ_S(m));
+	}
+	athrill_jit_label_place(b, slow->resume);
+	return TRUE;
+}
+
+/*
  * Emits a load or store natively with its C path in *slow (filled in);
  * FALSE: not one of these. POP {.., PC} goes on to the shared taken exit.
  */
@@ -1603,7 +1712,8 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 			}
 			continue;
 		}
-		if (thumb_jit_native_memory(b, e, &slows[slow_count], taken)) {
+		if (thumb_jit_native_memory(b, e, &slows[slow_count], taken)
+			|| thumb_jit_native_fp(b, e, &slows[slow_count])) {
 			slow_count++;
 			continue;
 		}
