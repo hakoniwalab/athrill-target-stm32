@@ -178,6 +178,13 @@ static void put_bl(uint32 pc, uint32 target)
 	put16(pc + 2U, (uint16)(0xD000U | (j1 << 13) | (j2 << 11) | ((imm >> 1) & 0x7FFU)));
 }
 
+static void put_b(uint32 pc, uint32 target)
+{
+	uint32 imm = (target - (pc + 4U)) >> 1;
+
+	put16(pc, (uint16)(0xE000U | (imm & 0x7FFU)));
+}
+
 static void reset_windows(void)
 {
 	memset(memory_windows, 0, sizeof(memory_windows));
@@ -873,6 +880,14 @@ static void persistent_call(PersistentPair *pair, const char *name, uint64 budge
 		device_value, device_value, device_writes, device_writes, &pair->a, &pair->b);
 }
 
+static void persistent_set_pc(PersistentPair *pair, uint32 pc)
+{
+	pair->a.reg.pc = pc;
+	pair->a.reg.next_pc = pc;
+	pair->b.reg.pc = pc;
+	pair->b.reg.next_pc = pc;
+}
+
 static void test_chaining(void)
 {
 	TargetCoreType core;
@@ -893,6 +908,209 @@ static void test_chaining(void)
 		printf("FAIL chaining: links=%u entries=%llu C-runs=%llu\n", stats.chain_links,
 			(unsigned long long)stats.block_entries, (unsigned long long)stats.runs); failures++;
 	}
+}
+
+static void test_cache_refill(void)
+{
+	enum { BLOCKS = 600 };
+	TargetCoreType core;
+	PersistentPair pair;
+	ThumbJitDiffStats stats;
+	uint32 base = CODE_BASE + 0x2000U;
+	uint32 i;
+
+	/* Two instructions per basic block; the final BL starts another circuit. */
+	for (i = 0U; i < BLOCKS; i++) {
+		uint32 pc = base + 4U * i;
+
+		put16(pc, add_i8(0U, 1U));
+		if (i + 1U < BLOCKS) {
+			put_b(pc + 2U, pc + 4U);
+		} else {
+			put_bl(pc + 2U, base);
+		}
+	}
+	init_core(&core, base);
+	persistent_begin(&pair, &core);
+	for (i = 0U; i < 4U; i++) {
+		persistent_call(&pair, "cache refill distinct blocks", 300U);
+	}
+	/* The first blocks were translated before both flushes and must now be rebuilt. */
+	persistent_call(&pair, "cache refill revisits old epoch", 64U);
+	thumb_jit_diff_get_stats(&stats);
+	if ((stats.cache_flushes < 2U) || (stats.translated <= BLOCKS)
+		|| (stats.cache_inserts != stats.translated)) {
+		printf("FAIL cache refill: flushes=%llu translated=%llu inserts=%llu blocks=%u\n",
+			(unsigned long long)stats.cache_flushes,
+			(unsigned long long)stats.translated,
+			(unsigned long long)stats.cache_inserts, stats.cache_blocks);
+		failures++;
+	}
+	printf("cache refill: flushes=%llu translated=%llu inserts=%llu held=%u\n",
+		(unsigned long long)stats.cache_flushes,
+		(unsigned long long)stats.translated,
+		(unsigned long long)stats.cache_inserts, stats.cache_blocks);
+}
+
+static void test_cache_links_and_indirect(void)
+{
+	enum { FILLER_BLOCKS = 270 };
+	TargetCoreType core;
+	PersistentPair pair;
+	ThumbJitDiffStats before;
+	ThumbJitDiffStats repeated;
+	ThumbJitDiffStats filled;
+	ThumbJitDiffStats after_bx;
+	ThumbJitDiffStats after_pop;
+	uint32 loop = CODE_BASE + 0x3000U;
+	uint32 bx = CODE_BASE + 0x3040U;
+	uint32 pop = CODE_BASE + 0x3060U;
+	uint32 filler = CODE_BASE + 0x3200U;
+	uint32 sp;
+	uint32 i;
+
+	put_b(loop, loop + 2U);
+	put_b(loop + 2U, loop + 4U);
+	put_b(loop + 4U, loop);
+	put16(bx, 0x4738U); /* BX r7 */
+	put_b(bx + 2U, bx + 2U); /* bounds translation; BX exits before it */
+	put16(pop, 0xBD00U); /* POP {pc} */
+	put_b(pop + 2U, pop + 2U); /* bounds translation; POP exits before it */
+	for (i = 0U; i < FILLER_BLOCKS; i++) {
+		put_b(filler + 2U * i, filler + 2U * (i + 1U));
+	}
+
+	init_core(&core, loop);
+	core.reg.r[7] = loop | 1U;
+	sp = core.reg.r[13];
+	persistent_begin(&pair, &core);
+	persistent_call(&pair, "cache links initial loop", 6U);
+	thumb_jit_diff_get_stats(&before);
+	if (before.chain_links < 3U) {
+		printf("FAIL cache links initial loop: links=%u\n", before.chain_links);
+		failures++;
+	}
+
+	/* Populate the indirect table for BX and POP, then prove the repeat hits it. */
+	persistent_set_pc(&pair, bx);
+	pair.a.reg.r[7] = loop | 1U;
+	pair.b.reg.r[7] = loop | 1U;
+	persistent_call(&pair, "cache indirect BX first", 2U);
+	persistent_set_pc(&pair, pop);
+	pair.a.reg.r[13] = sp;
+	pair.b.reg.r[13] = sp;
+	memcpy(&ram_a[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	memcpy(&ram_b[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	persistent_call(&pair, "cache indirect POP first", 2U);
+	thumb_jit_diff_get_stats(&before);
+
+	persistent_set_pc(&pair, bx);
+	pair.a.reg.r[7] = loop | 1U;
+	pair.b.reg.r[7] = loop | 1U;
+	persistent_call(&pair, "cache indirect BX hit", 2U);
+	persistent_set_pc(&pair, pop);
+	pair.a.reg.r[13] = sp;
+	pair.b.reg.r[13] = sp;
+	memcpy(&ram_a[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	memcpy(&ram_b[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	persistent_call(&pair, "cache indirect POP hit", 2U);
+	thumb_jit_diff_get_stats(&repeated);
+	if ((before.indirect_misses < 2U) || (repeated.indirect_misses != before.indirect_misses)) {
+		printf("FAIL cache indirect hit proof: first=%llu repeated=%llu\n",
+			(unsigned long long)before.indirect_misses,
+			(unsigned long long)repeated.indirect_misses);
+		failures++;
+	}
+
+	/* Refill the cache, freeing the linked loop and both indirect return blocks. */
+	persistent_set_pc(&pair, filler);
+	persistent_call(&pair, "cache links filler flush", FILLER_BLOCKS);
+	thumb_jit_diff_get_stats(&filled);
+	if (filled.cache_flushes == 0U) {
+		printf("FAIL cache links filler did not flush\n");
+		failures++;
+	}
+
+	persistent_set_pc(&pair, bx);
+	pair.a.reg.r[7] = loop | 1U;
+	pair.b.reg.r[7] = loop | 1U;
+	persistent_call(&pair, "cache indirect BX after flush", 2U);
+	thumb_jit_diff_get_stats(&after_bx);
+	if ((after_bx.indirect_misses <= filled.indirect_misses)
+		|| (after_bx.translated < filled.translated + 2U)) {
+		printf("FAIL cache BX refill: misses=%llu/%llu translated=%llu/%llu\n",
+			(unsigned long long)filled.indirect_misses,
+			(unsigned long long)after_bx.indirect_misses,
+			(unsigned long long)filled.translated,
+			(unsigned long long)after_bx.translated);
+		failures++;
+	}
+
+	persistent_set_pc(&pair, pop);
+	pair.a.reg.r[13] = sp;
+	pair.b.reg.r[13] = sp;
+	memcpy(&ram_a[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	memcpy(&ram_b[sp - RAM_BASE], (uint32[]){ loop + 5U }, 4U);
+	persistent_call(&pair, "cache indirect POP after flush", 2U);
+	thumb_jit_diff_get_stats(&after_pop);
+	if ((after_pop.indirect_misses <= after_bx.indirect_misses)
+		|| (after_pop.translated < after_bx.translated + 2U)) {
+		printf("FAIL cache POP refill: misses=%llu/%llu translated=%llu/%llu\n",
+			(unsigned long long)after_bx.indirect_misses,
+			(unsigned long long)after_pop.indirect_misses,
+			(unsigned long long)after_bx.translated,
+			(unsigned long long)after_pop.translated);
+		failures++;
+	}
+	printf("cache links/indirect: flushes=%llu misses=%llu translated=%llu\n",
+		(unsigned long long)after_pop.cache_flushes,
+		(unsigned long long)after_pop.indirect_misses,
+		(unsigned long long)after_pop.translated);
+}
+
+static void test_code_invalidation(void)
+{
+	TargetCoreType core;
+	PersistentPair pair;
+	ThumbJitDiffStats before;
+	ThumbJitDiffStats invalidated;
+	ThumbJitDiffStats after;
+	uint32 base = CODE_BASE + 0x3800U;
+
+	put16(base, mov_i(0U, 1U));
+	put_b(base + 2U, base + 4U);
+	put16(base + 4U, add_i8(1U, 1U));
+	put_b(base + 6U, base);
+	init_core(&core, base);
+	persistent_begin(&pair, &core);
+	persistent_call(&pair, "code invalidation warm links", 4U);
+	persistent_call(&pair, "code invalidation linked loop", 4U);
+	thumb_jit_diff_get_stats(&before);
+	if (before.chain_links < 2U) {
+		printf("FAIL code invalidation warm links=%u\n", before.chain_links);
+		failures++;
+	}
+
+	put16(base, mov_i(0U, 2U));
+	thumb_invalidate_code(base, 2U);
+	thumb_jit_diff_get_stats(&invalidated);
+	if (invalidated.chain_links != 0U) {
+		printf("FAIL code invalidation kept %u chain links\n", invalidated.chain_links);
+		failures++;
+	}
+	persistent_call(&pair, "code invalidation recompiles changed block", 2U);
+	thumb_jit_diff_get_stats(&after);
+	if ((after.translated <= before.translated) || (pair.a.reg.r[0] != 2U)
+		|| (pair.b.reg.r[0] != 2U)) {
+		printf("FAIL code invalidation: translated=%llu/%llu r0=%08x/%08x\n",
+			(unsigned long long)before.translated,
+			(unsigned long long)after.translated, pair.a.reg.r[0], pair.b.reg.r[0]);
+		failures++;
+	}
+	printf("code invalidation: links %u->%u translated %llu->%llu\n",
+		before.chain_links, invalidated.chain_links,
+		(unsigned long long)before.translated,
+		(unsigned long long)after.translated);
 }
 
 static uint64 random_state = 0xA17E5EED5A17D1FFULL;
@@ -1010,6 +1228,9 @@ int main(void)
 	test_mixed();
 	test_it();
 	test_chaining();
+	test_cache_refill();
+	test_cache_links_and_indirect();
+	test_code_invalidation();
 	test_random();
 	printf("memory cases: %llu native=%llu called=%llu\n", (unsigned long long)memory_cases,
 		(unsigned long long)memory_native_cases, (unsigned long long)memory_called_cases);

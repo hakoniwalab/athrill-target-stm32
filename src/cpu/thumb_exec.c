@@ -532,6 +532,7 @@ void thumb_jit_diff_reset(void)
 	thumb_jit_runs = 0U;
 	thumb_jit_insns = 0U;
 	thumb_jit_translated = 0U;
+	thumb_jit_flushes = 0U;
 	memset(&thumb_jit_diff_stats, 0, sizeof(thumb_jit_diff_stats));
 }
 
@@ -545,11 +546,19 @@ void thumb_jit_diff_set_enabled(std_bool enabled)
 
 void thumb_jit_diff_get_stats(ThumbJitDiffStats *stats)
 {
+	AthrillJitCacheStats cache_stats;
+
 	*stats = thumb_jit_diff_stats;
 	stats->runs = thumb_jit_runs;
 	stats->insns = thumb_jit_insns;
 	stats->translated = thumb_jit_translated;
 	stats->chain_links = athrill_jit_chain_links();
+	if (thumb_jit_cache != NULL) {
+		athrill_jit_cache_get_stats(thumb_jit_cache, &cache_stats);
+		stats->cache_inserts = cache_stats.inserts;
+		stats->cache_flushes = cache_stats.flushes;
+		stats->cache_blocks = cache_stats.blocks;
+	}
 }
 
 static void thumb_jit_diff_count(AthrillJitBuilder *b, uint64 *counter)
@@ -1562,10 +1571,16 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 		thumb_jit_store(b, t32_STRB_i_T1_Rt(insn), 1U, slow->start);
 		break;
 	case T32_16_LDRH_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_LOAD;
+#endif
 		thumb_jit_address(b, t32_LDRH_i_T1_Rn(insn), t32_LDRH_i_T1_imm5(insn) << 1);
 		thumb_jit_load(b, t32_LDRH_i_T1_Rt(insn), 2U, slow->start);
 		break;
 	case T32_16_STRH_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_STORE;
+#endif
 		thumb_jit_address(b, t32_STRH_i_T1_Rn(insn), t32_STRH_i_T1_imm5(insn) << 1);
 		thumb_jit_store(b, t32_STRH_i_T1_Rt(insn), 2U, slow->start);
 		break;
@@ -1857,6 +1872,11 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 	*clock = thumb_jit_ctx.clock_base + done;
 	thumb_jit_runs++;
 	thumb_jit_insns += done;
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+	if (thumb_jit_ctx.indirect_miss != 0U) {
+		thumb_jit_diff_stats.indirect_misses++;
+	}
+#endif
 	thumb_jit_pending_slot = (AthrillJitChainSlot *)(uintptr_t)thumb_jit_ctx.chain_slot;
 	thumb_jit_pending_indirect = (thumb_jit_ctx.indirect_miss != 0U);
 	if (thumb_jit_ctx.exit_kind == THUMB_JIT_EXIT_COMPLETE) {

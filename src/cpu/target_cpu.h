@@ -92,6 +92,10 @@ typedef struct {
     uint64 runs;
     uint64 insns;
     uint64 translated;
+    uint64 indirect_misses;
+    uint64 cache_inserts;
+    uint64 cache_flushes;
+    uint32 cache_blocks;
     uint32 chain_links;
 } ThumbJitDiffStats;
 void thumb_jit_diff_reset(void);
