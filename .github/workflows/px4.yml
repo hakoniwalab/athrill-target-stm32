@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: ab4de28a6a141705848f81ca426bb299700d5ee1
+          ref: f23338668a63a29fc39b885f0b1743d4645067c0
           path: athrill-device
       - name: libyaml (athrill-device bindings loader)
         run: |

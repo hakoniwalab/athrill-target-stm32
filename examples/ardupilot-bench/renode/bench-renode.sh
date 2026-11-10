@@ -1,5 +1,6 @@
 #!/bin/sh
-# Three RTF runs of ArduCopter under Renode for each CPU setting.
+# Three RTF runs of ArduCopter under Renode with one IMU (as Athrill's board) and with
+# ArduPilot's default three IMUs, at ArduPilot's default 462 MIPS.
 # Usage: bench-renode.sh <ardupilot-checkout> <renode> <arducopter.elf> [state-dir]
 #   ardupilot-checkout: ArduPilot with Tools/renode (run.py)
 #   renode: the renode launcher of ArduPilot's performance branch
@@ -23,13 +24,13 @@ rm -f "$STATE/stdin"
 mkfifo "$STATE/stdin"
 exec 3<>"$STATE/stdin"
 
-for MIPS in 462 216; do
+for IMUS in 1 3; do
 	for RUN in 1 2 3; do
 		cp "$HERE/../fram-brd-io-disabled.bin" "$STATE/fram.img"
 		(cd "$AP" && python3 Tools/renode/run.py Pixhawk4 --elf "$ELF" \
-			--renode "$RENODE" --unthrottled --no-xterm --state-dir "$STATE" \
-			--exec "cpu PerformanceInMips $MIPS" <&3 > "$STATE/renode-$MIPS-$RUN.log" 2>&1) &
-		python3 "$HERE/measure-rtf.py" "renode ${MIPS}MIPS run$RUN" || true
+			--renode "$RENODE" --unthrottled --no-xterm --state-dir "$STATE" --num-imus $IMUS \
+			--exec "cpu PerformanceInMips 462" <&3 > "$STATE/renode-imus$IMUS-$RUN.log" 2>&1) &
+		python3 "$HERE/measure-rtf.py" "renode ${IMUS} IMU run$RUN" || true
 		pkill -f 'Tools/renode/run.py' || true
 		pkill -f 'Renode.dll' || true
 		sleep 2

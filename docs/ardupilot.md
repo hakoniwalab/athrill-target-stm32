@@ -7,96 +7,85 @@ the same emulated board that runs PX4. ArduPilot also runs this firmware on
 [Renode](https://ardupilot.org/dev/docs/renode-emulation.html), so the two
 emulators can be compared on the same ELF.
 
-**Results:**
-- **Speed.** On the same Apple M2 Pro, ArduPilot's performance-patched Renode
-  ran the firmware at a real-time factor (RTF) of **0.30**. Athrill:
+## Results
 
-  | Athrill configuration | RTF | Against Renode |
-  | --- | ---: | ---: |
-  | Idle loop executed as written (hardware only, no skip possible) | 0.62 | about 2x |
-  | A branch to itself waits as `WFI` (`DEVICE_CONFIG_SPIN_HALT`, no knowledge of the firmware) | **1.583** | **about 5x** |
-  | The OS idle function named (`DEVICE_CONFIG_IDLE_FUNCTION`) | 1.592 | about 5x |
+**Conditions:**
+- the same ELF, F-RAM seed and MAVLink stream requests, on one Apple M2 Pro;
+- the same IMU: Renode is started with `--num-imus 1`, so both boards serve the ICM-20689 only
+  ([The peripherals differ](#the-peripherals-differ));
+- both emulators halt at the idle thread's branch to itself (see [The idle loop](#the-idle-loop));
+- the real-time factor (RTF) is measured over virtual 20 to 80 s, after the boot.
 
-  All three give bit-identical MAVLink output.
+| | RTF | Against Renode |
+| --- | ---: | ---: |
+| Renode, ArduPilot's performance branch, one IMU | 0.596 | |
+| Athrill STM32, interpreter | 1.24 | 2.1x |
+| Athrill STM32, block JIT | 1.95 | 3.3x |
+| **Athrill STM32, block JIT and tick skip** | **2.27** | ****3.8x**** |
+
+- With ArduPilot's default platform, Renode serves three IMUs, does about three times the SPI and DMA work, and runs at
+  0.30. An earlier version of this page compared Athrill against that, with a different workload.
+- Athrill's three configurations give bit-identical MAVLink output and the same number of instructions.
 - **Instructions.** Both emulators executed the firmware along the same path,
   instruction address for instruction address. The two traces differ only
-  where the firmware waits on hardware timing.
-- **Caveat.** The emulated peripherals differ, so these are results for these
-  two benchmark configurations, not a fully normalised comparison of
-  workloads.
+  where the firmware waits on hardware timing
+  ([The same instruction addresses](#the-same-instruction-addresses)).
 
-This is a first step. See [What comes next](#what-comes-next).
+## Where the time goes
 
-## Why Athrill was faster
+Both emulators were profiled with macOS `sample` on their emulation thread, in the steady state.
+Renode's JIT-compiled .NET methods were named through the .NET perf map (`DOTNET_PerfMapEnabled=1`).
 
-The firmware, the host and the workload were held the same; what differs is
-how each emulator advances time. In short:
+**Per virtual second of the same run:**
 
-1. **Athrill does not execute idle time.**
-   - ArduCopter is idle for 79% of its clocks. Its idle thread is a busy
-     loop without `WFI` (`b .`), so an emulator that executes it spends host
-     time on nothing.
-   - A `b .` can only be left by an interrupt, so waiting in it is waiting
-     at `WFI`. With `DEVICE_CONFIG_SPIN_HALT`, Athrill halts the core
-     when it executes a branch to itself, and jumps the clock to the next
-     device event. The result does not change.
-   - This uses only the meaning of the instruction, not the firmware's
-     symbols. Naming the idle function instead gives the same speed.
-   - Executing the idle loop as written makes Athrill 2.5 times slower (RTF
-     0.62), with identical MAVLink output.
-2. **A device access is cheap in Athrill.**
-   - Athrill's clock is exact to the instruction, so a device computes its
-     state (a timer's counter, a cycle counter, a UART's shift register)
-     from the clock at the moment the firmware reads it.
-   - The access is a direct function call, without locks or a time
-     framework in between.
-   - Renode's ArduPilot notes say its cost is in the framework around each
-     register access and timer event, not in the CPU emulation (1–3%). They
-     also name a cheap virtual-time primitive within a quantum as the
-     biggest remaining win.
-   - Even with its idle loop executed, Athrill (0.62) is twice as fast as
-     Renode (0.30).
-
-**Renode's time does not go into executing instructions.** One would
-expect Renode's JIT to win where every instruction is executed. The
-measurements say otherwise:
-
-| | Instructions per virtual second | RTF | Instructions per wall second |
+| | Renode, one IMU | Athrill, interpreter | Athrill, JIT and tick skip |
 | --- | ---: | ---: | ---: |
-| Athrill, idle loop executed (interpreter) | 216 million | 0.62 | 133 million |
-| Renode, 216 MIPS (JIT) | 216 million | 0.306 | 66 million |
-| Renode, 462 MIPS (JIT) | 462 million | 0.299 | 138 million |
+| Host time | 1.68 s | 0.81 s | 0.44 s |
+| ... in the device models | 0.74 s | 0.18 s | 0.11 s |
+| ... in the CPU and everything else | 0.94 s | 0.63 s | 0.33 s |
+| Guest instructions executed | 51.0 M | 46.2 M | 46.2 M |
+| Device register accesses by the CPU | 0.76 M | 1.01 M | 1.01 M |
 
-- **Twice the instructions, the same speed.** At 462 MIPS, Renode executes
-  more than twice as many instructions per virtual second as at 216 MIPS,
-  and its RTF does not change.
-- **So instructions are nearly free in Renode, and its time goes into
-  advancing virtual time:** timers, events and register accesses.
-- **This matches ArduPilot's profile of Renode,** where the CPU emulation is
-  1–3% of the cost.
-- **The JIT does win at executing instructions,** but that is not where the
-  time goes.
-- **Athrill's interpreter executes instructions more slowly,** but advancing
-  its time and its devices costs little, so it is faster overall.
+**Renode's emulation thread** (share of its host time):
 
-**Is the idle setting fair?**
-- Renode skips time at `WFI` as well, but this firmware contains no `WFI` or
-  `WFE` at all: its idle thread is `b .`. Left to the firmware, neither
-  emulator would ever skip time.
-- The comparison uses `DEVICE_CONFIG_SPIN_HALT`: a general rule about
-  the instruction set, not knowledge of this firmware. It is off by default.
-- Renode has no such rule today. A hook on the idle thread could give it one;
-  we have not tried.
-- With the idle loop executed as written, Athrill is still twice as fast
-  (see point 2).
+| | Share |
+| --- | ---: |
+| Device models in .NET, reached from the CPU's bus accesses | 44% |
+| ... generic register-file models | 21% |
+| ... DMA stream transfers | 16% |
+| ... SPI | 15% |
+| ... interrupt controller | 9% |
+| `setjmp` around each call from .NET into the CPU library (on macOS, two system calls each) | 15% |
+| The guest code itself (translated blocks) | 14% |
+| The time framework (`Antmicro.Renode.Time`) | 5% |
+| Garbage collection | 3% |
 
-**What is measured and what is not:**
-- The first part is measured within Athrill.
-- The second is our reading of Renode's own published profile. Renode was not
-  profiled in this comparison.
+**Our reading of the difference:**
+- **The cost per device access, not the number of accesses.** Athrill makes 1.3 times as many register accesses, and
+  spends a quarter or less of Renode's time in its devices.
+- In Renode, the device models are .NET and the CPU is a C library (tlib). Each access crosses that boundary, and
+  each call back into the CPU library is guarded by a `setjmp`. In Athrill, the CPU and the models are C on one
+  thread, and an access is one function call.
+- **Not the time framework:** it is 5% of Renode's thread on this workload.
+- **Not the idle loop:** both emulators halt at it.
+- Renode's choice buys breadth: many architectures, multi-node systems, and device models that are easy to write in
+  C#. Athrill's choices are described in [Speed and fidelity](speed-and-fidelity.md).
+- The `setjmp` share was measured on macOS only; with Linux's C library it may be smaller.
 
-[docs/time-skip.md](time-skip.md) describes the design, the measurements and
-the sources in full.
+**The device models also differ.** Athrill's SPI model is accessed about seven times as often as Renode's: its
+transfer completes at once, and the firmware polls its status register more. What each Athrill model reproduces is in
+[Speed and fidelity](speed-and-fidelity.md#four-models-in-detail).
+
+## The idle loop
+
+ArduCopter is idle for most of its clocks. Its idle thread is a branch to itself (`b .`, the halfword `e7fe`), and the
+firmware contains no `WFI` or `WFE`.
+- **Athrill** halts the core at a branch to itself (`DEVICE_CONFIG_SPIN_HALT`) and jumps the clock to the next device
+  event. The rule uses only the meaning of the instruction: a `b .` can only be left by an interrupt.
+- **Renode does the same:** its CPU library translates a Thumb `b .` as `WFI` (tlib `arch/arm/translate.c`).
+  Measured, it executes 51.0 M instructions per virtual second at 216 MIPS, not 216 M.
+- So the comparison above is idle against idle. With its idle loop executed instead, Athrill runs at 1.19 (interpreter)
+  and 2.15 (JIT and tick skip) over 0 to 80 virtual s, with the same MAVLink output.
 
 ## The firmware
 
@@ -138,14 +127,17 @@ No ArduPilot, ChibiOS or Renode code is in this repository.
 
 | | Run 1 | Run 2 | Run 3 | Mean |
 | --- | ---: | ---: | ---: | ---: |
-| **Athrill STM32**, branch to itself as `WFI` (the example's setting) | 1.585 | 1.578 | 1.585 | **1.583** |
-| Athrill STM32, the idle function named | 1.596 | 1.579 | 1.600 | 1.592 |
-| Renode, ArduPilot's performance branch, 462 MIPS (ArduPilot's default) | 0.299 | 0.301 | 0.301 | 0.300 |
-| Renode, the same, 216 MIPS (Athrill's setting) | 0.309 | 0.305 | 0.306 | 0.307 |
+| Renode, ArduPilot's performance branch, `--num-imus 1`, 462 MIPS | 0.598 | 0.591 | 0.598 | **0.596** |
+| Renode, the same with its default three IMUs, 462 MIPS | 0.304 | 0.296 | | 0.30 |
+| Athrill STM32, interpreter | 1.239 | 1.240 | | **1.24** |
+| Athrill STM32, block JIT | 1.946 | 1.944 | | **1.95** |
+| Athrill STM32, block JIT and tick skip | 2.271 | 2.265 | | **2.27** |
 
-Athrill: 216 MHz, the clock skip on, the sensor bench and the microSD card.
-Renode: the runs of `examples/ardupilot-bench/renode/bench-renode.sh`; an
-earlier set by hand gave 0.299 and 0.306.
+Measured 2026-11-10 and 11. Athrill: 216 MHz, a branch to itself as `WFI`, the clock skip on, the sensor bench and the
+microSD card. The second Renode run with three IMUs was taken with the sampler attached.
+
+On 2026-11-05, before the boards were built from Devicetree, the Athrill interpreter measured 1.583 on this workload,
+and Renode with three IMUs 0.300 at 462 MIPS and 0.307 at 216 MIPS.
 
 ### How each was measured
 
@@ -154,15 +146,13 @@ earlier set by hand gave 0.299 and 0.306.
     at 80;
   - the RTF is 60 s divided by the difference of their wall times;
   - both runs execute the same instructions between the two points, because
-    Athrill is deterministic: 2,756,787,092 with the branch rule, 2,756,316,759
-    with the idle function named (the branch rule executes the `b .` once
-    each time before it halts).
+    Athrill is deterministic: 2,772,625,818.
 - **Renode:** wall time against `time_boot_ms` in ArduPilot's own MAVLink
   messages.
 
-**The MIPS setting barely changes Renode's speed.** Athrill's speed does not
-depend on the configured CPU frequency either: the firmware executes the same
-instructions.
+**The MIPS setting does not change how many instructions Renode executes here.** Renode halts at the idle loop, so
+the firmware runs the same work whatever the setting: 2.14 M device accesses per virtual second at 462 MIPS and
+2.09 M at 216 MIPS (three IMUs).
 
 ### The peripherals differ
 
@@ -175,9 +165,35 @@ instructions.
 | IOMCU | none (`BRD_IO_ENABLE=0`) | modelled, unused with `BRD_IO_ENABLE=0` |
 | microSD | yes | yes |
 
-Renode serves two more IMUs; Athrill serves a compass. The firmware and the
-request streams are the same, but the sensor work of the two firmwares is
-not proven identical.
+With its defaults, Renode serves two more IMUs, and ArduPilot reads every IMU it finds: about three times the SPI
+and DMA work of Athrill. Started with `--num-imus 1`, Renode serves the ICM-20689 only, and the two firmwares then
+access DMA2, RCC and the chip-select GPIO port almost the same number of times: DMA2 exactly, RCC within 3% (counted below). Athrill still
+serves a compass, which Renode does not.
+
+### Counting the device accesses
+
+Per virtual second, virtual 20.5 to 21.5 s:
+
+| Peripheral | Renode, one IMU (read / write) | Athrill (read / write) |
+| --- | ---: | ---: |
+| TIM2 | 176,715 / 20,730 | 162,641 / 19,396 |
+| DMA2 | 61,300 / 124,900 | 61,300 / 124,900 |
+| SPI1 | 12,300 / 28,700 | 132,500 / 148,900 |
+| RCC | 64,510 / 43,000 | 65,995 / 43,990 |
+| GPIOG (IMU chip select) | 41,297 / 45,100 | 41,300 / 45,100 |
+| GPIOF | 99 / 8,600 | 100 / 8,600 |
+| I2C3 (compass) | 0 / 0 | 5,148 / 4,158 |
+| NVIC and system control space | 118,110 | 125,994 |
+| **Total** | **761,215** | **1,008,482** |
+
+- **Renode:** its machine profiler (`machine EnableProfiler`), turned on at virtual 20 s from the monitor; the entries
+  are counted by virtual time.
+  The table is a run at 216 MIPS. Renode's counts vary from run to run: `count-renode.sh` at 462 MIPS counted 791,361
+  accesses and 51.7 M instructions in another run.
+- **Athrill:** a counting build: `examples/ardupilot-bench/renode/count-athrill.patch` adds counters to the target's
+  device access functions. Two runs, to 20.5 and to 21.5 virtual s; the difference is the window.
+  The table was counted with the JIT and tick skip on; the interpreter counts 0.05% fewer reads, with the same output.
+
 
 ## The same instruction addresses
 
@@ -246,23 +262,56 @@ python3 -m pip install pymavlink
 
 ### Athrill
 
-Build `athrill3` as in the [README](../README.md#1-build-athrill-stm32);
-the commands below assume this repository at `~/athrill-target-stm32`. Every
-run starts from the F-RAM seed and a new microSD image.
+Build `athrill3` as in the [README](../README.md#1-build-athrill-stm32), and `build-fast/athrill3` with the JIT and
+tick skip as at the end of [Build from source](../README.md#build-from-source). The commands below assume this
+repository at `~/athrill-target-stm32`. Every run starts from the F-RAM seed and a new microSD image.
+
+The RTF of the interpreter, from two runs to 20 and to 80 virtual s:
 
 ```sh
 cd ~/athrill-target-stm32
-examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 4320000000 > /dev/null    # 20 virtual s
-examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 17280000000 > /dev/null   # 80 virtual s
+/usr/bin/time -p examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 4320000000 > /dev/null    # 20 virtual s
+/usr/bin/time -p examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 17280000000 > /dev/null   # 80 virtual s
 examples/ardupilot-bench/inspect-mavlink.py examples/ardupilot-bench/mavlink-full.raw
 ```
 
-Time each of the two runs (for example with `/usr/bin/time -p`). The RTF is 60
-divided by the difference of their wall times. For the trace:
+The RTF is 60 divided by the difference of the two `real` times. The same with the JIT and tick skip:
 
 ```sh
-examples/ardupilot-bench/run-trace.sh ~/ardupilot-bench/arducopter.elf
+printf 'DEVICE_CONFIG_STM32_JIT 1\nDEVICE_CONFIG_DEVICE_TICK_SKIP 1\n' > /tmp/athrill-fast.txt
+/usr/bin/time -p examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 4320000000 build-fast/athrill3 /tmp/athrill-fast.txt > /dev/null
+/usr/bin/time -p examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 17280000000 build-fast/athrill3 /tmp/athrill-fast.txt > /dev/null
 ```
+
+For the JIT alone, leave out the second line of `/tmp/athrill-fast.txt`.
+
+**Where the time goes.** Start the 80-second run with the JIT and tick skip, and sample it for 30 s from 15 s after
+the start:
+
+```sh
+examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 17280000000 build-fast/athrill3 /tmp/athrill-fast.txt > /dev/null &
+sleep 15
+sample "$(pgrep -x athrill3)" 30 -file /tmp/athrill.sample.txt > /dev/null
+wait
+examples/ardupilot-bench/renode/sample-share.py /tmp/athrill.sample.txt main-thread \
+  --group 'device ticks=^athrill_device_tick ' --group 'register accesses=^mmio_(get|put)' \
+  --group 'JIT code=^translated or JIT code$'
+```
+
+**Counting the device accesses.** `examples/ardupilot-bench/renode/count-athrill.patch` adds counters to the device
+access functions. It is for this measurement only; build it in a second checkout next to the first, so that it finds the same sibling repositories:
+
+```sh
+git -C ~/athrill-target-stm32 worktree add ~/athrill-target-stm32-count
+git -C ~/athrill-target-stm32-count apply examples/ardupilot-bench/renode/count-athrill.patch
+cmake -S ~/athrill-target-stm32-count -B ~/athrill-target-stm32-count/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ~/athrill-target-stm32-count/build --parallel --target athrill3
+CNT_PAGES=/tmp/pages-20.5.txt examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 4428000000 ~/athrill-target-stm32-count/build/athrill3 2>&1 > /dev/null | grep '^COUNT'
+CNT_PAGES=/tmp/pages-21.5.txt examples/ardupilot-bench/run-full.sh ~/ardupilot-bench/arducopter.elf 4644000000 ~/athrill-target-stm32-count/build/athrill3 2>&1 > /dev/null | grep '^COUNT'
+```
+
+Each `COUNT` line gives the totals from reset; the difference of the two is the window from 20.5 to 21.5 virtual s.
+The page files give the reads and writes per 256-byte page.
 
 ### Renode
 
@@ -271,15 +320,28 @@ examples/ardupilot-bench/run-trace.sh ~/ardupilot-bench/arducopter.elf
    two choices:
    - **Renode:** ArduPilot's performance branch `pr-arudpilot-am32-perf`
      of [ArduPilot/renode](https://github.com/ArduPilot/renode), with
-     `perf_patches/apply.sh` applied and built with `./build.sh --net`.
+     `perf_patches/apply.sh` applied and built with `./build.sh --net`
+     (on Apple Silicon, `./build.sh --net --host-arch aarch64`).
      Stock Renode 1.17.0 does not boot this platform, because its STM32F4
      random-number generator model is missing.
    - **ArduPilot checkout:** one with `Tools/renode`.
-2. Run the benchmark: three runs at each CPU setting, each started from this
-   repository's F-RAM seed.
+2. Run the benchmark: three runs with one IMU and three with the default three IMUs, each started from this
+   repository's F-RAM seed. Run one Renode at a time: each script stops every Renode process when it ends.
 
 ```sh
 examples/ardupilot-bench/renode/bench-renode.sh ~/ardupilot ~/renode/renode ~/ardupilot-bench/arducopter.elf
+```
+
+3. Where the time goes, with one IMU (macOS `sample`, 30 s in the steady state):
+
+```sh
+examples/ardupilot-bench/renode/profile-renode.sh ~/ardupilot ~/renode/renode ~/ardupilot-bench/arducopter.elf
+```
+
+4. The device accesses, interrupts and instructions per virtual second, with one IMU (Renode's machine profiler):
+
+```sh
+examples/ardupilot-bench/renode/count-renode.sh ~/ardupilot ~/renode/renode ~/ardupilot-bench/arducopter.elf
 ```
 
 `examples/ardupilot-bench/renode/trace.resc` writes Renode's PC trace;
@@ -300,9 +362,9 @@ The figures above were measured on one Mac only:
 | --- | --- |
 | Machine | Apple M2 Pro |
 | OS | macOS 27.2 |
-| Athrill STM32 | this repository's `athrill3`, Release build |
+| Athrill STM32 | this repository's `athrill3` and `build-fast/athrill3`, Release builds, with athrill `a63d4cd`, athrill-arm-common `60d8098`, athrill-device `ab4de28` |
 | Renode | ArduPilot's `pr-arudpilot-am32-perf` (`fbea4f40`), `perf_patches` applied, built for arm64 on .NET 10 (`net10.0`), Release |
-| ArduPilot (for Renode's `Tools/renode`) | `bc544bf` |
+| ArduPilot (for Renode's `Tools/renode`) | `921002b` (2026-11-10 and 11); `bc544bf` for the trace |
 | Runs | one emulator at a time, nothing else heavy on the host |
 
 ## What comes next
