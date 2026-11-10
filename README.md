@@ -161,22 +161,7 @@ the published run), ArduCopter's MAVLink bytes, Zephyr's console, and the number
 differential test runs the interpreter and the JIT side by side on the same state and compares the whole core after
 every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
 
-Both are off by default. They need the [sljit](https://github.com/zherczeg/sljit) checkout next to `athrill`. From
-`athrill-target-stm32`, after the steps in [Build from source](#build-from-source):
-
-```sh
-git clone https://github.com/zherczeg/sljit.git ../sljit
-git -C ../sljit checkout 23d64b7
-cmake -S . -B build-fast -DCMAKE_BUILD_TYPE=Release -DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON
-cmake --build build-fast --parallel
-```
-
-Then add these two lines to the run's device configuration:
-
-```text
-DEVICE_CONFIG_STM32_JIT 1
-DEVICE_CONFIG_DEVICE_TICK_SKIP 1
-```
+Both are off by default: [Build from source](#build-from-source) ends with how to build and enable them.
 
 The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time in its idle loop,
 which neither option shortens.
@@ -238,6 +223,23 @@ Pixhawk 4 Devicetree, for its USART3):
 ```
 
 It prints `Hello, Athrill STM32!` and stops at its clock limit (`EXIT for timeout(100000).`, exit status 1).
+
+The JIT and tick skip ([above](#faster-a-block-jit-and-tick-skip)) need the [sljit](https://github.com/zherczeg/sljit)
+checkout next to `athrill`. Still in `athrill-target-stm32`:
+
+```sh
+git clone https://github.com/zherczeg/sljit.git ../sljit
+git -C ../sljit checkout 23d64b7
+cmake -S . -B build-fast -DCMAKE_BUILD_TYPE=Release -DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON
+cmake --build build-fast --parallel
+```
+
+`build-fast/athrill3` then runs with both when the run's device configuration has these two lines:
+
+```text
+DEVICE_CONFIG_STM32_JIT 1
+DEVICE_CONFIG_DEVICE_TICK_SKIP 1
+```
 
 PX4 itself, the stock target, with PX4's build image (about 6 minutes):
 
