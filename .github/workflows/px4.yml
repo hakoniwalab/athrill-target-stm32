@@ -22,11 +22,11 @@ jobs:
         with:
           path: athrill-target-stm32
       # the core and the shared Arm pseudo-code, at the commits the README pins
-      - name: "athrill after 3.1.0 (host functions, idle/spin halt, GDB server with target description)"
+      - name: "athrill after 3.1.0 (host functions, idle/spin halt, GDB server, block JIT)"
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: bc8d76aa386e995d4c94e0f13144886a108f043f
+          ref: a63d4cd9b6bcbfea7ad411e590b5b3107b1ce41c
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: ff23daf380cab7b483dbf5f84f52a49d837898ea
+          ref: ab4de28a6a141705848f81ca426bb299700d5ee1
           path: athrill-device
       - name: libyaml (athrill-device bindings loader)
         run: |

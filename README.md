@@ -56,7 +56,7 @@ tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
 tar xzf zephyr-samples-v0.3.0.tar.gz
 git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ff23daf
+git -C athrill-device checkout ab4de28
 athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi zephyr-samples-v0.3.0/philosophers-nucleo_f767zi.elf 10 athrill3-v0.3.0-macos-arm64/athrill3
 ```
 
@@ -161,13 +161,10 @@ the published run), ArduCopter's MAVLink bytes, Zephyr's console, and the number
 differential test runs the interpreter and the JIT side by side on the same state and compares the whole core after
 every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
 
-Both are off by default. They need the [sljit](https://github.com/zherczeg/sljit) checkout next to `athrill`, and
-the current `athrill` and `athrill-device` instead of the commits pinned below. From `athrill-target-stm32`, after
-the steps in [Build from source](#build-from-source):
+Both are off by default. They need the [sljit](https://github.com/zherczeg/sljit) checkout next to `athrill`. From
+`athrill-target-stm32`, after the steps in [Build from source](#build-from-source):
 
 ```sh
-git -C ../athrill checkout master
-git -C ../athrill-device checkout main
 git clone https://github.com/zherczeg/sljit.git ../sljit
 git -C ../sljit checkout 23d64b7
 cmake -S . -B build-fast -DCMAKE_BUILD_TYPE=Release -DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON
@@ -220,11 +217,11 @@ Place four repositories side by side, at the versions these results come from:
 
 ```sh
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout bc8d76a
+git -C athrill checkout a63d4cd
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ff23daf
+git -C athrill-device checkout ab4de28
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
