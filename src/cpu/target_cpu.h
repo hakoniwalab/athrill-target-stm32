@@ -76,10 +76,16 @@ enum {
     THUMB_JIT_DIFF_B, THUMB_JIT_DIFF_CBZ, THUMB_JIT_DIFF_CBNZ,
     THUMB_JIT_DIFF_BL, THUMB_JIT_DIFF_NATIVE_COUNT
 };
+enum {
+    THUMB_JIT_DIFF_MEMORY_LOAD = 0, THUMB_JIT_DIFF_MEMORY_STORE,
+    THUMB_JIT_DIFF_MEMORY_PUSH, THUMB_JIT_DIFF_MEMORY_POP,
+    THUMB_JIT_DIFF_MEMORY_COUNT
+};
 typedef struct {
     uint64 native[THUMB_JIT_DIFF_NATIVE_COUNT];
     uint64 called;
     uint64 memory_native;	/* native loads, stores, PUSH, POP that took the direct path */
+    uint64 memory_native_class[THUMB_JIT_DIFF_MEMORY_COUNT];
     uint64 block_entries;
     uint64 it_fallbacks;
     uint64 budget_fallbacks;

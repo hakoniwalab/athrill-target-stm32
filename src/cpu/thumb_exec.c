@@ -1344,6 +1344,20 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 	}
 #ifdef ATHRILL_STM32_JIT_DIFF_TEST
 	thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+	{
+		/* STMDB SP! is PUSH.W, LDM SP! is POP.W */
+		uint32 cls = THUMB_JIT_DIFF_MEMORY_LOAD;
+
+		if ((id == T32_32_STMDB_T1) && (n == 13U) && (t32w_STMDB_T1_W(insn) != 0U)) {
+			cls = THUMB_JIT_DIFF_MEMORY_PUSH;
+		} else if ((id == T32_32_LDM_T2) && (n == 13U) && (t32w_LDM_T2_W(insn) != 0U)) {
+			cls = THUMB_JIT_DIFF_MEMORY_POP;
+		} else if ((id == T32_32_STR_i_T3) || (id == T32_32_STRD_i_T1_off) || (id == T32_32_STMDB_T1)
+			|| (id == T32_32_VSTR_T1_S) || (id == T32_32_VSTM_T2)) {
+			cls = THUMB_JIT_DIFF_MEMORY_STORE;
+		}
+		thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native_class[cls]);
+	}
 #endif
 	athrill_jit_label_place(b, slow->resume);
 	return TRUE;
@@ -1361,6 +1375,9 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 	uint32 count;
 	uint32 i;
 	uint32 k;
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+	uint32 memory_class;
+#endif
 
 	if (!thumb_jit_ram.known) {
 		return FALSE;
@@ -1392,26 +1409,44 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 	slow->entry = e;
 	switch (t32_decode16(insn)) {
 	case T32_16_LDR_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_LOAD;
+#endif
 		thumb_jit_address(b, t32_LDR_i_T1_Rn(insn), t32_LDR_i_T1_imm5(insn) << 2);
 		thumb_jit_load(b, t32_LDR_i_T1_Rt(insn), 4U, slow->start);
 		break;
 	case T32_16_LDR_i_T2:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_LOAD;
+#endif
 		thumb_jit_address(b, 13U, t32_LDR_i_T2_imm8(insn) << 2);
 		thumb_jit_load(b, t32_LDR_i_T2_Rt(insn), 4U, slow->start);
 		break;
 	case T32_16_LDRB_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_LOAD;
+#endif
 		thumb_jit_address(b, t32_LDRB_i_T1_Rn(insn), t32_LDRB_i_T1_imm5(insn));
 		thumb_jit_load(b, t32_LDRB_i_T1_Rt(insn), 1U, slow->start);
 		break;
 	case T32_16_STR_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_STORE;
+#endif
 		thumb_jit_address(b, t32_STR_i_T1_Rn(insn), t32_STR_i_T1_imm5(insn) << 2);
 		thumb_jit_store(b, t32_STR_i_T1_Rt(insn), 4U, slow->start);
 		break;
 	case T32_16_STR_i_T2:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_STORE;
+#endif
 		thumb_jit_address(b, 13U, t32_STR_i_T2_imm8(insn) << 2);
 		thumb_jit_store(b, t32_STR_i_T2_Rt(insn), 4U, slow->start);
 		break;
 	case T32_16_STRB_i_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_STORE;
+#endif
 		thumb_jit_address(b, t32_STRB_i_T1_Rn(insn), t32_STRB_i_T1_imm5(insn));
 		thumb_jit_store(b, t32_STRB_i_T1_Rt(insn), 1U, slow->start);
 		break;
@@ -1424,6 +1459,9 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 		thumb_jit_store(b, t32_STRH_i_T1_Rt(insn), 2U, slow->start);
 		break;
 	case T32_16_PUSH_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_PUSH;
+#endif
 		/* fast_push_t1(): the registers to SP - 4n (word aligned), SP = SP - 4n */
 		registers = (t32_PUSH_T1_M(insn) << 14) | (insn & 0xFFU);
 		count = (uint32)__builtin_popcount(registers);
@@ -1443,6 +1481,9 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 		athrill_jit_mov(b, TJ_R(13U), TJ_T0);
 		break;
 	case T32_16_POP_T1:
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		memory_class = THUMB_JIT_DIFF_MEMORY_POP;
+#endif
 		/* fast_pop_t1(): the registers from SP (word aligned), SP = SP + 4n, PC by LoadWritePC */
 		registers = (t32_POP_T1_P(insn) << 15) | (insn & 0xFFU);
 		count = (uint32)__builtin_popcount(registers);
@@ -1477,6 +1518,7 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CORE(reg.next_pc, 4), TJ_CTX(fx, 4), athrill_jit_imm(0xFFFFFFFELL));
 #ifdef ATHRILL_STM32_JIT_DIFF_TEST
 			thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+			thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native_class[memory_class]);
 #endif
 			athrill_jit_jump(b, taken);
 		}
@@ -1486,6 +1528,7 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 	}
 #ifdef ATHRILL_STM32_JIT_DIFF_TEST
 	thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+	thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native_class[memory_class]);
 #endif
 	athrill_jit_label_place(b, slow->resume);
 	return TRUE;
