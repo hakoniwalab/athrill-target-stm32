@@ -119,6 +119,7 @@ add_library(athrill_stm32_cpu STATIC
   src/cpu/thumb_gen32.c
   src/cpu/decoder/t32_decode16.c
   src/cpu/decoder/t32_decode32.c
+  ${ATHRILL_JIT_SOURCES}
   "${ATHRILL_SRC_DIR}/lib/dbg_log.c")
 stm32_target(athrill_stm32_cpu)
 if(ATHRILL_STM32_COVERAGE)
