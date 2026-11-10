@@ -15,12 +15,20 @@ config=$3
 port=$4
 here=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
-trap 'kill "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT INT TERM
+# athrill3 keeps the port until it has exited: wait for it, so that the
+# next run (ctest runs this test right after others) can listen again
+trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT INT TERM
 "$athrill" -c1 -g"$port" -m "$here/hello/memory.txt" -d "$config" -t 100000 \
 	"$here/hello/hello.elf" > "$work/athrill.log" 2>&1 &
 pid=$!
 i=0
-while ! grep -q "GDB" "$work/athrill.log" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+# the server's line, "gdb server listening on port <port>" (gdb_rsp.c)
+while ! grep -q "gdb server listening" "$work/athrill.log" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+if ! grep -q "gdb server listening" "$work/athrill.log" 2>/dev/null; then
+	cat "$work/athrill.log"
+	echo "FAIL: athrill3 did not start its gdb server on port $port"
+	exit 1
+fi
 cat > "$work/commands" <<EOC
 set pagination off
 target remote 127.0.0.1:$port
