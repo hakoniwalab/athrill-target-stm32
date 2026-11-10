@@ -117,24 +117,34 @@ device and both links are in athrill-device
 
 ## ArduPilot, and a race with Renode
 
-ArduPilot also runs this firmware on Renode, so we compared the two on one Apple M2 Pro with the same ELF:
+ArduPilot also runs this firmware on Renode, so we compared the two on one Apple M2 Pro with the same ELF, the same
+IMU (Renode started with `--num-imus 1`), both halting at the idle loop, over virtual 20 to 80 s:
 
-| | Real-time factor (mean of 3) |
+| | Real-time factor |
 | --- | ---: |
-| **Athrill STM32**, a branch to itself waits as `WFI` (no knowledge of the firmware) | **1.583** |
-| Athrill STM32, the idle loop executed as written | 0.62 |
-| Renode, ArduPilot's performance branch | 0.30 |
-| **Athrill STM32 with its JIT and tick skip** (below), branch to itself as `WFI` | **2.30** |
-| **Athrill STM32 with its JIT and tick skip**, the idle loop executed as written | **2.15** |
+| Renode, ArduPilot's performance branch | 0.60 |
+| Athrill STM32, interpreter | 1.24 |
+| **Athrill STM32 with its JIT and tick skip** (below) | **2.27** |
 
-The last two rows are the mean of 2 runs of 80 virtual seconds on the same Mac (2026-11-10).
+Where the time goes, per virtual second:
 
-The PC traces of the two emulators agree on 411,627 of the 411,873 instructions that Renode traced from reset;
-they differ only where the firmware waits on hardware timing. Athrill is faster because it executes no idle time
-(ArduCopter's idle loop `b .` halts until the next interrupt, and the clock jumps there), and because a device
-computes its state from the clock when the firmware reads it. The emulated peripherals differ, so these are
-results for these two configurations, not a normalised comparison.
-[docs/ardupilot.md](docs/ardupilot.md) and [docs/time-skip.md](docs/time-skip.md) have the details.
+| | Renode | Athrill, JIT and tick skip |
+| --- | ---: | ---: |
+| Host time | 1.68 s | 0.44 s |
+| ... in the device models | 0.74 s | 0.11 s |
+| Device register accesses by the CPU | 0.76 M | 1.01 M |
+
+- **Our reading:** the difference is the cost of each device access. Renode's device models are C#, behind its system
+  bus; Athrill's CPU and models are C on one thread, and an access is one function call.
+- Not the idle loop: Renode also halts at the firmware's `b .`. Not the time framework: 5% of Renode's emulation thread.
+- With its default three IMUs, Renode does about three times the SPI and DMA work and runs at 0.30; an earlier
+  version of this README compared against that.
+- The PC traces of the two emulators agree on 411,627 of the 411,873 instructions that Renode traced from reset; they
+  differ only where the firmware waits on hardware timing.
+
+[docs/ardupilot.md](docs/ardupilot.md) has the conditions, the profiles, the access counts and the commands to
+reproduce them. [docs/speed-and-fidelity.md](docs/speed-and-fidelity.md) describes how Athrill is made fast, what its
+device models leave out, and how a model can be made closer to the chip.
 
 ## Faster: a block JIT and tick skip
 
@@ -163,8 +173,9 @@ every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
 
 Both are off by default: [Build from source](#build-from-source) ends with how to build and enable them.
 
-The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time in its idle loop,
-which neither option shortens.
+The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time waiting for its
+console: the UART model takes the frame time of each character at the configured baud rate, and Zephyr polls it.
+Neither option shortens that wait.
 
 ## Bit-identical, and checked
 
@@ -206,7 +217,7 @@ git -C athrill checkout a63d4cd
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ab4de28
+git -C athrill-device checkout f233386
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
@@ -281,7 +292,7 @@ ArduPilot and, since 2026-09, flies it with ArduPilot's SITL physics. Athrill's 
 
 [docs/athrill.md](docs/athrill.md) explains Athrill and how it differs from QEMU and Renode, and
 [docs/related-work.md](docs/related-work.md) compares the ArduPilot setups. Against Renode we have the one measured
-comparison above; against QEMU, none. Feedback on test cases, missing models and limitations is welcome.
+comparison above, on ArduCopter; against QEMU, none. Feedback on test cases, missing models and limitations is welcome.
 
 ## Documents and license
 
@@ -290,6 +301,7 @@ comparison above; against QEMU, none. Feedback on test cases, missing models and
 - [Design decisions](docs/design.md), [survey of existing approaches](docs/survey.md)
 - [Testing](docs/testing.md), [verification](docs/verification.md), [performance](docs/performance.md)
 - [ArduPilot and Renode](docs/ardupilot.md), [virtual time and the clock skip](docs/time-skip.md)
+- [Speed and fidelity](docs/speed-and-fidelity.md): how Athrill is made fast, and what its device models reproduce
 
 `src/cpu/decoder/t32_decode16.{h,c}` and `t32_decode32.{h,c}` are generated from Arm's Architecture Machine Readable
 Specification and are provided under Arm's BSD 3-clause licence, reproduced in those files (Copyright 2010–2026 Arm

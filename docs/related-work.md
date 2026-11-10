@@ -20,7 +20,8 @@ What differs here:
 - the **official binary** from firmware.ardupilot.org (ArduCopter V4.7.2, `Pixhawk4`), not a local build;
 - **external, general-purpose physics** (MuJoCo, the Hakoniwa Drone x500), not ArduPilot's own SITL dynamics;
 - **faster than real time**: RTF 1.16 to 1.26 while hovering (Apple M2 Pro, `DEVICE_CONFIG_SPIN_HALT`). On the
-  same ELF without physics, Athrill runs 1.58 against Renode's 0.30 ([ardupilot.md](ardupilot.md));
+  same ELF without physics and with the same IMU, Athrill runs 1.24 (interpreter) and 2.27 (JIT and tick skip)
+  against Renode's 0.60 ([ardupilot.md](ardupilot.md));
 - the same emulator, physics and lockstep also fly **PX4** (below).
 
 ## PX4

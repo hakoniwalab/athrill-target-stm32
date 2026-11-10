@@ -1,12 +1,14 @@
 #!/bin/sh
 # Runs a Zephyr application built for Zephyr's nucleo_f767zi or nucleo_h743zi
 # board on Athrill, on athrill-device's board of the same name:
-#   examples/zephyr/run.sh <nucleo_f767zi|nucleo_h743zi> <zephyr.elf> [virtual seconds] [athrill3]
+#   examples/zephyr/run.sh <nucleo_f767zi|nucleo_h743zi> <zephyr.elf> [virtual seconds] [athrill3] [extra-config]
+# extra-config: lines appended to the device configuration (for example
+# DEVICE_CONFIG_STM32_UART_TX_INSTANT 1).
 # The console (USART3) is Athrill's console. Without virtual seconds it runs
 # until Ctrl+C.
 set -eu
 if [ $# -lt 2 ]; then
-	echo "usage: $0 <nucleo_f767zi|nucleo_h743zi> <zephyr.elf> [virtual seconds] [athrill3]" >&2
+	echo "usage: $0 <nucleo_f767zi|nucleo_h743zi> <zephyr.elf> [virtual seconds] [athrill3] [extra-config]" >&2
 	exit 1
 fi
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -15,6 +17,10 @@ ELF=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
 SECONDS_LIMIT=${3:-}
 ATHRILL=${4:-$HERE/../../build/athrill3}
 ATHRILL=$(cd "$(dirname "$ATHRILL")" && pwd)/$(basename "$ATHRILL")
+EXTRA=
+if [ $# -ge 5 ]; then
+	EXTRA=$(cd "$(dirname "$5")" && pwd)/$(basename "$5")
+fi
 case $1 in
 nucleo_f767zi)
 	DTB=$(board_dtb nucleo-f767zi nucleo-f767zi); MHZ=216
@@ -49,6 +55,9 @@ DISABLE_SYMBOL_UNDERSCORE 1
 DEVICE_CONFIG_STM32_CONSOLE_UART 3
 DEVICE_CONFIG_DEVICE_TREE $DTB
 EOF
+if [ -n "$EXTRA" ]; then
+	cat "$EXTRA" >> device_config.txt
+fi
 if [ -n "$SECONDS_LIMIT" ]; then
 	exec "$ATHRILL" -c1 -m memory.txt -d device_config.txt -t $((MHZ * 1000000 * SECONDS_LIMIT)) "$ELF"
 fi

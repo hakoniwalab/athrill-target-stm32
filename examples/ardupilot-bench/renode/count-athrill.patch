@@ -1,0 +1,186 @@
+--- a/src/device/target_host.c
++++ b/src/device/target_host.c
+@@ -48,9 +48,18 @@
+ 	return (MmioAdapter *)region->data;
+ }
+ 
++#include <stdio.h>
++#include <stdlib.h>
++static unsigned long long cnt_page[3][65536];
++unsigned long long cnt_mmio_r, cnt_mmio_w, cnt_scs_r, cnt_scs_w, cnt_dwt, cnt_irq;
++static void cnt_dump(void) {
++	const char *pf = getenv("CNT_PAGES"); if (pf) { FILE *f = fopen(pf, "w"); for (int k = 0; k < 65536; k++) if (cnt_page[0][k] || cnt_page[1][k]) fprintf(f, "0x%08x %llu %llu\n", 0x40000000u + (k << 8), cnt_page[0][k], cnt_page[1][k]); fclose(f); }
++ fprintf(stderr, "COUNT mmio_read=%llu mmio_write=%llu scs_read=%llu scs_write=%llu dwt=%llu irq_taken=%llu\n", cnt_mmio_r, cnt_mmio_w, cnt_scs_r, cnt_scs_w, cnt_dwt, cnt_irq); }
++__attribute__((constructor)) static void cnt_init(void) { atexit(cnt_dump); }
+ static Std_ReturnType mmio_get8(MpuAddressRegionType *region, CoreIdType core,
+                                 AthrillAddrType address, uint8 *data)
+ {
++	cnt_mmio_r++; cnt_page[0][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	uint64 value;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+@@ -64,6 +73,7 @@
+ static Std_ReturnType mmio_get16(MpuAddressRegionType *region, CoreIdType core,
+                                  AthrillAddrType address, uint16 *data)
+ {
++	cnt_mmio_r++; cnt_page[0][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	uint64 value;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+@@ -77,6 +87,7 @@
+ static Std_ReturnType mmio_get32(MpuAddressRegionType *region, CoreIdType core,
+                                  AthrillAddrType address, uint32 *data)
+ {
++	cnt_mmio_r++; cnt_page[0][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	uint64 value;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+@@ -90,6 +101,7 @@
+ static Std_ReturnType mmio_put8(MpuAddressRegionType *region, CoreIdType core,
+                                 AthrillAddrType address, uint8 data)
+ {
++	cnt_mmio_w++; cnt_page[1][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+ 	stm32_device_accessed = TRUE;
+@@ -99,6 +111,7 @@
+ static Std_ReturnType mmio_put16(MpuAddressRegionType *region, CoreIdType core,
+                                  AthrillAddrType address, uint16 data)
+ {
++	cnt_mmio_w++; cnt_page[1][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+ 	stm32_device_accessed = TRUE;
+@@ -108,6 +121,7 @@
+ static Std_ReturnType mmio_put32(MpuAddressRegionType *region, CoreIdType core,
+                                  AthrillAddrType address, uint32 data)
+ {
++	cnt_mmio_w++; cnt_page[1][((uint32)(address - 0x40000000u) >> 8) & 0xffffu]++;
+ 	MmioAdapter *adapter = mmio_of(region);
+ 	(void)core;
+ 	stm32_device_accessed = TRUE;
+--- a/src/device/peripheral/arm_m_scs_device.c
++++ b/src/device/peripheral/arm_m_scs_device.c
+@@ -1,3 +1,4 @@
++extern unsigned long long cnt_scs_r, cnt_scs_w, cnt_dwt;
+ /*
+  * The core's System Control Space: its registers are athrill-arm-common's
+  * arm_m_scs.h over the exception model in the core (core->m, core->systick,
+@@ -123,6 +124,7 @@
+ 
+ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
+ {
++	cnt_scs_r++;
+ 	(void)c;
+ 	*d = (uint8)read_register(r, a, 1U);
+ 	return STD_E_OK;
+@@ -130,6 +132,7 @@
+ 
+ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
+ {
++	cnt_scs_r++;
+ 	(void)c;
+ 	*d = (uint16)read_register(r, a, 2U);
+ 	return STD_E_OK;
+@@ -137,6 +140,7 @@
+ 
+ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
+ {
++	cnt_scs_r++;
+ 	(void)c;
+ 	*d = read_register(r, a, 4U);
+ 	return STD_E_OK;
+@@ -144,6 +148,7 @@
+ 
+ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
+ {
++	cnt_scs_w++;
+ 	(void)c;
+ 	stm32_device_accessed = TRUE;
+ 	write_register(r, a, 1U, d);
+@@ -152,6 +157,7 @@
+ 
+ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
+ {
++	cnt_scs_w++;
+ 	(void)c;
+ 	stm32_device_accessed = TRUE;
+ 	write_register(r, a, 2U, d);
+@@ -160,6 +166,7 @@
+ 
+ static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
+ {
++	cnt_scs_w++;
+ 	(void)c;
+ 	stm32_device_accessed = TRUE;
+ 	write_register(r, a, 4U, d);
+--- a/src/device/peripheral/arm_m_dwt.c
++++ b/src/device/peripheral/arm_m_dwt.c
+@@ -1,3 +1,4 @@
++extern unsigned long long cnt_scs_r, cnt_scs_w, cnt_dwt;
+ /*
+  * Cortex-M7 DWT registers used by firmware for cycle counting.  CYCCNT is
+  * advanced from Athrill's virtual CPU clock when both DEMCR.TRCENA and
+@@ -91,6 +92,7 @@
+ 
+ static Std_ReturnType get8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 *d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	*d = (uint8)arm_m_dwt_read((uint32)a, 1U);
+@@ -99,6 +101,7 @@
+ 
+ static Std_ReturnType get16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 *d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	*d = (uint16)arm_m_dwt_read((uint32)a, 2U);
+@@ -107,6 +110,7 @@
+ 
+ static Std_ReturnType get32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 *d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	*d = arm_m_dwt_read((uint32)a, 4U);
+@@ -115,6 +119,7 @@
+ 
+ static Std_ReturnType put8(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint8 d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	arm_m_dwt_write((uint32)a, 1U, d);
+@@ -123,6 +128,7 @@
+ 
+ static Std_ReturnType put16(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint16 d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	arm_m_dwt_write((uint32)a, 2U, d);
+@@ -131,6 +137,7 @@
+ 
+ static Std_ReturnType put32(MpuAddressRegionType *r, CoreIdType c, AthrillAddrType a, uint32 d)
+ {
++	cnt_dwt++;
+ 	(void)r;
+ 	(void)c;
+ 	arm_m_dwt_write((uint32)a, 4U, d);
+--- a/src/cpu/thumb_exec.c
++++ b/src/cpu/thumb_exec.c
+@@ -1,3 +1,4 @@
++extern unsigned long long cnt_irq;
+ /*
+  * Fetch and dispatch of Thumb instructions: a halfword whose bits 15:11 are
+  * 0b11101, 0b11110 or 0b11111 starts a 32-bit instruction.
+@@ -332,6 +333,7 @@
+ 	}
+ 	n = ArmMPendingToTakeFast(&core->m);
+ 	if (n != 0U) {
++		cnt_irq++;
+ 		return take(core, ArmMExceptionEntry(core, n, core->reg.pc));
+ 	}
+ 	if (!core->m.epsr_t) {

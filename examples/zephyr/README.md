@@ -34,6 +34,37 @@ Both scripts take the board DTBs from athrill-device next to this
 repository (or `ATHRILL_DEVICE_DIR`) and `build/athrill3` (or the last
 argument).
 
+## Compared with Renode
+
+`philosophers` built for `nucleo_f767zi` also runs, unchanged, on Renode's stock STM32F746 platform. Measured on an
+Apple M2 Pro (2026-11-11), Athrill with its JIT and tick skip:
+
+| | Virtual time | Wall time | RTF | Instructions |
+| --- | ---: | ---: | ---: | ---: |
+| Athrill, default | 30 s | 47.9 s | 0.63 | 798 M |
+| Athrill, `DEVICE_CONFIG_STM32_UART_TX_INSTANT 1` | 300 s | 0.70 s | about 430 | 32.2 M |
+| Renode, unthrottled | 300 s | 29.8 s after a start-up of 2.7 s | about 10 | 32.2 M |
+
+- **By default Athrill's USART takes the frame time of each character** at 115200 baud, as the chip does, and Zephyr
+  polls its console for each one. Renode's USART completes at once, so Renode runs far fewer instructions.
+- **With the option, Athrill's console UART sends at once too,** and the two emulators execute the same instructions.
+  The consoles then match except for the order of one update in 753, a timing difference.
+- **Where the time goes:**
+  - Renode's emulation thread spends 69% in its time framework, handing time between threads quantum by quantum.
+  - Athrill spends a third of its time writing the console to the host, and jumps its clock from event to event.
+
+To run both, with `build-fast/athrill3` built as at the end of the main README's *Build from source*:
+
+```sh
+printf 'DEVICE_CONFIG_STM32_JIT 1\nDEVICE_CONFIG_DEVICE_TICK_SKIP 1\nDEVICE_CONFIG_STM32_UART_TX_INSTANT 1\n' > /tmp/athrill-zephyr.txt
+/usr/bin/time -p examples/zephyr/run.sh nucleo_f767zi philosophers-nucleo_f767zi.elf 300 build-fast/athrill3 /tmp/athrill-zephyr.txt > /tmp/athrill-console.txt
+examples/zephyr/renode/run-renode.sh ~/renode/renode philosophers-nucleo_f767zi.elf 300
+```
+
+`~/renode/renode` is a Renode launcher; ArduPilot's performance branch was used here (see
+[docs/ardupilot.md](../../docs/ardupilot.md#renode)). Leave out the last line of `/tmp/athrill-zephyr.txt` for the
+default.
+
 ## Build the samples
 
 ```sh

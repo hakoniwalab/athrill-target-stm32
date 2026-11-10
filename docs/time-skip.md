@@ -84,8 +84,8 @@ Many RTOS idle loops never execute `WFI`:
 - **NuttX on PX4:** `up_idle` is empty.
 - **ChibiOS in ArduPilot's Pixhawk 4 build:** `__idle_thread` is a single
   branch to itself, `b .`. The whole ArduCopter ELF contains no `WFI` or
-  `WFE` at all, so without help no emulator can skip its idle time: the CPU
-  spins in `b .` until the next interrupt, as on the real board.
+  `WFE` at all: on the real board, the CPU spins in `b .` until the next interrupt.
+  Renode's CPU library translates a Thumb `b .` as `WFI`, so Renode skips this loop as well.
 
 Executed faithfully, such a loop burns host time on instructions that change
 nothing. Athrill STM32 offers two ways to treat it as `WFI`:
@@ -116,6 +116,8 @@ below confirms this: the output with and without it is identical.
   requests.
 - Interval: virtual time 20 s to 80 s, which is 12.96 billion clocks.
 - Host: Apple M2 Pro.
+- Measured 2026-11-05, with the board built by C code; the figures of the current build are in
+  [ardupilot.md](ardupilot.md#speed).
 
 | Athrill configuration | Instructions executed | Real-time factor | MAVLink output |
 | --- | ---: | ---: | --- |
@@ -138,9 +140,8 @@ below confirms this: the output with and without it is identical.
   - This measures the main loop, not the skip: the batches run only while
     the core runs. The combination is pointless, so Athrill STM32 now
     ignores the idle function without the skip (see [Limits](#limits)).
-- **Even with every idle clock executed, Athrill's 0.62 is twice Renode's
-  0.30** on the same firmware. The second reason is the cost of each device
-  access, discussed next.
+- **The idle skip is not the difference to Renode,** which skips this loop too. The difference is the cost of each
+  device access, discussed next.
 
 ## Compared with a quantum-based emulator
 
@@ -149,52 +150,33 @@ Renode advances time differently:
 - **Time framework:** then synchronises the devices and timers. Timers are
   entries in clock sources that this framework advances.
 - **Device access:** a register access is dispatched through the system bus
-  framework.
+  framework, to a device model written in C#.
 
-Renode does skip time at `WFI`. A busy idle loop such as ChibiOS's `b .` is
-executed.
+Renode skips time at `WFI`, and at a Thumb `b .`, which its CPU library translates as `WFI`.
 
-ArduPilot's own performance work on Renode reports where its time goes:
-- **The CPU is cheap:** guest CPU emulation is 1–3% of the cost.
-- **Each event and each register access is expensive:** a fixed cost of
-  about 2–3 µs per register access, and clock-source bookkeeping for each
-  timer event.
-- Sources: [Renode performance lessons, ArduPilot's performance
-  branch](https://github.com/ArduPilot/renode/blob/pr-arudpilot-am32-perf/perf_lessons.md),
-  and ArduPilot's `Tools/renode/README.md`.
+ArduPilot's own performance work on Renode reports where its time goes
+([Renode performance lessons, ArduPilot's performance
+branch](https://github.com/ArduPilot/renode/blob/pr-arudpilot-am32-perf/perf_lessons.md), and ArduPilot's
+`Tools/renode/README.md`):
+- the per-event and per-access costs dominate: a fixed cost of about 2–3 µs per register access, and clock-source
+  bookkeeping for each timer event;
+- a cheap virtual-time read within a quantum is named as the biggest remaining win.
 
-That README also records a dead end:
-- A timer whose `CNT` is computed from elapsed virtual time made the
-  emulation about 3 times *slower*.
-- The cause: Renode's virtual time advances only at quantum granularity for
-  the running CPU. Every microsecond wait in the firmware therefore became a
-  busy spin of a whole quantum.
-- The README names a cheap virtual-time primitive *within* a quantum as the
-  biggest remaining win. Reading the timer counter is still about a third of
-  Renode's emulation thread.
+**Our profile of this workload** ([ardupilot.md](ardupilot.md#where-the-time-goes)), on the same board as Athrill:
+- the device models, reached from the CPU's register accesses, take 44% of Renode's emulation thread;
+- the calls between .NET and its CPU library add a `setjmp` each, 15% on macOS;
+- the time framework is 5%.
 
-The ArduPilot measurements show the same from the outside:
-- Raising Renode's `PerformanceInMips` from 216 to 462 more than doubles the
-  instructions it executes per virtual second.
-- Its RTF stays at 0.30.
-- Renode's executed instructions are nearly free; its time is in advancing
-  virtual time ([docs/ardupilot.md](ardupilot.md#why-athrill-was-faster)).
+So, on this workload, Renode's time goes into the device accesses, not into advancing virtual time.
 
-**Athrill has that primitive.** Its clock is exact to the instruction, so a
-device computes its counter from the clock at the moment of the access. The
-access itself is:
+**Athrill makes a device access cheap.** Its clock is exact to the instruction, so a device computes its counter from
+the clock at the moment of the access. The access itself is:
 - a direct function call;
 - on the emulation thread;
-- without locks or a time framework in between.
+- in C, without locks, a language boundary or a time framework in between.
 
-**How we read the 5-fold difference.** The table above gives two parts:
-- the idle skip, a factor of 2.5 within Athrill;
-- the per-access and per-event cost: even without the skip, Athrill is twice
-  as fast as Renode.
-
-This split is our reading. Renode's side was not profiled in this
-comparison, so its per-access share on this workload is taken from the
-ArduPilot notes above, not measured here.
+On the same board and firmware, Athrill makes 1.3 times as many register accesses per virtual second as Renode and
+spends a quarter or less of Renode's host time in its devices.
 
 ## Limits
 
