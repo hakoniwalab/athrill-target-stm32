@@ -227,6 +227,70 @@ What the example sets (`x500-hakoniwa-ardupilot.parm`):
 The board configuration (`device_config.txt`) lets a branch to itself wait like `WFI` (`DEVICE_CONFIG_SPIN_HALT`,
 [ardupilot.md](ardupilot.md)): ArduCopter's idle loop is `b .`, and the virtual clock then skips it.
 
+## In process
+
+The aircraft can also run inside Athrill: no aircraft service, no `hako-cmd`, one process
+([in-process aircraft](https://github.com/hakoniwalab/athrill-device/blob/main/docs/in-process-aircraft.md)). The
+firmware, the board and `fly.py` are the same. It is the faster way for one vehicle; other Hakoniwa assets and viewers
+cannot join.
+
+**What it needs:**
+- the in-process sensor device, `libhako_sensor_device_inproc.dylib`. It is built from athrill-device with
+  `-DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON`, against the unpacked Hakoniwa Drone release of step 2
+  ([athrill-device's README](https://github.com/hakoniwalab/athrill-device#build-the-device)).
+  **It does not compile with the public Hakoniwa Drone v5.0.0 yet:** a header of that release includes a file the
+  release does not ship. It will be fixed in the next release of Hakoniwa Drone.
+- `HAKO_DRONE_ROOT`: the unpacked release (`hakoniwa-drone-core`, with `mac.zip`).
+- `HAKO_AIRCRAFT_CONFIG_PATH`: the airframe. PX4 flies Hakoniwa Drone's `config/drone/x500-athrill-px4`; ArduPilot
+  flies the example's `x500-athrill-ardupilot`.
+
+The first run writes the parameters as with the Hakoniwa link (the test vehicle, no aircraft). `run.sh` then runs
+Athrill in the release directory, where the airframe names its model, and keeps MAVLink on TCP `127.0.0.1:5760`.
+
+The in-process mode of `run.sh` is on main, after release v0.3.0:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+git -C athrill-target-stm32 checkout main
+```
+
+PX4, in one terminal:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+HAKO_DRONE_ROOT="$PWD/hakoniwa-drone-core" \
+HAKO_AIRCRAFT_CONFIG_PATH="$PWD/hakoniwa-drone-core/config/drone/x500-athrill-px4" \
+  athrill-target-stm32/examples/px4-hakoniwa/run.sh \
+  px4_fmu-v5_default.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32-inproc/libhako_sensor_device_inproc.dylib
+```
+
+In a second, once it prints `PX4 on Athrill with the aircraft in process`:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+python3 athrill-target-stm32/examples/px4-hakoniwa/fly.py
+```
+
+ArduCopter is the same with `examples/ardupilot-hakoniwa/run.sh`, `arducopter.elf`, the airframe
+`athrill-target-stm32/examples/ardupilot-hakoniwa/x500-athrill-ardupilot` and its `fly.py`.
+
+**With the JIT and tick skip:**
+- Use the `build-fast/athrill3` of the README's *Build from source* in place of the release's `athrill3`.
+- Give `run.sh` a file with the two lines as a fourth argument, for example `fast.txt`:
+
+```text
+DEVICE_CONFIG_STM32_JIT 1
+DEVICE_CONFIG_DEVICE_TICK_SKIP 1
+```
+
+**Measured** (Apple M2 Pro, no viewer, 2026-11-11, athrill-device 60fd5e0). The RTF is the one `fly.py` prints:
+over the 40 s of vehicle time after the take-off command, climb and hover. Every run held 2.5 m.
+
+| In process | Interpreter (3 runs) | JIT and tick skip (3 runs) |
+| --- | ---: | ---: |
+| PX4, Pixhawk 4 | 1.76, 1.74, 1.76 | 2.87, 2.68, 2.79 |
+| ArduCopter, Pixhawk 4 | 1.12, 1.11, 1.11 | 1.81, 1.92, 1.78 |
+
 ## How it is set up
 
 - **Memory**: ROM 0x08000000 2048 KB, RAM 0x20000000 512 KB (`memory.txt`).
