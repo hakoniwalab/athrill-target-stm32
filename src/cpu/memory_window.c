@@ -36,6 +36,11 @@ static std_bool find_region(uint32 addr, uint32 size, MemoryWindowType *found)
 	return FALSE;
 }
 
+std_bool memory_window_region(uint32 addr, MemoryWindowType *region)
+{
+	return find_region(addr, 1U, region);
+}
+
 uint8 *memory_window_lookup(uint32 addr, uint32 size)
 {
 	MemoryWindowType found;

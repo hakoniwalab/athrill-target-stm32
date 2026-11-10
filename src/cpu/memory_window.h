@@ -24,6 +24,8 @@ extern MemoryWindowType memory_code_window;
 
 /* The memory region holding [addr, addr + size) in a window, or NULL; it becomes window 0. */
 uint8 *memory_window_lookup(uint32 addr, uint32 size);
+/* The plain memory region holding addr into *region, the windows unchanged; FALSE: none. */
+std_bool memory_window_region(uint32 addr, MemoryWindowType *region);
 /* The same for instruction fetch: the region becomes the code window. */
 uint8 *memory_window_code_lookup(uint32 addr, uint32 size);
 

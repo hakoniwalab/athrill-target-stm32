@@ -440,7 +440,6 @@ Std_ReturnType thumb_execute(TargetCoreType *core)
  * next block would start inside an IT block, and not to the idle PC).
  */
 #include "athrill_jit.h"
-#include "mpu.h"
 #include "cpuemu_ops.h"
 #include <inttypes.h>
 #include <stdio.h>
@@ -479,6 +478,9 @@ static uint64 thumb_jit_runs;
 static uint64 thumb_jit_insns;
 static uint64 thumb_jit_translated;
 static uint64 thumb_jit_failures;
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+static ThumbJitDiffStats thumb_jit_diff_stats;
+#endif
 
 #define TJ_CORE(field, width) athrill_jit_core((uint32)offsetof(TargetCoreType, field), width)
 #define TJ_CTX(field, width) athrill_jit_ctx((uint32)offsetof(ThumbJitCtx, field), width)
@@ -513,6 +515,50 @@ static std_bool thumb_jit_enabled(void)
 	}
 	return thumb_jit_mode == 1;
 }
+
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+void thumb_jit_diff_reset(void)
+{
+	athrill_jit_chain_unlink_all();
+	athrill_jit_cache_destroy(thumb_jit_cache);
+	thumb_jit_cache = NULL;
+	thumb_jit_mode = 0;
+	thumb_jit_clock = NULL;
+	thumb_jit_pending_slot = NULL;
+	thumb_jit_pending_indirect = FALSE;
+	thumb_jit_epoch++;
+	thumb_jit_runs = 0U;
+	thumb_jit_insns = 0U;
+	thumb_jit_translated = 0U;
+	memset(&thumb_jit_diff_stats, 0, sizeof(thumb_jit_diff_stats));
+}
+
+void thumb_jit_diff_set_enabled(std_bool enabled)
+{
+	if (enabled && (thumb_jit_cache == NULL)) {
+		thumb_jit_cache = athrill_jit_cache_create(256U);
+	}
+	thumb_jit_mode = (enabled && (thumb_jit_cache != NULL)) ? 1 : 0;
+}
+
+void thumb_jit_diff_get_stats(ThumbJitDiffStats *stats)
+{
+	*stats = thumb_jit_diff_stats;
+	stats->runs = thumb_jit_runs;
+	stats->insns = thumb_jit_insns;
+	stats->translated = thumb_jit_translated;
+	stats->chain_links = athrill_jit_chain_links();
+}
+
+static void thumb_jit_diff_count(AthrillJitBuilder *b, uint64 *counter)
+{
+	athrill_jit_alu(b, ATHRILL_JIT_ADD, athrill_jit_abs(counter, 8),
+		athrill_jit_abs(counter, 8), athrill_jit_imm(1));
+}
+#define THUMB_JIT_DIFF_COUNT(b, n) thumb_jit_diff_count((b), &thumb_jit_diff_stats.native[(n)])
+#else
+#define THUMB_JIT_DIFF_COUNT(b, n) ((void)0)
+#endif
 
 /* Code changed: no compiled block, link or table entry stays. */
 static void thumb_jit_code_changed(void)
@@ -724,6 +770,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 
 			target = (pc4 + imm32) & ~1U;
 		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_BL);
 		athrill_jit_mov(b, TJ_R(14U), athrill_jit_imm((sint64)(pc4 | 1U)));	/* LR */
 		athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)target));
 		athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
@@ -734,6 +781,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 	insn = (uint16)e->insn;
 	switch (t32_decode16(insn)) {
 	case T32_16_MOV_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MOV_I);
 		value = t32_MOV_i_T1_imm8(insn);
 		athrill_jit_mov(b, TJ_R(t32_MOV_i_T1_Rd(insn)), athrill_jit_imm((sint64)value));
 		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_APSR, TJ_APSR,
@@ -748,6 +796,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		if (d == ARM_REG_PC) {
 			return FALSE;	/* ALUWritePC */
 		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MOV_R);
 		if (m == ARM_REG_PC) {
 			athrill_jit_mov(b, TJ_R(d), athrill_jit_imm((sint64)pc4));
 		} else {
@@ -755,32 +804,40 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		}
 		return TRUE;
 	case T32_16_CMP_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_CMP_I);
 		thumb_jit_add_sub(b, -1, TJ_R(t32_CMP_i_T1_Rn(insn)), athrill_jit_imm(t32_CMP_i_T1_imm8(insn)), TRUE);
 		return TRUE;
 	case T32_16_CMP_r_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_CMP_R);
 		thumb_jit_add_sub(b, -1, TJ_R(t32_CMP_r_T1_Rn(insn)), TJ_R(t32_CMP_r_T1_Rm(insn)), TRUE);
 		return TRUE;
 	case T32_16_ADD_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_ADD_I3);
 		thumb_jit_add_sub(b, (sint32)t32_ADD_i_T1_Rd(insn), TJ_R(t32_ADD_i_T1_Rn(insn)),
 				  athrill_jit_imm(t32_ADD_i_T1_imm3(insn)), FALSE);
 		return TRUE;
 	case T32_16_SUB_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SUB_I3);
 		thumb_jit_add_sub(b, (sint32)t32_SUB_i_T1_Rd(insn), TJ_R(t32_SUB_i_T1_Rn(insn)),
 				  athrill_jit_imm(t32_SUB_i_T1_imm3(insn)), TRUE);
 		return TRUE;
 	case T32_16_ADD_i_T2:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_ADD_I8);
 		d = t32_ADD_i_T2_Rdn(insn);
 		thumb_jit_add_sub(b, (sint32)d, TJ_R(d), athrill_jit_imm(t32_ADD_i_T2_imm8(insn)), FALSE);
 		return TRUE;
 	case T32_16_SUB_i_T2:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SUB_I8);
 		d = t32_SUB_i_T2_Rdn(insn);
 		thumb_jit_add_sub(b, (sint32)d, TJ_R(d), athrill_jit_imm(t32_SUB_i_T2_imm8(insn)), TRUE);
 		return TRUE;
 	case T32_16_ADD_r_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_ADD_R);
 		thumb_jit_add_sub(b, (sint32)t32_ADD_r_T1_Rd(insn), TJ_R(t32_ADD_r_T1_Rn(insn)),
 				  TJ_R(t32_ADD_r_T1_Rm(insn)), FALSE);
 		return TRUE;
 	case T32_16_SUB_r_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SUB_R);
 		thumb_jit_add_sub(b, (sint32)t32_SUB_r_T1_Rd(insn), TJ_R(t32_SUB_r_T1_Rn(insn)),
 				  TJ_R(t32_SUB_r_T1_Rm(insn)), TRUE);
 		return TRUE;
@@ -788,6 +845,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		if (!thumb_jit_rom_word((pc4 & ~3U) + (t32_LDR_l_T1_imm8(insn) << 2), &value)) {
 			return FALSE;
 		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_LDR_LITERAL);
 		athrill_jit_mov(b, TJ_R(t32_LDR_l_T1_Rt(insn)), athrill_jit_imm((sint64)value));
 		return TRUE;
 	case T32_16_B_T1:
@@ -795,6 +853,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		if ((target == pc) || (*taken_count >= THUMB_JIT_MAX_LENGTH)) {
 			return FALSE;	/* to itself: the spin-halt check in C */
 		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_B_COND);
 		athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T0W, TJ_APSR, athrill_jit_imm(28));
 		athrill_jit_mov(b, TJ_T1W, athrill_jit_imm((sint64)thumb_jit_cond_mask(t32_B_T1_cond(insn))));
 		athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T1W, TJ_T1W, TJ_T0W);
@@ -809,6 +868,8 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		if (*taken_count >= THUMB_JIT_MAX_LENGTH) {
 			return FALSE;
 		}
+		THUMB_JIT_DIFF_COUNT(b, (t32_decode16(insn) == T32_16_CBZ_T1)
+			? THUMB_JIT_DIFF_CBZ : THUMB_JIT_DIFF_CBNZ);
 		if (t32_decode16(insn) == T32_16_CBZ_T1) {
 			target = pc4 + ((t32_CBZ_T1_i(insn) << 6) | (t32_CBZ_T1_imm5(insn) << 1));
 			m = t32_CBZ_T1_Rn(insn);
@@ -827,6 +888,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		if (target == pc) {
 			return FALSE;
 		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_B);
 		athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)target));
 		athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
 		thumb_jit_exit_to(b, target);
@@ -888,6 +950,9 @@ static void thumb_jit_emit_call(AthrillJitBuilder *b, const ThumbDecodedType *e,
 	}
 	athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)e->pc));
 	athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)next));
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+	thumb_jit_diff_count(b, &thumb_jit_diff_stats.called);
+#endif
 	if (e->length == 2U) {
 		athrill_jit_call_value(b, (AthrillJitCallValueFunc)(void *)e->exec16, e->insn);
 	} else {
@@ -926,32 +991,18 @@ typedef struct {
 	const ThumbDecodedType *entry;
 } ThumbJitSlow;
 
-/*
- * The plain memory region holding addr (as memory_window.c's find_region()
- * takes them: default memory, no aliasing), read from the address map
- * without touching the memory windows.
- */
+/* The plain memory region holding addr (memory_window_region(): the windows unchanged). */
 static void thumb_jit_find_region(ThumbJitRegion *r, uint32 addr, std_bool writable)
 {
-	uint32 i;
+	MemoryWindowType region;
 
-	for (i = 0U; i < mpu_address_map.dynamic_map_num; i++) {
-		const MpuAddressRegionType *m = &mpu_address_map.dynamic_map[i];
-
-		if ((m->ops != &default_memory_operation) || (m->data == NULL) || (m->mask != MPU_ADDRESS_REGION_MASK_ALL)) {
-			continue;
-		}
-		if ((m->type != READONLY_MEMORY) != writable) {
-			continue;
-		}
-		if (((addr - (uint32)m->start) < (uint32)m->size) && ((uint32)m->size >= 4U)) {
-			r->start = (uint32)m->start;
-			r->size = (uint32)m->size;
-			r->data = m->data;
-			r->known = TRUE;
-			return;
-		}
+	if (!memory_window_region(addr, &region) || (region.writable != writable) || (region.size < 4U)) {
+		return;
 	}
+	r->start = region.start;
+	r->size = region.size;
+	r->data = region.data;
+	r->known = TRUE;
 }
 
 /* T0 = (R[n] + imm) mod 2^32 */
@@ -1116,12 +1167,18 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 			/* BXWritePC: EPSR.T stays 1, next_pc = the value without bit 0; on as a taken branch */
 			athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)e->pc));
 			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CORE(reg.next_pc, 4), TJ_CTX(fx, 4), athrill_jit_imm(0xFFFFFFFELL));
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+			thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+#endif
 			athrill_jit_jump(b, taken);
 		}
 		break;
 	default:
 		return FALSE;
 	}
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+	thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+#endif
 	athrill_jit_label_place(b, slow->resume);
 	return TRUE;
 }
@@ -1171,6 +1228,9 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 	complete_exit = athrill_jit_label_new(b);
 	taken = athrill_jit_label_new(b);
 	self_exit = athrill_jit_label_new(b);
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+	thumb_jit_diff_count(b, &thumb_jit_diff_stats.block_entries);
+#endif
 	/* entry check: a chained run stops before a block that would go over its budget */
 	athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, athrill_jit_done(), athrill_jit_imm((sint64)length));
 	athrill_jit_exit_if(b, ATHRILL_JIT_GTU, TJ_T0, TJ_CTX(budget, 8));
@@ -1269,6 +1329,11 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 	}
 	if ((clock != thumb_jit_clock) || core->m.pending_check || core->m.priority_check || core->m.lockup
 		|| !core->m.epsr_t || (core->reg.itstate != 0U)) {
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		if (core->reg.itstate != 0U) {
+			thumb_jit_diff_stats.it_fallbacks++;
+		}
+#endif
 		return 0U;
 	}
 	e = thumb_jit_entry(pc);
@@ -1294,6 +1359,9 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 		e->jit_length = length;
 	}
 	if (e->jit_length > budget) {
+#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+		thumb_jit_diff_stats.budget_fallbacks++;
+#endif
 		return 0U;
 	}
 	code = (const AthrillJitCode *)e->jit_code;

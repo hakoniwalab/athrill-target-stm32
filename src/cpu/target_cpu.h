@@ -65,6 +65,33 @@ Std_ReturnType thumb_execute(TargetCoreType *core);
  */
 Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed);
 void thumb_invalidate_code(AthrillAddrType address, uint32 size);
+#if defined(ATHRILL_ENABLE_JIT) && defined(ATHRILL_STM32_JIT_DIFF_TEST)
+enum {
+    THUMB_JIT_DIFF_MOV_I = 0, THUMB_JIT_DIFF_MOV_R,
+    THUMB_JIT_DIFF_CMP_I, THUMB_JIT_DIFF_CMP_R,
+    THUMB_JIT_DIFF_ADD_I3, THUMB_JIT_DIFF_SUB_I3,
+    THUMB_JIT_DIFF_ADD_I8, THUMB_JIT_DIFF_SUB_I8,
+    THUMB_JIT_DIFF_ADD_R, THUMB_JIT_DIFF_SUB_R,
+    THUMB_JIT_DIFF_LDR_LITERAL, THUMB_JIT_DIFF_B_COND,
+    THUMB_JIT_DIFF_B, THUMB_JIT_DIFF_CBZ, THUMB_JIT_DIFF_CBNZ,
+    THUMB_JIT_DIFF_BL, THUMB_JIT_DIFF_NATIVE_COUNT
+};
+typedef struct {
+    uint64 native[THUMB_JIT_DIFF_NATIVE_COUNT];
+    uint64 called;
+    uint64 memory_native;	/* native loads, stores, PUSH, POP that took the direct path */
+    uint64 block_entries;
+    uint64 it_fallbacks;
+    uint64 budget_fallbacks;
+    uint64 runs;
+    uint64 insns;
+    uint64 translated;
+    uint32 chain_links;
+} ThumbJitDiffStats;
+void thumb_jit_diff_reset(void);
+void thumb_jit_diff_set_enabled(std_bool enabled);
+void thumb_jit_diff_get_stats(ThumbJitDiffStats *stats);
+#endif
 void stm32_host_function_init(void);
 void stm32_idle_spin_halt_init(void);
 /*
