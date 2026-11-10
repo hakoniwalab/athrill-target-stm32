@@ -100,7 +100,8 @@ back as motor commands, in lockstep. Two ways to connect:
 - **In process**: the aircraft runs inside Athrill, so one process steps the firmware and the vehicle. Good for
   firmware tests, tuning and regression runs.
 
-Measured on an Apple M2 Pro, no viewer, x500 take-off to 2.5 m and hover, 2026-11-07 and 2026-11-08:
+Measured on an Apple M2 Pro, no viewer, x500 take-off to 2.5 m and hover, 2026-11-07 and 2026-11-08, with the
+interpreter (before the JIT and tick skip below; these flights have not been measured with them yet):
 
 | Firmware on board | Runs | Real-time factor |
 | --- | --- | ---: |
@@ -198,7 +199,8 @@ and what they do not show are in [docs/verification.md](docs/verification.md). I
 as QGroundControl's commands over TCP, arrives at run-dependent virtual times. Such runs are checked by their logs,
 not for identity.
 
-On the Mac (M2 Pro) PX4 v1.17.0 SIH hovered at RTF 2.22 with QGroundControl and SD logging (2026-11-04)
+On the Mac (M2 Pro) PX4 v1.17.0 SIH hovered at RTF 2.22 with QGroundControl and SD logging (2026-11-04, interpreter;
+the SIH scenario with the JIT and tick skip is in [Faster](#faster-a-block-jit-and-tick-skip))
 ([docs/performance.md](docs/performance.md)).
 
 ## Debugging with GDB or LLDB
