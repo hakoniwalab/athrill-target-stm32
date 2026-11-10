@@ -479,6 +479,7 @@ static uint64 thumb_jit_runs;
 static uint64 thumb_jit_insns;
 static uint64 thumb_jit_translated;
 static uint64 thumb_jit_failures;
+static uint64 thumb_jit_flushes;	/* the cache's flushes seen (each one ends an epoch) */
 #ifdef ATHRILL_STM32_JIT_DIFF_TEST
 static ThumbJitDiffStats thumb_jit_diff_stats;
 #endif
@@ -1815,6 +1816,16 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 		athrill_jit_cache_insert(thumb_jit_cache, pc, 0U, thumb_jit_epoch, fresh);
 		thumb_jit_pending_slot = NULL;	/* the insert may have freed the block it belongs to */
 		thumb_jit_pending_indirect = FALSE;
+		{
+			/* a full cache frees every block first: no entry's jit_code may stay */
+			AthrillJitCacheStats st;
+
+			athrill_jit_cache_get_stats(thumb_jit_cache, &st);
+			if (st.flushes != thumb_jit_flushes) {
+				thumb_jit_flushes = st.flushes;
+				thumb_jit_epoch++;
+			}
+		}
 		thumb_jit_translated++;
 		e->jit_code = fresh;
 		e->jit_epoch = thumb_jit_epoch;
