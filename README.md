@@ -100,17 +100,29 @@ back as motor commands, in lockstep. Two ways to connect:
 - **In process**: the aircraft runs inside Athrill, so one process steps the firmware and the vehicle. Good for
   firmware tests, tuning and regression runs.
 
-Measured on an Apple M2 Pro, no viewer, x500 take-off to 2.5 m and hover, 2026-11-07 and 2026-11-08, with the
-interpreter (before the JIT and tick skip below; these flights have not been measured with them yet):
+Measured on an Apple M2 Pro, no viewer: `fly.py` takes off to 2.5 m and checks the hover. The real-time factor
+is over the 40 s of vehicle time after the take-off command (climb and hover), 3 runs each:
 
-| Firmware on board | Runs | Real-time factor |
-| --- | --- | ---: |
-| PX4, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 1.61–1.65 |
-| ArduCopter, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 0.99–1.09 |
-| PX4, Pixhawk 4, in process | 3/3 hold 2.5 m | 1.81–1.85 |
-| ArduCopter, Pixhawk 4, in process | 3/3 hold 2.5 m | 1.18–1.23 |
-| PX4, Pixhawk 6C (480 MHz), in process | 2/2 hold 2.5 m | 1.28 |
-| ArduCopter, Pixhawk 6C, in process | 2/2 hold 2.5 m | 0.74–0.76 |
+| Firmware on board, in process | Holds 2.5 m | Interpreter | **JIT and tick skip** |
+| --- | --- | ---: | ---: |
+| PX4, Pixhawk 4 | 6/6 | 1.74–1.76 | **2.68–2.87** |
+| ArduCopter, Pixhawk 4 | 6/6 | 1.11–1.12 | **1.78–1.92** |
+
+2026-11-11, athrill-device 60fd5e0. Earlier rows, interpreter only, the same `fly.py`:
+
+| Firmware on board | Runs | Real-time factor | Measured |
+| --- | --- | ---: | --- |
+| PX4, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 1.61–1.65 | 2026-11-08 |
+| ArduCopter, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 0.99–1.09 | 2026-11-08 |
+| PX4, Pixhawk 6C (480 MHz), in process | 2/2 hold 2.5 m | 1.28 | 2026-11-07 |
+| ArduCopter, Pixhawk 6C, in process | 2/2 hold 2.5 m | 0.74–0.76 | 2026-11-07 |
+
+- **Pixhawk 6C, for reference, measured differently.** The 6C's regression run boots PX4 and arms it from NSH. It
+  takes off at 50 s, and the run ends at 90 virtual s, ground time included. Over the whole run the interpreter
+  gives 0.91 and the JIT with tick skip 1.19 (3 runs each, 2026-11-11). Every run is bit-identical to the regression
+  reference (console, PWM and sensor-device traces). These figures are not comparable with the `fly.py` rows.
+- The 6C rows, the Hakoniwa link rows and the interpreter's figures, about 5% below those of 2026-11-07 on the
+  Pixhawk 4, are to be measured again.
 
 [docs/hakoniwa.md](docs/hakoniwa.md) has the setup, with the free edition of Hakoniwa Drone v5.0.0. The sensor
 device and both links are in athrill-device
@@ -219,7 +231,7 @@ git -C athrill checkout a63d4cd
 git clone https://github.com/hakoniwalab/athrill-arm-common.git
 git -C athrill-arm-common checkout 60d8098
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout f233386
+git -C athrill-device checkout 60fd5e0
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
 cd athrill-target-stm32
 
