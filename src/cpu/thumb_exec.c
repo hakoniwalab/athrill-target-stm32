@@ -207,6 +207,7 @@ COLD_PATH static const ThumbDecodedType *decode_into(ThumbDecodedType *e, uint32
 #ifdef ATHRILL_ENABLE_JIT
 static void thumb_jit_code_changed(void);
 #endif
+static uint64 thumb_branch_to_self_rest(TargetCoreType *core, uint32 pc, uint64 rest, uint64 *clock);
 
 void thumb_invalidate_code(AthrillAddrType address, uint32 size)
 {
@@ -1855,12 +1856,39 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 
 		if ((self != NULL) && self->branch_to_self) {
 			athrill_idle_spin_halt_after_execute(core->core_id, core->reg.pc);
+			if (done < budget) {
+				done += thumb_branch_to_self_rest(core, core->reg.pc, budget - done, clock);
+			}
 		}
 	}
 	return done;
 }
 
 #endif /* ATHRILL_ENABLE_JIT */
+
+/*
+ * A branch to itself that has just run and stayed: without spin-halt,
+ * every further run of it until the batch ends is the same (its condition,
+ * if any, reads APSR, which it does not change; ITSTATE is 0; exceptions
+ * and device events come only between batches). The rest of the budget is
+ * those runs, one clock each: counted at once. With spin-halt, a run may
+ * halt the core once an interrupt is ready (which can turn true within a
+ * batch, e.g. the SysTick computed from the clock), so it is not done.
+ * Returns the clocks added (0: not such a branch).
+ */
+static uint64 thumb_branch_to_self_rest(TargetCoreType *core, uint32 pc, uint64 rest, uint64 *clock)
+{
+	const ThumbDecodedType *e = &decode_cache[(pc >> 1) & (DECODE_CACHE_SIZE - 1U)];
+
+	if (athrill_idle_spin_halt_spin_enabled() || (e->pc != pc) || !e->branch_to_self || core->is_halt
+		|| (core->reg.itstate != 0U)
+		|| core->m.pending_check || core->m.priority_check || core->m.lockup || !core->m.epsr_t
+		|| stm32_device_accessed || core->reset_pending || core->scs.reset_requested) {
+		return 0U;
+	}
+	*clock += rest;
+	return rest;
+}
 
 Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64 *clock, uint64 *executed)
 {
@@ -1889,9 +1917,16 @@ Std_ReturnType thumb_execute_run(TargetCoreType *core, uint64 max_clocks, uint64
 #endif
 		(*clock)++;
 		n++;
-		err = execute_one(core);
-		if (err != STD_E_OK) {
-			break;
+		{
+			uint32 pc = core->reg.pc;
+
+			err = execute_one(core);
+			if (err != STD_E_OK) {
+				break;
+			}
+			if ((core->reg.pc == pc) && (n < max_clocks)) {
+				n += thumb_branch_to_self_rest(core, pc, max_clocks - n, clock);
+			}
 		}
 	}
 	*executed = n;

@@ -143,6 +143,7 @@ std_bool athrill_host_function_invoke(CoreIdType id, int function_id) { (void)id
 AthrillAddrType athrill_idle_spin_halt_idle_pc(void) { return 0U; }
 std_bool athrill_idle_spin_halt_idle_ready(CoreIdType id) { (void)id; return FALSE; }
 void athrill_idle_spin_halt_after_execute(CoreIdType id, AthrillAddrType pc) { (void)id; (void)pc; }
+std_bool athrill_idle_spin_halt_spin_enabled(void) { return FALSE; }
 void cpu_trace_pc_record(uint32 pc) { (void)pc; }
 
 static void put16(uint32 address, uint16 value)
