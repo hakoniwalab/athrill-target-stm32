@@ -128,6 +128,10 @@ is over the 40 s of vehicle time after the take-off command (climb and hover), 3
 device and both links are in athrill-device
 ([in-process aircraft](https://github.com/hakoniwalab/athrill-device/blob/main/docs/in-process-aircraft.md)).
 
+**DShot ESCs.** The motors can also run on DShot600 through emulated ESCs, with their KISS telemetry and a motor that
+stops on schedule or from a browser: PX4 detects the failure from the telemetry and the x500 falls. The firmware's
+own DShot driver runs unchanged, the timer DMA burst included ([docs/dshot.md](docs/dshot.md)).
+
 ## ArduPilot, and a race with Renode
 
 ArduPilot also runs this firmware on Renode, so we compared the two on one Apple M2 Pro with the same ELF, the same
@@ -315,6 +319,7 @@ comparison above, on ArduCopter; against QEMU, none. Feedback on test cases, mis
 - [Design decisions](docs/design.md), [survey of existing approaches](docs/survey.md)
 - [Testing](docs/testing.md), [verification](docs/verification.md), [performance](docs/performance.md)
 - [ArduPilot and Renode](docs/ardupilot.md), [virtual time and the clock skip](docs/time-skip.md)
+- [DShot ESCs](docs/dshot.md): DShot600, ESC telemetry and motor-fault injection with Hakoniwa Drone
 - [Speed and fidelity](docs/speed-and-fidelity.md): how Athrill is made fast, and what its device models reproduce
 
 `src/cpu/decoder/t32_decode16.{h,c}` and `t32_decode32.{h,c}` are generated from Arm's Architecture Machine Readable
