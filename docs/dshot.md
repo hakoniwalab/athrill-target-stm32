@@ -218,10 +218,15 @@ and use `examples/ardupilot-hakoniwa/fly.py`.
 2026-11-14, macOS (Apple M2 Pro), athrill3 from main with athrill-device `73a0f4d`, PX4 ELF of release v0.3.0,
 ArduCopter V4.7.2.
 
-**With the public Hakoniwa Drone v5.0.0** (aircraft service):
-- PX4, DShot600, `fly.py`: PASS 3/3. The four ESCs online in `esc_status`, with the model's telemetry.
-- PX4, motor 3 stopped at 40 s: 3/3 `Motor failure detected` (at 39.92 s of the vehicle's time), on the ground at 41.04 to 41.09 s; `motor_failure_mask` 4.
-- RTF while hovering, without the viewer (`fly.py`, 3 runs each):
+**With the public Hakoniwa Drone v5.0.0** (aircraft service, the steps above, no viewer):
+- PX4, `fly.py`: 3/3 PASS (RTF 1.25 to 1.36). In `esc_status` the four ESCs online, about 4,500 rpm and 6.2 A
+  each while hovering (the model's telemetry); `motor_failure_mask` 0.
+- PX4, motor 3 stopped at 40 s, `fly-motor-fault.py`: 3/3 PASS. `Motor failure detected` at 39.92 to 40.01 s of the
+  vehicle's time, on the ground at 41.08 to 41.09 s; `motor_failure_mask` 4 (motor 3).
+- ArduCopter, `examples/ardupilot-hakoniwa/fly.py`: 3/3 PASS (RTF 0.87 to 0.90).
+- ArduCopter, motor 3 stopped at 70 s, `fly-motor-fault.py`: 3/3 PASS, on the ground at 71.09 s.
+- These checks ran with other work on the machine, so their RTFs are not for comparison. PWM against DShot, measured
+  earlier the same day on an otherwise idle machine, the same way (`fly.py`, 3 runs each):
 
 | | PWM | DShot600 |
 | --- | ---: | ---: |
