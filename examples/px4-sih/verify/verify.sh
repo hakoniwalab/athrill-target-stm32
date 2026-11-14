@@ -120,13 +120,18 @@ echo "ELF sha256: $ELF_SHA"
 # Re-recorded 2026-11-08: the UART receives whenever UE and RE are set, as
 # on the chip, and the scenario is typed from 1 s on (from 0 s PX4's console
 # setup drops the first character); every determinism and flight check passes.
+# Re-recorded 2026-11-14 (SD card image, ULog) for athrill-device 6b6f588:
+# CAN1 and CAN2 acknowledge initialization (athrill-device#104), so PX4's
+# UAVCAN starts instead of failing (ErrMsrInakNotSet) and runs every 3 ms.
+# F-RAM and console are unchanged; every determinism, flight-log and MAVLink
+# flight check passes. With athrill-device 60fd5e0 the old values return.
 # docs/verification.md keeps the release run's values.
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
-PUBLISHED_ULOG=b6006b6def93f19c76376f2616d210e676367abaf589143a13b95e82c37c91ac
+PUBLISHED_ULOG=db8b5afba866101be560ea05a55e00bbcf679c5edfc4385972f91b9cc3e8b99d
 PUBLISHED_FRAM=86dab85776be9545d5960ac1850ca907410dcadba7b78031b53dce3836a8351e
 # console: normalised without Athrill's configuration echo lines
 PUBLISHED_CONSOLE=deb8c6a224567432f9582302c08eff0db380bb0ed5382ea2688e44074aefec8c
-PUBLISHED_SD=84cbe953aa4523abe89fe36d37d7ce387aea01bd9f7d12a12388f5df008e8955
+PUBLISHED_SD=7814cb68bd62e7fb1b561254064080172277cd375013f4abfb0632d561096592
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"

@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: 60fd5e0f45a01dde675f5302105b5e7d57d90b6a
+          ref: 6b6f588c0cce32b258fed5a09c5da29261409413
           path: athrill-device
       - name: libyaml (athrill-device bindings loader), gdb-multiarch (GDB remote test, Linux)
         run: |
