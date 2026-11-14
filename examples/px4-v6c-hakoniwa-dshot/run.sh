@@ -5,7 +5,8 @@
 # - the board athrill-device boards/pixhawk6c/pixhawk6c-hakoniwa-dshot.dtb (the ESCs on TIM1, their KISS telemetry
 #   on USART2);
 # - the x500 parameters, the 6C sensor IDs and dshot-params.sh (PWM_AUX_TIM0 -3: DShot600; DSHOT_TEL_CFG 103:
-#   telemetry on TELEM3), written by the first run into this directory's fram.bin, on the bench board (no Hakoniwa).
+#   telemetry on TELEM3), written by the first run into this directory's fram.bin, on the sensor device's test vehicle
+#   at rest where the x500 starts (first-boot-config.txt; no Hakoniwa).
 # extra-config: lines appended to the configuration of the flight, e.g. DEVICE_CONFIG_ESC_MOTOR_STOP 2@40000
 # (stops motor 3 at 40 s) or DEVICE_CONFIG_DSHOT_ESC_FILE <file> (one line per ESC frame).
 # In process: set HAKO_DRONE_ROOT and HAKO_AIRCRAFT_CONFIG_PATH as for examples/px4-hakoniwa.
