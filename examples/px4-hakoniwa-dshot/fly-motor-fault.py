@@ -9,11 +9,14 @@ above 2 m, PX4 reports "Motor failure detected" (from the ESC telemetry: the mot
 and the vehicle is back on the ground. Times are the vehicle's own (time since boot). Needs pymavlink.
 """
 import math
+import os
 import sys
 import threading
 import time
 
 from pymavlink import mavutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from mavlink_watch import PositionWatch  # noqa: E402
 
 TARGET = 2.5
 CLIMBED = 2.0     # m: above this the vehicle has taken off
@@ -73,9 +76,11 @@ def main():
     tilt_max = 0.0
     detected = None
     ground = None
+    watch = PositionWatch()
     while time.time() - wall0 < 900 and t < END_SEC:
         r = m.recv_match(type=["GLOBAL_POSITION_INT", "STATUSTEXT", "ATTITUDE"], blocking=True, timeout=1)
         if r is None:
+            watch.idle()
             continue
         if r.get_type() == "STATUSTEXT":
             print(f"t={t:7.2f} PX4: {r.text}", flush=True)
@@ -88,6 +93,7 @@ def main():
                 tilt = math.degrees(math.acos(max(-1.0, min(1.0, math.cos(r.roll) * math.cos(r.pitch)))))
                 tilt_max = max(tilt_max, tilt)
             continue
+        watch.seen(r.time_boot_ms)
         z = r.relative_alt / 1000.0
         zmax = max(zmax, z)
         if zmax > CLIMBED and ground is None and z < GROUND:
