@@ -1,5 +1,8 @@
 # Testing
 
+When defects are found, see also [defect review](defect-review.md): why each got in, why it was missed, and the
+reviews that follow.
+
 How the STM32 target is checked. The layers follow the RISC-V target, which
 was checked with riscv-tests, NuttX ostest, trace comparison with another
 implementation, and a decoder cross-check.
