@@ -213,6 +213,70 @@ It takes off in GUIDED and prints `PASS` when the x500 is back on the ground aft
 frames at 1 kHz and polls each ESC's telemetry in turn. For a flight without the stop, leave out the fourth argument
 and use `examples/ardupilot-hakoniwa/fly.py`.
 
+## Pixhawk 6C
+
+PX4 v1.17.0 `px4_fmu-v6c_default` on the emulated Pixhawk 6C (STM32H743), with the same ESCs: motors 1 to 4 on TIM1
+CH1 to CH4, whose update DMA request (DMAMUX1 request 15) carries PX4's burst, and the telemetry on USART2 (TELEM3).
+The example is [examples/px4-v6c-hakoniwa-dshot](../examples/px4-v6c-hakoniwa-dshot). MAVLink is on TCP
+`127.0.0.1:5760` (TELEM1).
+
+The 6C needs athrill-device `6b6f588` or later: its DShot board, the transmit DMA of its MAVLink port (a one-byte
+transfer completes as on the chip) and its SD card's busy line (each write ends without waiting for a timeout).
+Build the sensor device and `athrill3` again from it:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+git -C athrill-device fetch
+git -C athrill-device checkout 6b6f588
+cmake --build athrill-device/build-stm32 -j
+cmake --build athrill-target-stm32/build --parallel
+```
+
+The firmware is the release [px4-v1.17.0-fmu-v6c](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/px4-v1.17.0-fmu-v6c):
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/px4-v1.17.0-fmu-v6c/px4_fmu-v6c_default.elf
+curl -L -o SHA256SUMS-v6c https://github.com/hakoniwalab/athrill-target-stm32/releases/download/px4-v1.17.0-fmu-v6c/SHA256SUMS
+shasum -a 256 -c SHA256SUMS-v6c
+```
+
+In the first terminal, the aircraft service with the x500 of `x500-athrill-px4`, as for the Pixhawk 4:
+
+```bash
+cd "$HOME/athrill-hakoniwa/hakoniwa-drone-core"
+mac/mac-main_hako_aircraft_service_px4 127.0.0.1 4560 \
+  config/drone/x500-athrill-px4 config/pdudef/drone-pdudef-athrill-px4.json --mujoco-viewer --real-sleep-msec 1
+```
+
+In the second, PX4 on the 6C, with motor 3 stopped at 40 s:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-v6c-hakoniwa-dshot/run.sh \
+  px4_fmu-v6c_default.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  motor3-stop.txt
+```
+
+The first run writes the x500 parameters, the 6C's sensor IDs and the DShot ones (`dshot-params.sh`:
+`PWM_AUX_TIM0 -3`, `DSHOT_TEL_CFG 103`) into this example's own `fram.bin`. It runs the board with the sensor
+device's test vehicle at rest where the x500 starts (`first-boot-config.txt`), as `examples/px4-hakoniwa` does, so
+that PX4 stores its barometer offset for that place. Wait for `PX4 on the Pixhawk 6C with DShot and Hakoniwa`. In the
+third:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+/usr/local/hakoniwa/bin/hako-cmd start
+python3 athrill-target-stm32/examples/px4-hakoniwa-dshot/fly-motor-fault.py
+```
+
+For a hover without the stop, leave out the fourth argument and use `examples/px4-hakoniwa/fly.py`. In process
+(Drone PRO), give `HAKO_DRONE_ROOT` and `HAKO_AIRCRAFT_CONFIG_PATH` (`config/drone/x500-athrill-px4`) as above.
+
+The first boot of `examples/px4-v6c-hakoniwa`, the 6C regression check, runs on the bench sensors (at rest at Tokyo
+Station). Its parameters hold the barometer offset of that place, so an x500 flown with them holds about 2.7 m
+instead of 2.5 m: it checks the arming and the take-off, not the hover.
+
 ## Results
 
 2026-11-14, macOS (Apple M2 Pro), athrill3 from main with athrill-device `73a0f4d`, PX4 ELF of release v0.3.0,
@@ -243,3 +307,10 @@ ArduCopter V4.7.2.
   motor (twice `Vibration compensation ON`). 364,840 DShot frames checked over a flight, all valid, at 1 kHz.
 - Athrill as the Hakoniwa asset: the x500 in the browser at real time; a rotor set to 0 from the browser was
   detected by PX4 (`Motor failure detected`) and the x500 fell.
+
+**Pixhawk 6C** (2026-11-14, athrill-device `6b6f588`, the ELF of release px4-v1.17.0-fmu-v6c):
+- Public Hakoniwa Drone v5.0.0, aircraft service with `x500-athrill-px4`, no viewer: `fly.py` 3/3 PASS (2.48 to
+  2.52 m in the last 10 s, RTF 0.86 to 0.88); motor 3 stopped at 40 s, `fly-motor-fault.py` 3/3 PASS
+  (`Motor failure detected` at 39.95 s, on the ground at 40.90 to 40.91 s).
+- Drone PRO experimental build, in process with `x500-athrill-px4`: `fly.py` PASS (2.49 to 2.50 m, RTF 0.90); motor 3
+  stopped at 40 s, 3/3 PASS (on the ground at 40.89 s).

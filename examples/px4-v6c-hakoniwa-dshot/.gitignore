@@ -1,0 +1,7 @@
+fram.bin
+sd.img
+sd.img.blank
+*.log
+device_config-run.txt
+first-boot-config-run.txt
+x500.sh.tmp
