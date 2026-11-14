@@ -1,0 +1,10 @@
+fram.bin
+sd.img
+sd.img.blank
+sd.img.blank.new
+memory-hakoniwa.txt
+*.log
+log.txt
+device_config-run.txt
+first-boot-config-run.txt
+x500.sh.tmp
