@@ -272,8 +272,8 @@ of its #124):
   0.47.
 - Drone PRO experimental build, in process: `fly.py` PASS, 2.48 to 2.51 m, RTF 0.55.
 
-The RTF is lower than the Pixhawk 4's (about 0.9 with the aircraft service) and than this board's before the
-Devicetree migration (0.74 to 0.76 in process); its cause is being looked for.
+The interpreter's RTF is below the Pixhawk 4's: the 6C runs about twice the instructions per second of flight. With
+the JIT and tick skip it flies at 0.96 to 1.00 in process ([In process](#in-process)).
 
 ## In process
 
@@ -331,13 +331,15 @@ DEVICE_CONFIG_STM32_JIT 1
 DEVICE_CONFIG_DEVICE_TICK_SKIP 1
 ```
 
-**Measured** (Apple M2 Pro, no viewer, 2026-11-11, athrill-device 60fd5e0). The RTF is the one `fly.py` prints:
+**Measured** (Apple M2 Pro, no viewer, 2026-11-14, athrill-device 701fd49). The RTF is the one `fly.py` prints:
 over the 40 s of vehicle time after the take-off command, climb and hover. Every run held 2.5 m.
 
 | In process | Interpreter (3 runs) | JIT and tick skip (3 runs) |
 | --- | ---: | ---: |
-| PX4, Pixhawk 4 | 1.76, 1.74, 1.76 | 2.87, 2.68, 2.79 |
-| ArduCopter, Pixhawk 4 | 1.12, 1.11, 1.11 | 1.81, 1.92, 1.78 |
+| PX4, Pixhawk 4 | 1.80, 1.67, 1.78 | 2.84, 2.76, 2.79 |
+| ArduCopter, Pixhawk 4 | 1.18, 1.18, 1.19 | 2.00, 1.99, 1.98 |
+| PX4, Pixhawk 6C (`px4-v6c-hakoniwa-dshot`, no stop) | 1.13, 1.12, 1.11 | 1.52, 1.51, 1.47 |
+| ArduCopter, Pixhawk 6C | 0.60, 0.61, 0.61 | 0.96, 1.00, 0.97 |
 
 ## How it is set up
 

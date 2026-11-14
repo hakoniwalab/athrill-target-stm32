@@ -105,24 +105,27 @@ is over the 40 s of vehicle time after the take-off command (climb and hover), 3
 
 | Firmware on board, in process | Holds 2.5 m | Interpreter | **JIT and tick skip** |
 | --- | --- | ---: | ---: |
-| PX4, Pixhawk 4 | 6/6 | 1.74–1.76 | **2.68–2.87** |
-| ArduCopter, Pixhawk 4 | 6/6 | 1.11–1.12 | **1.78–1.92** |
+| PX4, Pixhawk 4 | 6/6 | 1.67–1.80 | **2.76–2.84** |
+| ArduCopter, Pixhawk 4 | 6/6 | 1.18–1.19 | **1.98–2.00** |
+| PX4, Pixhawk 6C (DShot, no motor stop) | 6/6 | 1.11–1.13 | **1.47–1.52** |
+| ArduCopter, Pixhawk 6C (400 MHz) | 6/6 | 0.60–0.61 | **0.96–1.00** |
 
-2026-11-11, athrill-device 60fd5e0. Earlier rows, interpreter only, the same `fly.py`:
+2026-11-14, athrill-device 701fd49, athrill-target-stm32 4e36aa0. The Pixhawk 6C runs more instructions per
+second of flight (its H743 at 480 MHz for PX4, 400 MHz for ArduPilot, against the Pixhawk 4's 216 MHz), so its
+factor is lower for the same work per instruction. The PX4 6C row flies `examples/px4-v6c-hakoniwa-dshot` without
+the motor stop: it is the 6C flight example.
+
+Earlier rows, interpreter only, the same `fly.py`, not measured again:
 
 | Firmware on board | Runs | Real-time factor | Measured |
 | --- | --- | ---: | --- |
 | PX4, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 1.61–1.65 | 2026-11-08 |
 | ArduCopter, Pixhawk 4, Hakoniwa link | 3/3 hold 2.5 m | 0.99–1.09 | 2026-11-08 |
-| PX4, Pixhawk 6C (480 MHz), in process | 2/2 hold 2.5 m | 1.28 | 2026-11-07 |
-| ArduCopter, Pixhawk 6C, in process | 2/2 hold 2.5 m | 0.74–0.76 | 2026-11-07 |
 
-- **Pixhawk 6C, for reference, measured differently.** The 6C's regression run boots PX4 and arms it from NSH. It
+- **Pixhawk 6C regression run, measured differently.** The 6C's regression run boots PX4 and arms it from NSH. It
   takes off at 50 s, and the run ends at 90 virtual s, ground time included. Over the whole run the interpreter
   gives 0.91 and the JIT with tick skip 1.19 (3 runs each, 2026-11-11). Every run is bit-identical to the regression
   reference (console, PWM and sensor-device traces). These figures are not comparable with the `fly.py` rows.
-- The 6C rows, the Hakoniwa link rows and the interpreter's figures, about 5% below those of 2026-11-07 on the
-  Pixhawk 4, are to be measured again.
 
 [docs/hakoniwa.md](docs/hakoniwa.md) has the setup, with the free edition of Hakoniwa Drone v5.0.0. The sensor
 device and both links are in athrill-device
