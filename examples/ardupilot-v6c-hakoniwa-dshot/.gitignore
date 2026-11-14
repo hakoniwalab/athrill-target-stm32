@@ -1,0 +1,11 @@
+fram.bin
+fram.bin.new
+sd.img
+sd.img.new
+memory-hakoniwa.txt
+first-boot-config-run.txt
+*.log
+log.txt
+device_config-run.txt
+first-boot-config.tmp
+x500-dshot.parm

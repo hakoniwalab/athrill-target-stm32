@@ -277,6 +277,34 @@ The first boot of `examples/px4-v6c-hakoniwa`, the 6C regression check, runs on 
 Station). Its parameters hold the barometer offset of that place, so an x500 flown with them holds about 2.7 m
 instead of 2.5 m: it checks the arming and the take-off, not the hover.
 
+### ArduCopter on the Pixhawk 6C
+
+ArduCopter V4.7.2 `Pixhawk6C` with the same ESCs, example
+[examples/ardupilot-v6c-hakoniwa-dshot](../examples/ardupilot-v6c-hakoniwa-dshot). It needs athrill-device `367619f`
+or later and the firmware of [hakoniwa.md](hakoniwa.md#pixhawk-6c) (`ardupilot-6c/arducopter.elf`). In the first
+terminal, the aircraft service with the ArduPilot airframe, as in [hakoniwa.md A2](hakoniwa.md#a2-fly). In the
+second, with motor 3 stopped at 70 s:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+printf 'DEVICE_CONFIG_ESC_MOTOR_STOP 2@70000\n' > motor3-stop-ap.txt
+DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-v6c-hakoniwa-dshot/run.sh \
+  ardupilot-6c/arducopter.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  motor3-stop-ap.txt
+```
+
+The first run writes the x500 parameters and `dshot.parm` (`MOT_PWM_TYPE 6`, `SERIAL5_PROTOCOL 16` for the ESC
+telemetry on USART2, TELEM3) into this example's own `fram.bin`. Wait for
+`ArduCopter on Athrill with DShot and Hakoniwa`. In the third:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+/usr/local/hakoniwa/bin/hako-cmd start
+python3 athrill-target-stm32/examples/ardupilot-hakoniwa-dshot/fly-motor-fault.py
+```
+
+For a hover without the stop, leave out the fourth argument and use `examples/ardupilot-hakoniwa/fly.py`.
+
 ## Results
 
 2026-11-14, macOS (Apple M2 Pro), athrill3 from main with athrill-device `73a0f4d`, PX4 ELF of release v0.3.0,
@@ -314,3 +342,9 @@ ArduCopter V4.7.2.
   (`Motor failure detected` at 39.95 s, on the ground at 40.90 to 40.91 s).
 - Drone PRO experimental build, in process with `x500-athrill-px4`: `fly.py` PASS (2.49 to 2.50 m, RTF 0.90); motor 3
   stopped at 40 s, 3/3 PASS (on the ground at 40.89 s).
+
+**ArduCopter on the Pixhawk 6C** (2026-11-14, athrill-device `a25171f` with the SD card change of its #124, ArduCopter
+V4.7.2 `Pixhawk6C`):
+- Public Hakoniwa Drone v5.0.0, aircraft service, motor 3 stopped at 70 s: `fly-motor-fault.py` 3/3 PASS, on the
+  ground at 71.07 s (2.51 to 2.55 m before the stop).
+- Drone PRO experimental build, in process: the same, PASS, on the ground at 71.02 s.
