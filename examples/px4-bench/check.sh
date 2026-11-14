@@ -3,7 +3,7 @@
 #   examples/px4-bench/check.sh <px4_fmu-v5_default.elf> [athrill3]
 #
 # PX4 boots as a generic quadcopter (SYS_AUTOSTART 4001) with its own drivers
-# for the emulated ICM-20689, MS5611, IST8310 and u-blox, which see a bench
+# for the emulated ICM-20689, BMI055, MS5611, IST8310 and u-blox, which see a bench
 # (at rest at Tokyo Station, with fixed-seed noise and a GPS fix; Athrill's
 # sensor source without an external device). After 30 s it checks, in PX4's
 # own reports: the IMU driver's transfers, the sensor validators, the GPS fix,
@@ -108,9 +108,13 @@ for run in run1 run2; do
 done
 check "airframe 4001 loaded" "Loading airframe: .*4001_quad_x" $L
 check "ICM-20689 (SPI1): no bad transfers" "icm20689: bad transfer: 0 events" $L
-check "IMU at 800 Hz" "selected sensor: 3932170, rate: 800.0 Hz" $L
-check "gyroscope selected, validator OK" "selected gyro: 3932170" $L
-check "accelerometer selected" "selected accel: 3932170" $L
+check "BMI055 accelerometer (SPI1): no bad transfers" "bmi055_accel: bad transfer: 0 events" $L
+check "BMI055 gyroscope (SPI1): no bad transfers" "bmi055_gyro: bad transfer: 0 events" $L
+# Two IMUs of equal priority: PX4 may select either; both must be in use.
+check "ICM-20689 IMU at 800 Hz" "vehicle_imu\] 0 - Accel: 3932170, interval: 1250.0 us" $L
+check "BMI055 IMU in use" "vehicle_imu\] 1 - Accel: 4259850, .*Gyro: 4325386" $L
+check "gyroscope selected (ICM-20689 or BMI055)" "selected gyro: (3932170|4325386)" $L
+check "accelerometer selected (ICM-20689 or BMI055)" "selected accel: (3932170|4259850)" $L
 check "IST8310 (I2C3) selected" "selected MAG: 396825" $L
 check "MS5611 (SPI4) selected" "selected BARO: 3997730" $L
 check "no sensor validator in failsafe" "failsafe: NO" $L

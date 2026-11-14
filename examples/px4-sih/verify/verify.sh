@@ -125,13 +125,17 @@ echo "ELF sha256: $ELF_SHA"
 # UAVCAN starts instead of failing (ErrMsrInakNotSet) and runs every 3 ms.
 # F-RAM and console are unchanged; every determinism, flight-log and MAVLink
 # flight check passes. With athrill-device 60fd5e0 the old values return.
+# Re-recorded 2026-11-15 (all four): the Pixhawk 4 board gained the BMI055
+# (accelerometer and gyroscope on SPI1, as on the real board), so PX4 runs
+# two IMUs; every determinism, flight-log and MAVLink flight check passes.
+# With the board without the BMI055 the old values return.
 # docs/verification.md keeps the release run's values.
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
-PUBLISHED_ULOG=db8b5afba866101be560ea05a55e00bbcf679c5edfc4385972f91b9cc3e8b99d
-PUBLISHED_FRAM=86dab85776be9545d5960ac1850ca907410dcadba7b78031b53dce3836a8351e
+PUBLISHED_ULOG=c8ad46d873743959c4954bfeff4a6d6215af7054c58ed0ea557e730fd1d06a22
+PUBLISHED_FRAM=44e8812fac951efba3852303948d8e6d8330cb1297c530fc22b913e924646325
 # console: normalised without Athrill's configuration echo lines
-PUBLISHED_CONSOLE=deb8c6a224567432f9582302c08eff0db380bb0ed5382ea2688e44074aefec8c
-PUBLISHED_SD=7814cb68bd62e7fb1b561254064080172277cd375013f4abfb0632d561096592
+PUBLISHED_CONSOLE=0ffcb425db7d1a40ce0e2c1d0684ee8b7d7a5f38fab4bed8aa49af256bad0fe5
+PUBLISHED_SD=fdf844face8f088aa1d600fb4b794c5dbe6e9aead36cce465859aeff43b4dc1b
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"

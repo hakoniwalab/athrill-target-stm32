@@ -362,7 +362,7 @@ over the 40 s of vehicle time after the take-off command, climb and hover. Every
   the board). `put-sd-file.py` writes the script into the blank SD card image, the same byte for byte on every
   host.
 - **Parameters**: the airframe x500 v2 with the parameters of Hakoniwa Drone's x500, the motors on AUX1 to AUX4,
-  and the calibration IDs of the emulated chips (`listener sensor_accel` etc.): ICM-20689 on SPI1 3932170,
+  and the calibration IDs of the emulated chips (`listener sensor_accel` etc.): ICM-20689 on SPI1 3932170, BMI055 on SPI1 4259850 (accelerometer) and 4325386 (gyroscope),
   IST8310 on I2C3 396825.
 
 **Take-off over MAVLink:** the altitude of `MAV_CMD_NAV_TAKEOFF` is above mean
