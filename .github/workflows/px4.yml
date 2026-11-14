@@ -3,7 +3,8 @@
 # preflight check, two identical runs) and the SIH verification without
 # MAVLink (three identical flights in fast and strict mode, and the flight
 # log), with the PX4 ELF of the v0.1.1 release, so the regression
-# references are compared.
+# references are compared and every console error or warning must be
+# explained by the board's allow-list (examples/console-check.py).
 name: px4
 
 on:
@@ -16,6 +17,12 @@ jobs:
   px4:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # a check that cannot compare (no reference, no allow-list) fails instead of SKIP
+    env:
+      REGRESSION_STRICT: 1
+    defaults:
+      run:
+        shell: bash   # -eo pipefail: a failing check before | tee fails the step
     steps:
       - name: athrill-target-stm32
         uses: actions/checkout@v4
@@ -39,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: 6b6f588c0cce32b258fed5a09c5da29261409413
+          ref: b7f0ec93897c3181c6b09b0ab1868398fc0fd3e7
           path: athrill-device
       - name: libyaml (athrill-device bindings loader)
         run: |
@@ -67,11 +74,9 @@ jobs:
           sudo apt-get install -y mtools python3-numpy
           pip3 install --break-system-packages pyulog
 
-      # the reference must be compared, not skipped
       - name: bench (PX4's sensor drivers)
         run: |
           athrill-target-stm32/examples/px4-bench/check.sh px4-elf/px4_fmu-v5_default.elf | tee bench.log
-          if grep -q '\[SKIP\]' bench.log; then exit 1; fi
       # exit status 2 = PARTIAL PASS: A and B passed, C (MAVLink) not run here
       - name: SIH verification (determinism and flight log, no MAVLink)
         run: |
