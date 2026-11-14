@@ -6,8 +6,13 @@
 # to this repository. EXAMPLES is this examples directory; set it before
 # sourcing when the script is not directly in examples/<example>/.
 
+# resolved once, absolute: the scripts cd into their work directories
+BOARDS_ATHRILL_DEVICE_DIR="${ATHRILL_DEVICE_DIR:-$(cd "${EXAMPLES:-$(dirname "$0")/..}/../.." && pwd)/athrill-device}"
+if [ -d "$BOARDS_ATHRILL_DEVICE_DIR" ]; then
+	BOARDS_ATHRILL_DEVICE_DIR=$(cd "$BOARDS_ATHRILL_DEVICE_DIR" && pwd)
+fi
 athrill_device_dir() {
-	echo "${ATHRILL_DEVICE_DIR:-$(cd "${EXAMPLES:-$(dirname "$0")/..}/../.." && pwd)/athrill-device}"
+	echo "$BOARDS_ATHRILL_DEVICE_DIR"
 }
 
 board_dtb() {	# board, name -> path of the DTB

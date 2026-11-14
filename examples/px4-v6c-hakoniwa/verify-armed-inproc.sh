@@ -124,5 +124,11 @@ echo "PASS: armed and took off ($DT_COUNT instructions)"
 
 # The run against the board's regression reference in athrill-device.
 echo "regression reference (athrill-device boards/pixhawk6c/regression/armed.txt)"
-regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt" "$WORK/dt/emulator.log"
+REFERENCE_OK=1
+regression_check "$(regression_reference pixhawk6c armed)" "$ELF" "$DT_COUNT" "$WORK/dt" "$WORK/dt/emulator.log" || REFERENCE_OK=0
+echo "console (athrill-device boards/pixhawk6c/regression/px4.allow)"
+CONSOLE_OK=1
+regression_console_check pixhawk6c px4 "$DIR/first-boot.log" "$WORK/dt/console.raw" "$WORK/dt/emulator.log" || CONSOLE_OK=0
 [ "$SEEDS_OK" -eq 1 ] || { echo "the seeds differ from the reference: see the first boot ($DIR/first-boot.log)"; exit 1; }
+[ "$REFERENCE_OK" -eq 1 ] || { echo "the run differs from the reference"; exit 1; }
+[ "$CONSOLE_OK" -eq 1 ] || { echo "unexplained errors or warnings on the console"; exit 1; }

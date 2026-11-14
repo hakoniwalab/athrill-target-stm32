@@ -17,6 +17,8 @@
 # from the run's log (stderr).
 
 . "$(dirname "$0")/../boards.sh"
+# absolute: the checks cd into their work directories
+REGRESSION_EXAMPLES=$(cd "$(dirname "$0")/.." && pwd)
 
 regression_reference() {	# board, check -> path
 	echo "$(athrill_device_dir)/boards/$1/regression/$2.txt"
@@ -70,18 +72,42 @@ regression_seed_check() {	# reference, firmware ELF, directory of the seeds
 	return $failed
 }
 
+# A comparison that cannot be made: [SKIP], or with REGRESSION_STRICT=1 (CI) a
+# [FAIL], so that a reference nobody can compare against does not pass silently.
+regression_skip() {	# message
+	if [ "${REGRESSION_STRICT:-0}" = 1 ]; then
+		echo "  [FAIL] $1 (REGRESSION_STRICT=1)"
+		return 1
+	fi
+	echo "  [SKIP] $1"
+	return 0
+}
+
+# regression_console_check board firmware file...
+# Every ERROR/WARN/FAIL line of the files must be explained by the board's
+# allow-list (athrill-device boards/<board>/regression/<firmware>.allow).
+regression_console_check() {
+	allow="$(athrill_device_dir)/boards/$1/regression/$2.allow"
+	shift 2
+	if [ ! -f "$allow" ]; then
+		regression_skip "console allow-list: no $allow"
+		return $?
+	fi
+	python3 "$REGRESSION_EXAMPLES/console-check.py" "$allow" "$@"
+}
+
 regression_check() {
 	ref=$1
 	failed=0
 	if [ ! -f "$ref" ]; then
-		echo "  [SKIP] regression reference: no $ref"
-		return 0
+		regression_skip "regression reference: no $ref"
+		return $?
 	fi
 	want=$(awk '$1 == "firmware_sha256" { print $2 }' "$ref")
 	have=$(regression_sha256 "$2")
 	if [ "$want" != "$have" ]; then
-		echo "  [SKIP] regression reference is for firmware $want, this is $have"
-		return 0
+		regression_skip "regression reference is for firmware $want, this is $have"
+		return $?
 	fi
 	want=$(awk '$1 == "instructions" { print $2 }' "$ref")
 	if [ "$want" = "$3" ]; then

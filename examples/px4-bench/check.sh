@@ -137,6 +137,8 @@ echo "regression reference (athrill-device boards/pixhawk4/regression/bench.txt)
 # model) and the Devicetree hash.
 grep -av -e "^DEVICE_CONFIG_[A-Z0-9_]* = " -e "^DEVICE_TREE sha256=" run1/console.txt > run1/console.norm || true
 regression_check "$REFERENCE" "$ELF" "$(grep -a 'steps=' run1/stderr.txt | sed 's/.*steps=//' | tail -1)" run1 run1/stderr.txt || FAILED=1
+echo "console (athrill-device boards/pixhawk4/regression/px4.allow)"
+regression_console_check pixhawk4 px4 golden/first-boot.log run1/console.txt run2/console.txt run1/stderr.txt || FAILED=1
 if [ $FAILED = 0 ]; then
 	echo "ALL PASS"
 else

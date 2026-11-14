@@ -179,6 +179,12 @@ for run in fast2 strict; do
 	fi
 done
 
+echo "console (athrill-device boards/pixhawk4/regression/px4.allow)"
+if ! python3 "$EXAMPLES/console-check.py" "$(athrill_device_dir)/boards/pixhawk4/regression/px4.allow" \
+	golden/first-boot.log fast1/console.txt fast2/console.txt strict/console.txt fast1/stderr.txt; then
+	FAILED=1
+fi
+
 echo "B. flight log of A"
 ulog_of fast1/sd.img a.ulg
 python3 "$HERE/analyze_ulog.py" a.ulg || FAILED=1
@@ -207,6 +213,10 @@ else
 fi
 
 cd "$WORK"
+if [ "$ELF_SHA" != "$PUBLISHED_ELF" ] && [ "${REGRESSION_STRICT:-0}" = 1 ]; then
+	echo "D. [FAIL] not the release ELF, so the published run cannot be compared (REGRESSION_STRICT=1)"
+	FAILED=1
+fi
 if [ "$ELF_SHA" = "$PUBLISHED_ELF" ]; then
 	echo "D. the same as the published run (release ELF)"
 	normalize_console fast1/console.txt > c1.txt
