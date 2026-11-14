@@ -39,7 +39,8 @@ if [ ! -e fram.bin ]; then
 	{ cat first-boot-config.txt; printf 'DEVICE_CONFIG_DEVICE_TREE %s\n' "$DTB"; } >first-boot-config.run
 	"$ATHRILL" -c1 -m memory.txt -d first-boot-config.run -t 100000000000 "$ELF" >first-boot.log 2>&1 || true
 	if ! grep -aq "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log \
-		|| ! grep -aq "CAL_ACC0_ID: curr: .* -> new: 4259850" first-boot.log; then
+		|| ! grep -aq "CAL_ACC0_ID: curr: .* -> new: 4259850" first-boot.log \
+		|| grep -aq "Parameter .* not found" first-boot.log; then
 		echo "first boot failed, see $DIR/first-boot.log" >&2
 		rm -f fram.bin
 		exit 1

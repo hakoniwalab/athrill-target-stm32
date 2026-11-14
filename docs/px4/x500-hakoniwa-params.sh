@@ -99,14 +99,13 @@ param set MPC_Z_VEL_I_ACC 2.5
 param set MPC_Z_VEL_MAX_DN 1.5
 param set MPC_Z_VEL_MAX_UP 3
 param set MPC_Z_VEL_P_ACC 9.5
-param set SENS_GPS0_DELAY 100
+param set EKF2_GPS_DELAY 100
 param set THR_MDL_FAC 0.548538286
 param set PWM_AUX_FUNC1 101
 param set PWM_AUX_FUNC2 102
 param set PWM_AUX_FUNC3 103
 param set PWM_AUX_FUNC4 104
 param set CBRK_SUPPLY_CHK 894281
-param set SYS_AUTOCFG_CAL 1
 param set CAL_ACC0_ID 3932170
 param set CAL_GYRO0_ID 3932170
 param set CAL_MAG0_ID 396825

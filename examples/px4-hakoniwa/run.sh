@@ -76,7 +76,8 @@ if [ ! -e fram.bin ]; then
 	echo "first boot: the x500 parameters into fram.bin (a few minutes) ..."
 	dt_config first-boot-config.txt first-boot-config-run.txt
 	"$ATHRILL" -c1 -m memory.txt -d first-boot-config-run.txt -t 8640000000 "$ELF" > first-boot.log 2>&1 || true
-	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log; then
+	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log \
+		|| grep -aq "Parameter .* not found" first-boot.log; then
 		echo "first boot failed, see $DIR/first-boot.log" >&2
 		rm -f fram.bin
 		exit 1
