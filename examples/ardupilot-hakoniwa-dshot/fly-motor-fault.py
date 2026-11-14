@@ -9,10 +9,13 @@ examples/ardupilot-hakoniwa does, arms and takes off. PASS if the vehicle climbs
 ground by 120 s of vehicle time. ArduCopter has no motor-failure check on the ESC telemetry: its messages are
 printed as they come. Needs pymavlink.
 """
+import os
 import sys
 import time
 
 from pymavlink import mavutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from mavlink_watch import PositionWatch  # noqa: E402
 
 TARGET = 2.5
 CLIMBED = 2.0     # m: above this the vehicle has taken off
@@ -92,10 +95,13 @@ def fly(link):
     zmax = 0.0
     ground = None
     t = 0.0
+    watch = PositionWatch()
     while time.time() - wall0 < 900 and t < END_SEC:
         r = link.recv(["GLOBAL_POSITION_INT"])
         if r is None:
+            watch.idle()
             continue
+        watch.seen(r.time_boot_ms)
         t = r.time_boot_ms / 1000.0
         z = r.relative_alt / 1000.0
         zmax = max(zmax, z)

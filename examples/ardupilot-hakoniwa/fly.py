@@ -9,10 +9,13 @@ takes the altitude relative to home). PASS if the vehicle stays within 2.5 m +-0
 hold. The hold is counted in the vehicle's time (time since boot), and its real-time factor is printed. Needs
 pymavlink.
 """
+import os
 import sys
 import time
 
 from pymavlink import mavutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from mavlink_watch import PositionWatch  # noqa: E402
 
 TARGET = 2.5
 BAND = 0.3
@@ -93,10 +96,13 @@ def hover(link):
     hold_wall0 = None
     tail = []
     zmax = 0.0
+    watch = PositionWatch()
     while time.time() - wall0 < 600:
         r = link.recv(["GLOBAL_POSITION_INT"])
         if r is None:
+            watch.idle()
             continue
+        watch.seen(r.time_boot_ms)
         if boot0 is None:
             boot0 = r.time_boot_ms
             hold_wall0 = time.time()

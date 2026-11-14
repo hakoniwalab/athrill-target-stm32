@@ -4,7 +4,8 @@
 # MAVLink (three identical flights in fast and strict mode, and the flight
 # log), with the PX4 ELF of the v0.1.1 release, so the regression
 # references are compared and every console error or warning must be
-# explained by the board's allow-list (examples/console-check.py).
+# explained by the board's allow-list (examples/console-check.py); and the ArduPilot bench with the
+# official ArduCopter Pixhawk4 binary (examples/ardupilot-bench/check.sh).
 name: px4
 
 on:
@@ -83,3 +84,15 @@ jobs:
           status=0
           athrill-target-stm32/examples/px4-sih/verify/verify.sh px4-elf/px4_fmu-v5_default.elf || status=$?
           test $status = 0 -o $status = 2
+
+      # ArduCopter: the official Pixhawk4 binary (GPL-3.0, not redistributed here), checked by its SHA-256.
+      # pymavlink is installed after the SIH step, which runs its MAVLink part only when pymavlink is present.
+      - name: ArduCopter V4.7.2 Pixhawk4 from firmware.ardupilot.org
+        run: |
+          mkdir -p ardupilot-elf
+          curl -fsSL -o ardupilot-elf/arducopter.elf https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk4/arducopter.elf
+          echo "cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c  ardupilot-elf/arducopter.elf" | sha256sum -c -
+          pip3 install --break-system-packages pymavlink
+      - name: ArduPilot bench (boot, sensor health, MAVLink until the end)
+        run: |
+          athrill-target-stm32/examples/ardupilot-bench/check.sh ardupilot-elf/arducopter.elf athrill-target-stm32/build/athrill3

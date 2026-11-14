@@ -8,11 +8,14 @@ plus the height to climb. PASS if the vehicle reaches 2.5 m (+-0.3 m) and stays
 within that band for the last 10 s of a 40 s hold. The hold is counted in the vehicle's own time (time since boot),
 so a slower host takes longer in wall time but checks the same flight. Needs pymavlink.
 """
+import os
 import sys
 import threading
 import time
 
 from pymavlink import mavutil
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from mavlink_watch import PositionWatch  # noqa: E402
 
 TARGET = 2.5
 BAND = 0.3
@@ -70,13 +73,16 @@ def main():
     boot0 = None
     tail = []
     zmax = 0.0
+    watch = PositionWatch()
     while time.time() - wall0 < 600:
         r = m.recv_match(type=["GLOBAL_POSITION_INT", "STATUSTEXT"], blocking=True, timeout=1)
         if r is None:
+            watch.idle()
             continue
         if r.get_type() == "STATUSTEXT":
             print("PX4:", r.text, flush=True)
             continue
+        watch.seen(r.time_boot_ms)
         if boot0 is None:
             boot0 = r.time_boot_ms
             hold_wall0 = time.time()

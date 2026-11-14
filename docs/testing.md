@@ -177,3 +177,29 @@ hints and BKPT. Its reference is QEMU's netduinoplus2 like the integer
 tests (same addresses: the stacked PCs are compared). FPCCR is printed
 without bit 10, which QEMU sets (SFRDY of Armv8-M), a reserved bit of
 Armv7-M.
+
+## 9. Firmware checks: every push, and before a release
+
+Every push runs these in CI (`.github/workflows/px4.yml`), with `REGRESSION_STRICT=1`: a check that cannot compare
+fails instead of SKIP. Every console error or warning must be explained by the board's allow-list
+(`examples/console-check.py`).
+
+| Check | What it judges |
+| --- | --- |
+| `examples/px4-bench/check.sh` (PX4 release ELF, Pixhawk 4) | PX4's sensor drivers, EKF2, preflight; two identical runs; the athrill-device reference |
+| `examples/px4-sih/verify/verify.sh` (same ELF) | determinism, the flight log, identity with the published run |
+| `examples/ardupilot-bench/check.sh` (ArduCopter V4.7.2 Pixhawk4, SHA-256 pinned) | boot, healthy IMU, compass and barometer, a 3D GPS fix, MAVLink until the end |
+
+Before a release, and when the athrill-device pin moves, run these by hand. They need Hakoniwa Drone (in process:
+Drone PRO). The flight scripts fail on a gap of more than 2 s in the position messages, and on 60 s without any
+(`examples/mavlink_watch.py`).
+
+| Check | Example | Pass |
+| --- | --- | --- |
+| Pixhawk 6C regression | `px4-v6c-hakoniwa/verify-armed-inproc.sh` | every reference value, the console allow-list |
+| PX4 hover, Pixhawk 4 and 6C | `px4-hakoniwa`, `px4-v6c-hakoniwa-dshot` + `px4-hakoniwa/fly.py` | 2.5 m ± 0.3 m over the last 10 s |
+| ArduCopter hover, Pixhawk 4 and 6C | `ardupilot-hakoniwa`, `ardupilot-v6c-hakoniwa` + `ardupilot-hakoniwa/fly.py` | the same |
+| DShot motor stop, both firmwares, both boards | the `*-dshot` examples + their `fly-motor-fault.py` | the failure detected (PX4), the vehicle down |
+| Performance tables | README, `docs/hakoniwa.md` | measured again, 3 runs each, dated |
+
+When a check finds a defect, review why it got in and why it was missed ([defect-review.md](defect-review.md)).
