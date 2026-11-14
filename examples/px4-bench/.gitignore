@@ -4,3 +4,5 @@ sd.img.new
 *.log
 log.txt
 work/
+first-boot-config-run.txt
+device_config-run.txt
