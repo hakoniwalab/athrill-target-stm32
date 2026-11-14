@@ -227,6 +227,54 @@ What the example sets (`x500-hakoniwa-ardupilot.parm`):
 The board configuration (`device_config.txt`) lets a branch to itself wait like `WFI` (`DEVICE_CONFIG_SPIN_HALT`,
 [ardupilot.md](ardupilot.md)): ArduCopter's idle loop is `b .`, and the virtual clock then skips it.
 
+### Pixhawk 6C
+
+The official ArduCopter firmware for the Pixhawk 6C (`Pixhawk6C`, V4.7.2) flies the same x500 on the emulated
+Pixhawk 6C (STM32H743), example [examples/ardupilot-v6c-hakoniwa](../examples/ardupilot-v6c-hakoniwa). It uses the
+parameters, the F-RAM seed, `load-params.py`, `fly.py` and the airframe of `examples/ardupilot-hakoniwa`. Two things
+differ from the Pixhawk 4:
+- the CPU runs at 400 MHz (`DEVICE_CPU_FREQ 400`), the clock of ArduPilot's Pixhawk6C build; at 480 MHz its DShot
+  frames come out wrong;
+- MAVLink is on TELEM1 (UART7), still TCP `127.0.0.1:5760`.
+
+It needs athrill-device `367619f` or later (the SD card's data path started by DCTRL, as ArduPilot's driver does);
+build the sensor device and `athrill3` from it as in [dshot.md](dshot.md#pixhawk-6c). The firmware:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+mkdir -p ardupilot-6c
+curl -L -o ardupilot-6c/arducopter.elf https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk6C/arducopter.elf
+shasum -a 256 ardupilot-6c/arducopter.elf
+```
+
+The SHA-256 of V4.7.2 is `f26a571715c151a7a2edebe722b93a752f0d5ba2b170f58958421955668071fd`.
+
+In the first terminal, the aircraft service as in [A2](#a2-fly). In the second:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-v6c-hakoniwa/run.sh \
+  ardupilot-6c/arducopter.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+```
+
+The first run writes the x500 parameters as on the Pixhawk 4, on the test vehicle at rest where the x500 starts.
+Wait for `ArduCopter on Athrill with Hakoniwa`. In the third:
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+/usr/local/hakoniwa/bin/hako-cmd start
+python3 athrill-target-stm32/examples/ardupilot-hakoniwa/fly.py
+```
+
+**Measured** (2026-11-14, Apple M2 Pro, no viewer, interpreter, athrill-device `a25171f` with the SD card change
+of its #124):
+- Public Hakoniwa Drone v5.0.0, aircraft service: `fly.py` 3/3 PASS, 2.48 to 2.51 m in the last 10 s, RTF 0.46 to
+  0.47.
+- Drone PRO experimental build, in process: `fly.py` PASS, 2.48 to 2.51 m, RTF 0.55.
+
+The RTF is lower than the Pixhawk 4's (about 0.9 with the aircraft service) and than this board's before the
+Devicetree migration (0.74 to 0.76 in process); its cause is being looked for.
+
 ## In process
 
 The aircraft can also run inside Athrill: no aircraft service, no `hako-cmd`, one process
