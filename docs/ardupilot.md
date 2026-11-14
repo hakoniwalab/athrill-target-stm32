@@ -10,7 +10,9 @@ emulators can be compared on the same ELF.
 **Conditions:**
 - the same ELF, F-RAM seed and MAVLink stream requests, on one Apple M2 Pro;
 - the same IMU: Renode is started with `--num-imus 1`, so both boards serve the ICM-20689 only
-  ([The peripherals differ](#the-peripherals-differ));
+  ([The peripherals differ](#the-peripherals-differ)). These numbers were measured before the Athrill Pixhawk 4
+  board gained the BMI055; it now serves the ICM-20689 and the BMI055, as the real board does, so a new
+  comparison needs one IMU on both sides again;
 - both emulators halt at the idle thread's branch to itself (see [The idle loop](#the-idle-loop));
 - the real-time factor (RTF) is measured over virtual 20 to 80 s, after the boot.
 
@@ -156,7 +158,7 @@ the firmware runs the same work whatever the setting: 2.14 M device accesses per
 
 | | Athrill STM32 | Renode (ArduPilot's generated Pixhawk 4 platform) |
 | --- | --- | --- |
-| IMUs | ICM-20689 | ICM-20689, ICM-20602, BMI055 |
+| IMUs | ICM-20689 (at the time of the measurement; now also BMI055) | ICM-20689, ICM-20602, BMI055 |
 | Compass | IST8310 | none |
 | Barometer | MS5611 | MS5611 |
 | GPS | u-blox modelled, not detected by this firmware | none |
