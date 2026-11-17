@@ -346,6 +346,73 @@ static void one_native(const char *name, TargetCoreType *core, uint16 insn, uint
 	require_counter(name, &stats, counter);
 }
 
+static void require_fault_bits(const char *name, uint32 set, uint32 clear, uint32 bfar)
+{
+	if (((last_interpreter.m.cfsr & set) != set) || ((last_interpreter.m.cfsr & clear) != 0U)
+		|| (((set & ARM_M_BFSR_BFARVALID) != 0U) && (last_interpreter.m.bfar != bfar))) {
+		printf("FAIL %s: CFSR=%08x BFAR=%08x expected-set=%08x expected-clear=%08x expected-BFAR=%08x\n",
+			name, last_interpreter.m.cfsr, last_interpreter.m.bfar, set, clear, bfar);
+		failures++;
+	}
+}
+
+static void test_fault_classification(void)
+{
+	TargetCoreType core;
+	const uint32 unmapped = 0x60000000U;
+	const uint32 ram_end = RAM_BASE + RAM_SIZE;
+
+	/* A successful instruction must discard details left by an earlier step, with or without JIT. */
+	init_core(&core, CODE_BASE);
+	core.data_fault_valid = TRUE;
+	core.data_fault_address = 0xDEADBEEFU;
+	core.alignment_fault = TRUE;
+	put16(CODE_BASE, mov_i(0U, 1U));
+	(void)run_pair("fault metadata is instruction-scoped", &core, 1U);
+	if (last_interpreter.data_fault_valid || last_interpreter.alignment_fault) {
+		printf("FAIL fault metadata is instruction-scoped: valid=%u alignment=%u\n",
+			last_interpreter.data_fault_valid, last_interpreter.alignment_fault);
+		failures++;
+	}
+
+	init_core(&core, CODE_BASE);
+	core.reg.r[1] = unmapped;
+	put16(CODE_BASE, ldr_i(0U, 1U, 0U));
+	(void)run_pair("precise load BusFault records BFAR", &core, 1U);
+	require_fault_bits("precise load BusFault records BFAR",
+		ARM_M_BFSR_PRECISERR | ARM_M_BFSR_BFARVALID, ARM_M_UFSR_UNALIGNED << 16, unmapped);
+
+	init_core(&core, CODE_BASE);
+	core.reg.r[0] = 0x12345678U;
+	core.reg.r[1] = unmapped;
+	put16(CODE_BASE, str_i(0U, 1U, 0U));
+	(void)run_pair("precise store BusFault records BFAR", &core, 1U);
+	require_fault_bits("precise store BusFault records BFAR",
+		ARM_M_BFSR_PRECISERR | ARM_M_BFSR_BFARVALID, ARM_M_UFSR_UNALIGNED << 16, unmapped);
+
+	/* The split unaligned read must report the byte that actually failed. */
+	init_core(&core, CODE_BASE);
+	core.reg.r[1] = ram_end - 1U;
+	put16(CODE_BASE, ldr_i(0U, 1U, 0U));
+	(void)run_pair("split load records first failing byte", &core, 1U);
+	require_fault_bits("split load records first failing byte",
+		ARM_M_BFSR_PRECISERR | ARM_M_BFSR_BFARVALID, ARM_M_UFSR_UNALIGNED << 16, ram_end);
+
+	/* LDRD uses MemA: misalignment is UsageFault.UNALIGNED, never a data BusFault. */
+	init_core(&core, CODE_BASE);
+	core.reg.r[7] = RAM_BASE + 0x301U;
+	put_insn32(CODE_BASE, 0xE9D78904U);
+	(void)run_pair("required alignment raises UsageFault", &core, 1U);
+	require_fault_bits("required alignment raises UsageFault", ARM_M_UFSR_UNALIGNED << 16,
+		ARM_M_BFSR_PRECISERR | ARM_M_BFSR_BFARVALID, 0U);
+
+	/* Instruction fetch failures set IBUSERR and do not manufacture BFAR evidence. */
+	init_core(&core, unmapped);
+	(void)run_pair("instruction BusFault does not set BFAR", &core, 1U);
+	require_fault_bits("instruction BusFault does not set BFAR", 1U << 8,
+		ARM_M_BFSR_PRECISERR | ARM_M_BFSR_BFARVALID, 0U);
+}
+
 static void test_data(void)
 {
 	static const uint32 edge[] = { 0U, 1U, 0x7FFFFFFFU, 0x80000000U, 0xFFFFFFFFU };
@@ -1218,6 +1285,7 @@ int main(void)
 	memset(ram_seed, 0xA5, sizeof(ram_seed));
 	put32(ROM_BASE + 3U * 4U, CODE_BASE + 0x201U);
 	put32(ROM_BASE + 6U * 4U, CODE_BASE + 0x221U);
+	test_fault_classification();
 	test_data();
 	test_branches();
 	test_literals();
