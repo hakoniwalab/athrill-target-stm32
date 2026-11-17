@@ -40,6 +40,10 @@ sint32 stm32_host_value(void *context, const char *key, const char **value);
  * end of the CPU's current instruction batch. */
 sint32 stm32_host_console_write(void *context, uint32 channel, uint8 data);
 void stm32_host_end_batch(void *context);
+/* ABI 1.23: a hardware watchdog (IWDG) timeout asks for a full system reset.
+ * Every core reboots from the vector table at the next clock, via the same
+ * path as an AIRCR SYSRESETREQ. */
+void stm32_host_request_system_reset(void *context, uint32 reason);
 
 /* A configuration string without the core's echo on stdout. */
 Std_ReturnType stm32_host_config_string(const char *key, char **value);

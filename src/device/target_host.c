@@ -17,6 +17,7 @@
 #include "device.h"
 #include "mpu.h"
 #include "target_cpu.h"
+#include "config/cpu_config.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -365,6 +366,23 @@ sint32 stm32_host_console_write(void *context, uint32 channel, uint8 data)
 void stm32_host_end_batch(void *context)
 {
 	(void)context;
+	stm32_device_accessed = TRUE;
+}
+
+void stm32_host_request_system_reset(void *context, uint32 reason)
+{
+	CoreIdType i;
+
+	(void)context;
+	(void)reason;	/* reserved for a future RCC reset-reason register (IWDGRSTF) */
+
+	/* A hardware watchdog reset is a full system reset: ask every core to
+	 * reboot through the same path as AIRCR.SYSRESETREQ (scs.reset_requested
+	 * -> reset_core -> take_reset reads SP/PC from the vector table). */
+	for (i = 0; i < CPU_CONFIG_CORE_NUM; i++) {
+		virtual_cpu.cores[i].core.scs.reset_requested = TRUE;
+	}
+	/* End the current instruction batch so the reset is taken at once. */
 	stm32_device_accessed = TRUE;
 }
 

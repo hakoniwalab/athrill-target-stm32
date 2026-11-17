@@ -65,7 +65,9 @@ static const AthrillDeviceTargetOps target_ops = {
 	NULL /* uart_send_from_node */, NULL /* gps_sample */, NULL /* actuator_output */,
 	NULL,	/* gpio_outputs: the runtime keeps the output levels */
 	/* ABI 1.10 REQUIRED operations: target_host.c */
-	stm32_host_console_write, stm32_host_end_batch
+	stm32_host_console_write, stm32_host_end_batch,
+	/* ABI 1.23 REQUIRED operation: target_host.c */
+	stm32_host_request_system_reset
 };
 
 static uint32 collect_host_values(AthrillDeviceHostValue values[MAX_HOST_VALUES])
