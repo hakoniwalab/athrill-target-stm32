@@ -20,6 +20,7 @@
         "${HAKO_WS}/athrill-target-stm32/examples/ardupilot-hakoniwa/viewer-extra.txt"
       ],
       "cwd": "${HAKO_WS}/athrill-target-stm32/examples/ardupilot-hakoniwa",
+      "stderr": "${HAKO_WS}/athrill-target-stm32/examples/ardupilot-hakoniwa/logs/athrill.err",
       "env": {
         "set": {
           "ATHRILL_DEVICE_DIR": "${HAKO_WS}/hakoniwalab-athrill-device-dshot",
