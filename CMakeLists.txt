@@ -240,6 +240,9 @@ if(BUILD_TESTING)
   # USART3 through the console UART model and the firmware echoes it.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
+    add_test(NAME ardupilot-dos-oracle
+      COMMAND Python3::Interpreter -I
+              "${CMAKE_CURRENT_SOURCE_DIR}/test/ardupilot/test_dos_oracle.py")
     add_test(NAME console-input
       COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/test/console/run.py"
               $<TARGET_FILE:athrill3> "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt")

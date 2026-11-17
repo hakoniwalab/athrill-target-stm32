@@ -9,12 +9,11 @@ Pixhawk 4 (see [docs/hakoniwa.md](../../docs/hakoniwa.md) and
   honours `ATHRILL_OPTIONS` (passed to `athrill3` before the ELF), e.g.
   `--hakoniwa athrill --pdudef <file>` to make Athrill the Hakoniwa asset/conductor.
 - `fly.py` — take off to 2.5 m and hold (a pass/fail hover check).
-- `fly_and_attack.py` — take off, hover, then run the `SERIAL_CONTROL` flood and
-  report whether the flight controller reset. For authorized security testing of
-  your own ArduPilot, reproducing the denial-of-service from Soshima & Suzaki's
-  ROHITL study. It reports `DoS REPRODUCED: watchdog reset` when the firmware
-  reboots (the banner `Initialising ArduPilot`); after a reset the MAVLink
-  altitude goes stale, so the real descent is seen in the browser viewer.
+- `fly_and_attack.py` — verify an armed, stable hover, then run the
+  `SERIAL_CONTROL` test using one MAVLink connection. An observed fall or reboot
+  alone is **inconclusive**: the `DoS REPRODUCED` verdict additionally requires
+  an IWDG underflow/reset diagnostic from Athrill. After a reset MAVLink altitude
+  may go stale, so observe actual descent in the browser viewer.
 
 ## Browser viewer demo (`ardupilot-dos-viewer.launch.json`)
 
@@ -36,6 +35,9 @@ Prerequisites (built once, outside this repo):
   (`cmake -S . -B build-hakoniwa -DATHRILL_ENABLE_HAKONIWA=ON -DATHRILL_ENABLE_JIT=ON
   -DATHRILL_SLJIT_DIR=<sljit> -DATHRILL_SOURCE_DIR=<athrill core> -DATHRILL_DEVICE_DIR=<athrill-device>
   -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32`).
+  For a **confirmed** DoS verdict, build with an `athrill-device` that emits
+  `IWDG_RESET: underflow cpu_clock=...` on an enabled watchdog reset
+  (companion PR: [athrill-device #143](https://github.com/hakoniwalab/athrill-device/pull/143)).
 - The in-process motor sensor plugin
   `libhako_sensor_device_inproc_motor.dylib` (macOS; `.so` on Linux — edit the path
   in the launch file) under `hakoniwalab-athrill-device-dshot/build-stm32-inproc`
@@ -68,8 +70,20 @@ cd "$HAKO_WS/athrill-target-stm32/examples/ardupilot-hakoniwa"
 python3 fly_and_attack.py --device 2
 ```
 
-The x500 takes off and hovers; the attack resets the flight controller and the x500
-descends in the viewer. Stop everything with Ctrl+C in the launcher terminal.
+The script **aborts without attacking** if EKF, arming, takeoff, or stable hover
+cannot be verified. The launcher redirects Athrill's stderr to
+`logs/athrill.err`. The script reads only new `IWDG_RESET` events written after
+the attack starts, then compares them with the reboot `STATUSTEXT` banner from
+the selected flight-controller system/component. A MAVLink transport failure or
+stale flight-controller heartbeat makes the result **INCONCLUSIVE**.
+Use `--watchdog-log <path>` for a manual Athrill run with stderr redirected
+elsewhere; without the diagnostic, a reboot or descent remains **INCONCLUSIVE**.
+For a controlled no-attack check, pass `--attack-sec 0` and verify the script
+never reports success. Exit codes: 0 = corroborated IWDG reset and reboot,
+1 = no effect observed, 2 = inconclusive / prerequisite failed.
+
+The x500 descends in the browser viewer after a confirmed FC reset; MAVLink
+altitude can remain stale. Stop everything with Ctrl+C in the launcher terminal.
 
 `viewer-extra.txt` is the extra board configuration for this demo (JIT, device tick
 skip, the watchdog reset gate, and `HAKO_SENSOR_DEVICE_PUBLISH_ASSET`). The viewer
