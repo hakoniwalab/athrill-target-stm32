@@ -10,8 +10,10 @@
 # vehicle (no Hakoniwa), writes x500-hakoniwa-ardupilot.parm over MAVLink (load-params.py, needs pymavlink) and
 # stops: the parameters stay in the emulated F-RAM, fram.bin. Every run then boots ArduCopter on Hakoniwa, with
 # MAVLink on TCP 127.0.0.1:5760. Start Hakoniwa Drone's aircraft service first, and `hako-cmd start` after this.
-# Stop with Ctrl+C. Start again from scratch: rm fram.bin sd.img
+# Stop with Ctrl+C. Set ATHRILL_WORK_DIR to keep generated F-RAM, SD-card,
+# configuration and log files outside this source directory.
 set -e
+PYTHON=${PYTHON:-python3}
 if [ $# -lt 3 ]; then
 	echo "usage: $0 <arducopter.elf> <athrill3> <libhako_sensor_device> [extra-config]" >&2
 	exit 1
@@ -35,7 +37,9 @@ if [ -n "${HAKO_DRONE_ROOT:-}" ]; then
 	AIRFRAME=$(abs "$HAKO_AIRCRAFT_CONFIG_PATH")
 fi
 DIR=$(cd "$(dirname "$0")" && pwd)
-cd "$DIR"
+WORK_DIR=${ATHRILL_WORK_DIR:-$DIR}
+mkdir -p "$WORK_DIR"
+WORK_DIR=$(cd "$WORK_DIR" && pwd)
 EXAMPLES=$(cd "$DIR/.." && pwd)
 . "$EXAMPLES/boards.sh"
 DTB=$(board_dtb pixhawk4 pixhawk4-hakoniwa)
@@ -53,40 +57,46 @@ dt_config() {	# configuration -> configuration for this run
 # the board's files are given with absolute paths, and the aircraft is configured; then the extra lines.
 flight_config() {	# configuration -> configuration of the flight
 	dt_config "$1" "$2.tmp"
+	sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $WORK_DIR/fram.bin|" \
+	    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $WORK_DIR/sd.img|" \
+	    "$2.tmp" > "$2"
 	if [ -n "$INPROC" ]; then
-		sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $DIR/fram.bin|" \
-		    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $DIR/sd.img|" "$2.tmp" > "$2"
 		printf 'HAKO_AIRCRAFT_CONFIG_PATH %s\nHAKO_AIRCRAFT_WORKER 1\n' "$AIRFRAME" >> "$2"
-	else
-		cp "$2.tmp" "$2"
 	fi
 	rm -f "$2.tmp"
 	if [ -n "$EXTRA" ]; then
 		cat "$EXTRA" >> "$2"
 	fi
 }
-flight_config device_config.txt device_config-run.txt
-if [ ! -e fram.bin ]; then
-	rm -f sd.img
-	../px4-sih/make-sd-image.sh "$DIR/sd.img" > /dev/null
-	cp fram-seed.bin fram.bin.new
-	sed 's/^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$/DEVICE_CONFIG_STM32_FRAM_FILE fram.bin.new/' first-boot-config.txt > first-boot-config.tmp
-	dt_config first-boot-config.tmp first-boot-config-run.txt
+flight_config "$DIR/device_config.txt" "$WORK_DIR/device_config-run.txt"
+if [ ! -e "$WORK_DIR/fram.bin" ]; then
+	rm -f "$WORK_DIR/sd.img"
+	"$EXAMPLES/px4-sih/make-sd-image.sh" "$WORK_DIR/sd.img" > /dev/null
+	cp "$DIR/fram-seed.bin" "$WORK_DIR/fram.bin.new"
+	sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $WORK_DIR/fram.bin.new|" \
+	    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $WORK_DIR/sd.img|" \
+	    "$DIR/first-boot-config.txt" > "$WORK_DIR/first-boot-config.tmp"
+	dt_config "$WORK_DIR/first-boot-config.tmp" "$WORK_DIR/first-boot-config-run.txt"
+	rm -f "$WORK_DIR/first-boot-config.tmp"
 	echo "first boot: the x500 parameters into fram.bin (about 2 minutes) ..."
-	"$ATHRILL" -c1 -m memory.txt -d first-boot-config-run.txt -t -1 "$ELF" > first-boot.log 2>&1 &
+	"$ATHRILL" -c1 -m "$DIR/memory.txt" -d "$WORK_DIR/first-boot-config-run.txt" -t -1 "$ELF" > "$WORK_DIR/first-boot.log" 2>&1 &
 	PID=$!
-	if python3 load-params.py x500-hakoniwa-ardupilot.parm > load-params.log 2>&1; then
+	if "$PYTHON" "$DIR/load-params.py" "$DIR/x500-hakoniwa-ardupilot.parm" > "$WORK_DIR/load-params.log" 2>&1; then
 		kill "$PID"
 		wait "$PID" 2> /dev/null || true
-		mv fram.bin.new fram.bin
-		tail -1 load-params.log
+		mv "$WORK_DIR/fram.bin.new" "$WORK_DIR/fram.bin"
+		tail -1 "$WORK_DIR/load-params.log"
 	else
 		kill "$PID"
 		wait "$PID" 2> /dev/null || true
-		rm -f fram.bin.new
-		echo "first boot failed, see $DIR/load-params.log and $DIR/first-boot.log" >&2
+		rm -f "$WORK_DIR/fram.bin.new"
+		echo "first boot failed, see $WORK_DIR/load-params.log and $WORK_DIR/first-boot.log" >&2
 		exit 1
 	fi
+fi
+if [ "${ATHRILL_PREPARE_ONLY:-0}" = 1 ]; then
+	echo "ArduCopter state is ready in $WORK_DIR"
+	exit 0
 fi
 # ATHRILL_OPTIONS: options given to athrill3 before the ELF, e.g.
 # "--hakoniwa athrill --pdudef <file> --real-sleep-msec 10" to make Athrill the
@@ -95,7 +105,8 @@ fi
 if [ -n "$INPROC" ]; then
 	echo "ArduCopter on Athrill with the aircraft in process; connect to TCP 127.0.0.1:5760"
 	cd "$DRONE_ROOT"
-	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$DIR/memory.txt" -d "$DIR/device_config-run.txt" -t -1 "$ELF"
+	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$DIR/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"
 fi
 echo "ArduCopter on Athrill with Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"
-exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m memory.txt -d device_config-run.txt -t -1 "$ELF"
+cd "$WORK_DIR"
+exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$DIR/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"

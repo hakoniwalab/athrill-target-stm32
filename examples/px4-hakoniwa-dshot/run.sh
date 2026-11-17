@@ -10,8 +10,10 @@
 # extra-config: lines appended to the configuration of the flight, e.g. DEVICE_CONFIG_ESC_MOTOR_STOP 2@40000
 # (stops motor 3 at 40 s) or DEVICE_CONFIG_DSHOT_ESC_FILE <file> (one line per ESC frame).
 # In process: set HAKO_DRONE_ROOT and HAKO_AIRCRAFT_CONFIG_PATH as for examples/px4-hakoniwa.
-# Start again from scratch: rm fram.bin sd.img
+# Set ATHRILL_WORK_DIR to keep generated F-RAM, SD-card, configuration and log
+# files outside this source directory.
 set -e
+PYTHON=${PYTHON:-python3}
 if [ $# -lt 3 ]; then
 	echo "usage: $0 <px4_fmu-v5_default.elf> <athrill3> <libhako_sensor_device...> [extra-config]" >&2
 	exit 1
@@ -35,7 +37,9 @@ if [ -n "${HAKO_DRONE_ROOT:-}" ]; then
 	AIRFRAME=$(abs "$HAKO_AIRCRAFT_CONFIG_PATH")
 fi
 DIR=$(cd "$(dirname "$0")" && pwd)
-cd "$DIR"
+WORK_DIR=${ATHRILL_WORK_DIR:-$DIR}
+mkdir -p "$WORK_DIR"
+WORK_DIR=$(cd "$WORK_DIR" && pwd)
 EXAMPLES=$(cd "$DIR/.." && pwd)
 PWM=$EXAMPLES/px4-hakoniwa
 . "$EXAMPLES/boards.sh"
@@ -54,45 +58,53 @@ dt_config() {	# configuration -> configuration for this run
 }
 flight_config() {	# configuration -> configuration of the flight
 	dt_config "$1" "$2.tmp"
+	sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $WORK_DIR/fram.bin|" \
+	    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $WORK_DIR/sd.img|" \
+	    "$2.tmp" > "$2"
 	if [ -n "$INPROC" ]; then
-		sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $DIR/fram.bin|" \
-		    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $DIR/sd.img|" "$2.tmp" > "$2"
 		printf 'HAKO_AIRCRAFT_CONFIG_PATH %s\nHAKO_AIRCRAFT_WORKER 1\n' "$AIRFRAME" >> "$2"
-	else
-		cp "$2.tmp" "$2"
 	fi
 	rm -f "$2.tmp"
 	if [ -n "$EXTRA" ]; then
 		cat "$EXTRA" >> "$2"
 	fi
 }
-flight_config "$PWM/device_config.txt" device_config-run.txt
-if [ ! -e sd.img ]; then
-	rm -f sd.img.blank
-	"$EXAMPLES/px4-sih/make-sd-image.sh" "$DIR/sd.img.blank"
+flight_config "$PWM/device_config.txt" "$WORK_DIR/device_config-run.txt"
+if [ ! -e "$WORK_DIR/sd.img" ]; then
+	rm -f "$WORK_DIR/sd.img.blank"
+	"$EXAMPLES/px4-sih/make-sd-image.sh" "$WORK_DIR/sd.img.blank"
 	# the x500 parameters with the DShot lines before their final "param save"
-	{ grep -v '^param save$' "$EXAMPLES/../docs/px4/x500-hakoniwa-params.sh"; cat dshot-params.sh; } > x500.sh.tmp
-	python3 "$PWM/put-sd-file.py" sd.img.blank x500.sh.tmp X500.SH
-	rm -f x500.sh.tmp
-	mv sd.img.blank sd.img
+	{ grep -v '^param save$' "$EXAMPLES/../docs/px4/x500-hakoniwa-params.sh"; cat "$DIR/dshot-params.sh"; } > "$WORK_DIR/x500.sh.tmp"
+	"$PYTHON" "$PWM/put-sd-file.py" "$WORK_DIR/sd.img.blank" "$WORK_DIR/x500.sh.tmp" X500.SH
+	rm -f "$WORK_DIR/x500.sh.tmp"
+	mv "$WORK_DIR/sd.img.blank" "$WORK_DIR/sd.img"
 fi
-if [ ! -e fram.bin ]; then
+if [ ! -e "$WORK_DIR/fram.bin" ]; then
 	echo "first boot: the x500 and DShot parameters into fram.bin (a few minutes) ..."
-	dt_config "$PWM/first-boot-config.txt" first-boot-config-run.txt
-	"$ATHRILL" -c1 -m "$PWM/memory.txt" -d first-boot-config-run.txt -t 8640000000 "$ELF" > first-boot.log 2>&1 || true
-	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" first-boot.log \
-		|| ! grep -q "PWM_AUX_TIM0: curr: .* -> new: -3" first-boot.log \
-		|| grep -aq "Parameter .* not found" first-boot.log; then
-		echo "first boot failed, see $DIR/first-boot.log" >&2
-		rm -f fram.bin
+	dt_config "$PWM/first-boot-config.txt" "$WORK_DIR/first-boot-config.tmp"
+	sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $WORK_DIR/fram.bin|" \
+	    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $WORK_DIR/sd.img|" \
+	    "$WORK_DIR/first-boot-config.tmp" > "$WORK_DIR/first-boot-config-run.txt"
+	rm -f "$WORK_DIR/first-boot-config.tmp"
+	"$ATHRILL" -c1 -m "$PWM/memory.txt" -d "$WORK_DIR/first-boot-config-run.txt" -t 8640000000 "$ELF" > "$WORK_DIR/first-boot.log" 2>&1 || true
+	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" "$WORK_DIR/first-boot.log" \
+		|| ! grep -q "PWM_AUX_TIM0: curr: .* -> new: -3" "$WORK_DIR/first-boot.log" \
+		|| grep -aq "Parameter .* not found" "$WORK_DIR/first-boot.log"; then
+		echo "first boot failed, see $WORK_DIR/first-boot.log" >&2
+		rm -f "$WORK_DIR/fram.bin"
 		exit 1
 	fi
+fi
+if [ "${ATHRILL_PREPARE_ONLY:-0}" = 1 ]; then
+	echo "PX4 DShot state is ready in $WORK_DIR"
+	exit 0
 fi
 # shellcheck disable=SC2086
 if [ -n "$INPROC" ]; then
 	echo "PX4 on Athrill with DShot and the aircraft in process; connect to TCP 127.0.0.1:5760"
 	cd "$DRONE_ROOT"
-	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$PWM/memory.txt" -d "$DIR/device_config-run.txt" -t -1 "$ELF"
+	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$PWM/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"
 fi
 echo "PX4 on Athrill with DShot and Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"
-exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$PWM/memory.txt" -d device_config-run.txt -t -1 "$ELF"
+cd "$WORK_DIR"
+exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$PWM/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"
