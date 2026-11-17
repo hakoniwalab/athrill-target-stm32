@@ -3,9 +3,9 @@
  * Armv7-M, Thumb state only.
  *
  * Exceptions are the M profile's model (athrill-arm-common arm_m_exception.h,
- * state in core->m): thumb_execute takes them between instructions. Not yet
- * modelled: the MPU, and the faults of memory accesses (a bus error or an
- * unaligned access stops the run instead of a BusFault or UsageFault).
+ * state in core->m): thumb_execute takes them between instructions. Data bus
+ * errors are precise BusFaults with BFAR, and required-alignment violations
+ * are UsageFaults. The MPU remains unmodelled.
  */
 #ifndef ATHRILL_STM32_ARM_TARGET_PROFILE_H
 #define ATHRILL_STM32_ARM_TARGET_PROFILE_H
@@ -150,12 +150,16 @@ static inline Std_ReturnType ArmMemU_R(TargetCoreType *core, uint32 address, uin
 	if ((address & (size - 1U)) == 0U) {
 		if (size == 1U) {
 			err = bus_get_data8(core->core_id, address, &v8);
-			if (err == STD_E_OK) { *value = v8; }
+			if (err == STD_E_OK) {
+				*value = v8;
+			}
 			return ArmRecordDataBusFault(core, err, address);
 		}
 		if (size == 2U) {
 			err = bus_get_data16(core->core_id, address, &v16);
-			if (err == STD_E_OK) { *value = v16; }
+			if (err == STD_E_OK) {
+				*value = v16;
+			}
 			return ArmRecordDataBusFault(core, err, address);
 		}
 		err = bus_get_data32(core->core_id, address, value);
