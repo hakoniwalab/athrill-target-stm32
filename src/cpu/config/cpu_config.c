@@ -317,6 +317,12 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		reset_core(core);
 		return STD_E_OK;
 	}
+	if (core->m.lockup) {
+		/* ARM lockup: the core makes no progress until a reset. Idle so the
+		 * clock advances (devices tick, the watchdog fires) instead of stopping
+		 * the run; reset_core() clears the lockup when the reset arrives. */
+		return STD_E_OK;
+	}
 	if (core->is_halt) {
 		/* WFI, WFE: woken by an exception that would preempt were PRIMASK clear, or by an event (WFE) */
 		uint32 primask = core->m.primask;
@@ -338,7 +344,14 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 		return STD_E_OK;
 	}
 	err = thumb_execute(core);
-	if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
+	if (err == STD_E_EXEC) {
+		/* STD_E_EXEC == lockup (a fault that cannot be taken), entered this
+		 * clock: report it once, then idle (the lockup check above idles the
+		 * following clocks) so the watchdog can reset the core. */
+		report_stop(core, err);
+		return STD_E_OK;
+	}
+	if ((err == STD_E_DECODE) || (err == STD_E_INVALID)) {
 		report_stop(core, err);
 	}
 	return err;
@@ -359,7 +372,7 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 	stm32_device_accessed = FALSE;
 	while ((n < max_clocks) && !core->is_halt && !stm32_device_accessed) {
 		std_bool special = core->reset_pending || core->scs.reset_requested
-			|| athrill_idle_spin_halt_idle_ready(core_id);
+			|| core->m.lockup || athrill_idle_spin_halt_idle_ready(core_id);
 		uint64 k;
 
 		if (!special && !pc_sampling) {
@@ -388,7 +401,13 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 			sample_pc(core);
 			virtual_cpu.cores[core_id].elaps++;
 			err = thumb_execute(core);
-			if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
+			if (err == STD_E_EXEC) {
+				/* lockup: report once, then idle (next clock is 'special' and
+				 * goes through cpu_supply_clock, which idles until reset). */
+				report_stop(core, err);
+				err = STD_E_OK;
+			}
+			else if ((err == STD_E_DECODE) || (err == STD_E_INVALID)) {
 				report_stop(core, err);
 			}
 		}

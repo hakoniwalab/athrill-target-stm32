@@ -292,6 +292,14 @@ COLD_PATH static Std_ReturnType complete(TargetCoreType *core, Std_ReturnType er
 	}
 	if (err == STD_E_SEGV) {
 		core->access_fault = TRUE;
+		/* A data access to an unmapped address is a precise BusFault
+		 * (BFSR.PRECISERR). Raise it so it escalates to HardFault and, if it
+		 * cannot be taken, to lockup -- as real hardware does -- instead of the
+		 * model returning a value and the firmware looping on the bad address.
+		 * Fault-tolerant code (e.g. ArduPilot's CrashCatcher memory dump) then
+		 * skips the unreadable location rather than spinning on it. */
+		core->m.cfsr |= (1U << 9);	/* BFSR.PRECISERR */
+		return take(core, ArmMTakeSynchronous(core, ARM_M_EXC_BUSFAULT, core->reg.pc));
 	}
 	if (err != STD_E_OK) {
 		return err;
@@ -356,7 +364,12 @@ COLD_PATH static Std_ReturnType execute_slow(TargetCoreType *core)
 	err = fetch(core, core->reg.pc, &insn, &length);
 	if (err != STD_E_OK) {
 		core->access_fault = TRUE;
-		return err;
+		/* An instruction fetch from an unmapped address is a bus error
+		 * (BFSR.IBUSERR). Raise BusFault so it escalates to HardFault and, if
+		 * it cannot be taken, to lockup, which halts the core until reset --
+		 * as real hardware does -- instead of re-fetching the bad PC forever. */
+		core->m.cfsr |= (1U << 8);	/* BFSR.IBUSERR */
+		return take(core, ArmMTakeSynchronous(core, ARM_M_EXC_BUSFAULT, core->reg.pc));
 	}
 	core->reg.next_pc = core->reg.pc + length;
 	if (length == 2U) {
