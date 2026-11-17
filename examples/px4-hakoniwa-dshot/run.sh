@@ -40,6 +40,21 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 WORK_DIR=${ATHRILL_WORK_DIR:-$DIR}
 mkdir -p "$WORK_DIR"
 WORK_DIR=$(cd "$WORK_DIR" && pwd)
+if [ -n "$INPROC" ]; then
+	AIRFRAME_SOURCE=$AIRFRAME
+	AIRFRAME=$WORK_DIR/aircraft-config
+	mkdir -p "$AIRFRAME"
+	AIRFRAME_FOUND=
+	for AIRFRAME_JSON in "$AIRFRAME_SOURCE"/drone_config_*.json; do
+		[ -f "$AIRFRAME_JSON" ] || continue
+		cp "$AIRFRAME_JSON" "$AIRFRAME/"
+		AIRFRAME_FOUND=1
+	done
+	if [ -z "$AIRFRAME_FOUND" ]; then
+		echo "no drone_config_*.json in $AIRFRAME_SOURCE" >&2
+		exit 1
+	fi
+fi
 EXAMPLES=$(cd "$DIR/.." && pwd)
 PWM=$EXAMPLES/px4-hakoniwa
 . "$EXAMPLES/boards.sh"
@@ -81,15 +96,21 @@ if [ ! -e "$WORK_DIR/sd.img" ]; then
 fi
 if [ ! -e "$WORK_DIR/fram.bin" ]; then
 	echo "first boot: the x500 and DShot parameters into fram.bin (a few minutes) ..."
+	# Create the backing image explicitly so preparation always leaves a complete
+	# state bundle, including when PX4 restores its parameter backup from SD.
+	# A zeroed FM25V02 image is the device's erased state.
+	dd if=/dev/zero of="$WORK_DIR/fram.bin" bs=32768 count=1 2>/dev/null
 	dt_config "$PWM/first-boot-config.txt" "$WORK_DIR/first-boot-config.tmp"
 	sed -e "s|^DEVICE_CONFIG_STM32_FRAM_FILE fram.bin$|DEVICE_CONFIG_STM32_FRAM_FILE $WORK_DIR/fram.bin|" \
 	    -e "s|^DEVICE_CONFIG_STM32_SDCARD_IMAGE sd.img$|DEVICE_CONFIG_STM32_SDCARD_IMAGE $WORK_DIR/sd.img|" \
 	    "$WORK_DIR/first-boot-config.tmp" > "$WORK_DIR/first-boot-config-run.txt"
 	rm -f "$WORK_DIR/first-boot-config.tmp"
 	"$ATHRILL" -c1 -m "$PWM/memory.txt" -d "$WORK_DIR/first-boot-config-run.txt" -t 8640000000 "$ELF" > "$WORK_DIR/first-boot.log" 2>&1 || true
-	if ! grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" "$WORK_DIR/first-boot.log" \
-		|| ! grep -q "PWM_AUX_TIM0: curr: .* -> new: -3" "$WORK_DIR/first-boot.log" \
-		|| grep -aq "Parameter .* not found" "$WORK_DIR/first-boot.log"; then
+	if grep -aq "Parameter .* not found" "$WORK_DIR/first-boot.log" \
+		|| { ! { grep -q "SYS_AUTOSTART: curr: 0 -> new: 4019" "$WORK_DIR/first-boot.log" \
+			&& grep -q "PWM_AUX_TIM0: curr: .* -> new: -3" "$WORK_DIR/first-boot.log"; } \
+			&& ! { grep -Eq "BSON_INT32: +SYS_AUTOSTART = 4019" "$WORK_DIR/first-boot.log" \
+				&& grep -Eq "BSON_INT32: +PWM_AUX_TIM0 = -3" "$WORK_DIR/first-boot.log"; }; }; then
 		echo "first boot failed, see $WORK_DIR/first-boot.log" >&2
 		rm -f "$WORK_DIR/fram.bin"
 		exit 1
@@ -102,7 +123,10 @@ fi
 # shellcheck disable=SC2086
 if [ -n "$INPROC" ]; then
 	echo "PX4 on Athrill with DShot and the aircraft in process; connect to TCP 127.0.0.1:5760"
-	cd "$DRONE_ROOT"
+	if [ ! -e "$WORK_DIR/config" ] && [ ! -L "$WORK_DIR/config" ]; then
+		ln -s "$DRONE_ROOT/config" "$WORK_DIR/config"
+	fi
+	cd "$WORK_DIR"
 	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$PWM/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"
 fi
 echo "PX4 on Athrill with DShot and Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"

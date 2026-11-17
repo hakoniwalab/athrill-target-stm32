@@ -40,6 +40,21 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 WORK_DIR=${ATHRILL_WORK_DIR:-$DIR}
 mkdir -p "$WORK_DIR"
 WORK_DIR=$(cd "$WORK_DIR" && pwd)
+if [ -n "$INPROC" ]; then
+	AIRFRAME_SOURCE=$AIRFRAME
+	AIRFRAME=$WORK_DIR/aircraft-config
+	mkdir -p "$AIRFRAME"
+	AIRFRAME_FOUND=
+	for AIRFRAME_JSON in "$AIRFRAME_SOURCE"/drone_config_*.json; do
+		[ -f "$AIRFRAME_JSON" ] || continue
+		cp "$AIRFRAME_JSON" "$AIRFRAME/"
+		AIRFRAME_FOUND=1
+	done
+	if [ -z "$AIRFRAME_FOUND" ]; then
+		echo "no drone_config_*.json in $AIRFRAME_SOURCE" >&2
+		exit 1
+	fi
+fi
 EXAMPLES=$(cd "$DIR/.." && pwd)
 . "$EXAMPLES/boards.sh"
 DTB=$(board_dtb pixhawk4 pixhawk4-hakoniwa)
@@ -104,7 +119,10 @@ fi
 # x500's visual state for a browser viewer). Empty by default.
 if [ -n "$INPROC" ]; then
 	echo "ArduCopter on Athrill with the aircraft in process; connect to TCP 127.0.0.1:5760"
-	cd "$DRONE_ROOT"
+	if [ ! -e "$WORK_DIR/config" ] && [ ! -L "$WORK_DIR/config" ]; then
+		ln -s "$DRONE_ROOT/config" "$WORK_DIR/config"
+	fi
+	cd "$WORK_DIR"
 	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$DIR/memory.txt" -d "$WORK_DIR/device_config-run.txt" -t -1 "$ELF"
 fi
 echo "ArduCopter on Athrill with Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"
