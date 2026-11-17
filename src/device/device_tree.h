@@ -9,6 +9,8 @@
 /* TRUE after DEVICE_CONFIG_DEVICE_TREE was found and built. */
 std_bool stm32_device_tree_build(void);
 void stm32_device_tree_tick(DeviceClockType *clock);
+/* Reset the existing model graph without rebuilding its connections. */
+std_bool stm32_device_tree_reset(void);
 void stm32_device_tree_destroy(void);
 
 /* A character of the debugger's console input to the console UART (the

@@ -225,6 +225,11 @@ void stm32_device_tree_tick(DeviceClockType *clock)
 	}
 }
 
+std_bool stm32_device_tree_reset(void)
+{
+	return (device_tree_runtime == NULL || athrill_device_reset(device_tree_runtime) == 0) ? TRUE : FALSE;
+}
+
 void stm32_device_tree_destroy(void)
 {
 	if (device_tree_runtime != NULL) {

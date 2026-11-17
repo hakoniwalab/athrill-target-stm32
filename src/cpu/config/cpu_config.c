@@ -314,6 +314,7 @@ Std_ReturnType cpu_supply_clock(CoreIdType id)
 	virtual_cpu.cores[id].elaps++;
 	if (core->scs.reset_requested) {
 		/* AIRCR.SYSRESETREQ */
+		stm32_device_request_system_reset();
 		reset_core(core);
 		return STD_E_OK;
 	}

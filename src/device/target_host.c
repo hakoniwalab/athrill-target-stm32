@@ -382,6 +382,7 @@ void stm32_host_request_system_reset(void *context, uint32 reason)
 	for (i = 0; i < CPU_CONFIG_CORE_NUM; i++) {
 		virtual_cpu.cores[i].core.scs.reset_requested = TRUE;
 	}
+	stm32_device_request_system_reset();
 	/* End the current instruction batch so the reset is taken at once. */
 	stm32_device_accessed = TRUE;
 }

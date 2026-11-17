@@ -41,6 +41,6 @@ CFG
 CLOCKS=10800000	# 0.05 s at 216 MHz; the default 5 ms timeout fires inside it
 bite=$("$ATHRILL" -c1 -m memory.txt -d device_config.txt -t $CLOCKS bite.elf 2>/dev/null | grep -c BOOT || true)
 ctrl=$("$ATHRILL" -c1 -m memory.txt -d device_config.txt -t $CLOCKS control.elf 2>/dev/null | grep -c BOOT || true)
-echo "bite (no kick) BOOT count = $bite (expect >= 2: the watchdog reset the MCU)"
+echo "bite (no kick) BOOT count = $bite (expect 2: exactly one watchdog reset)"
 echo "control (kick) BOOT count = $ctrl (expect 1: no reset)"
-[ "$bite" -ge 2 ] && [ "$ctrl" -eq 1 ] && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }
+[ "$bite" -eq 2 ] && [ "$ctrl" -eq 1 ] && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }

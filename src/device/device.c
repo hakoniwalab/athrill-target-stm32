@@ -1,5 +1,6 @@
 #include "device.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include "cpuemu_ops.h"
 #include "peripheral/arm_m_scs_device.h"
 #include "peripheral/arm_m_dwt.h"
@@ -13,6 +14,12 @@ static std_bool exdev_initialized = FALSE;
 #endif
 
 std_bool stm32_device_accessed = FALSE;
+static std_bool system_reset_requested = FALSE;
+
+void stm32_device_request_system_reset(void)
+{
+	system_reset_requested = TRUE;
+}
 
 /*
  * The order device_supply_clock() ticks the devices in, written once: the
@@ -41,6 +48,7 @@ static void log_tick_order(void)
 void device_init(CpuType *cpu, DeviceClockType *clock)
 {
 	(void)cpu;
+	system_reset_requested = FALSE;
 	clock->clock = 0U;
 	clock->intclock = 0U;
 	clock->min_intr_interval = DEVICE_CLOCK_MAX_INTERVAL;
@@ -61,6 +69,21 @@ void device_supply_clock(DeviceClockType *clock)
 #define TICK_CALL(name, call)	call;
 	TARGET_TICKS(TICK_CALL)
 #undef TICK_CALL
+	/* A model can request this reset from inside athrill_device_tick(). Defer
+	 * it until that call has returned, then reset the existing graph in its
+	 * dependency order. The simulation clock remains monotonic. */
+	if (system_reset_requested) {
+		arm_m_scs_reset();
+		arm_m_dwt_reset();
+		if (!stm32_device_tree_reset()) {
+			printf("ERROR: device tree system reset failed\n");
+			exit(1);
+		}
+		system_reset_requested = FALSE;
+		clock->min_intr_interval = 1U;
+		clock->can_skip_clock = FALSE;
+		clock->is_halt = FALSE;
+	}
 #ifdef EXDEV_ENABLE
 	/* External devices (memory.txt DEV) are registered when the program is loaded. */
 	if (!exdev_initialized) {
