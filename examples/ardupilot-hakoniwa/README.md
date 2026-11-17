@@ -22,6 +22,12 @@ sensor device publishes the x500's visual state; a PDU web bridge serves it to t
 three.js viewer. The [Hakoniwa Launcher](https://github.com/hakoniwalab/hakoniwa-pdu-python)
 starts the pieces in order and runs `hako-cmd start`.
 
+For the managed end-to-end flow, use the
+[`athrill-pixhawk-ardupilot-dos-viewer`](https://github.com/hakoniwalab/hakoniwa-business-pack/blob/main/recipes/examples/athrill-pixhawk-ardupilot-dos-viewer.yaml)
+Business Pack Recipe. It owns Foundation paths, firmware-state preparation,
+Launcher session lifecycle, logs, readiness and cleanup. The launch file in this
+directory remains the lower-level developer example.
+
 The launch file's paths come from two environment variables:
 
 - `HAKO_WS` — the directory that holds the repositories side by side
@@ -51,11 +57,15 @@ Run it:
 ```sh
 export HAKO_WS=/path/to/workspace
 export ARDUPILOT_ELF=/path/to/arducopter.elf
-# clear any stale shared memory from a previous run
-rm -f /var/lib/hakoniwa/mmap/mmap-0x*.bin /var/lib/hakoniwa/mmap/*.lock
 python3 -m hakoniwa_pdu.apps.launcher.hako_launcher \
   "$HAKO_WS/athrill-target-stm32/examples/ardupilot-hakoniwa/ardupilot-dos-viewer.launch.json"
 ```
+
+Do not remove shared-memory or lock files with a broad glob. If startup reports
+runtime-integrity failure, stop every Hakoniwa process, inspect with
+`hako-cmd check`, and run `hako-cmd recover` only after the report confirms that
+recovery is safe. The Business Pack Workspace keeps its runtime under its own
+managed directory.
 
 Then open the viewer and click **connect**:
 
@@ -89,3 +99,8 @@ altitude can remain stale. Stop everything with Ctrl+C in the launcher terminal.
 skip, the watchdog reset gate, and `HAKO_SENSOR_DEVICE_PUBLISH_ASSET`). The viewer
 connects to the sim only while it is being flown; see the launcher notes if the
 simulation time barely advances when nothing is driving it.
+
+`run.sh` accepts `ATHRILL_WORK_DIR` for generated F-RAM, SD-card, configuration
+and first-boot logs. `ATHRILL_PREPARE_ONLY=1` prepares that state and exits before
+joining Hakoniwa; the Business Pack Recipe uses both settings so the source tree
+is not runtime state.
