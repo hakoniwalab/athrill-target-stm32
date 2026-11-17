@@ -1737,6 +1737,9 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 	athrill_jit_mov(b, TJ_CORE(it_written, 4), athrill_jit_imm(0));
 	athrill_jit_mov(b, TJ_CORE(sync_exception, 4), athrill_jit_imm(0));
 	athrill_jit_mov(b, TJ_CORE(exc_return_pending, 4), athrill_jit_imm(0));
+	/* Match execute_one(): fault details belong only to the instruction that set them. */
+	athrill_jit_mov(b, TJ_CORE(data_fault_valid, 4), athrill_jit_imm(0));
+	athrill_jit_mov(b, TJ_CORE(alignment_fault, 4), athrill_jit_imm(0));
 	for (i = 0U; i < length; i++) {
 		const ThumbDecodedType *e = list[i];
 		uint32 next = e->pc + e->length;
