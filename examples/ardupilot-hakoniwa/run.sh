@@ -88,10 +88,14 @@ if [ ! -e fram.bin ]; then
 		exit 1
 	fi
 fi
+# ATHRILL_OPTIONS: options given to athrill3 before the ELF, e.g.
+# "--hakoniwa athrill --pdudef <file> --real-sleep-msec 10" to make Athrill the
+# Hakoniwa asset/conductor (the in-process motor sensor device then publishes the
+# x500's visual state for a browser viewer). Empty by default.
 if [ -n "$INPROC" ]; then
 	echo "ArduCopter on Athrill with the aircraft in process; connect to TCP 127.0.0.1:5760"
 	cd "$DRONE_ROOT"
-	exec "$ATHRILL" -c1 -m "$DIR/memory.txt" -d "$DIR/device_config-run.txt" -t -1 "$ELF"
+	exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m "$DIR/memory.txt" -d "$DIR/device_config-run.txt" -t -1 "$ELF"
 fi
 echo "ArduCopter on Athrill with Hakoniwa; run hako-cmd start, then connect to TCP 127.0.0.1:5760"
-exec "$ATHRILL" -c1 -m memory.txt -d device_config-run.txt -t -1 "$ELF"
+exec "$ATHRILL" ${ATHRILL_OPTIONS:-} -c1 -m memory.txt -d device_config-run.txt -t -1 "$ELF"

