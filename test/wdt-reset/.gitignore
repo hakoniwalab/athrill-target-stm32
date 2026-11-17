@@ -2,3 +2,6 @@ bite.elf
 control.elf
 stage_c.dtb
 device_config.txt
+iwdg-bite.elf
+iwdg-control.elf
+device_config_iwdg.txt
