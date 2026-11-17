@@ -110,6 +110,16 @@ static inline Std_ReturnType ArmALUWritePC(TargetCoreType *core, uint32 address)
 	return ArmBranchWritePC(core, address);
 }
 
+/* Capture only actual bus failures so the exception handler can fill BFAR. */
+static inline Std_ReturnType ArmRecordDataBusFault(TargetCoreType *core, Std_ReturnType err, uint32 address)
+{
+	if (err == STD_E_SEGV) {
+		core->data_fault_valid = TRUE;
+		core->data_fault_address = address;
+	}
+	return err;
+}
+
 /*
  * MemU[]: Armv7-M allows unaligned word and halfword accesses to normal
  * memory. Plain memory is read and written in the host memory directly
@@ -140,21 +150,22 @@ static inline Std_ReturnType ArmMemU_R(TargetCoreType *core, uint32 address, uin
 	if ((address & (size - 1U)) == 0U) {
 		if (size == 1U) {
 			err = bus_get_data8(core->core_id, address, &v8);
-			*value = v8;
-			return err;
+			if (err == STD_E_OK) { *value = v8; }
+			return ArmRecordDataBusFault(core, err, address);
 		}
 		if (size == 2U) {
 			err = bus_get_data16(core->core_id, address, &v16);
-			*value = v16;
-			return err;
+			if (err == STD_E_OK) { *value = v16; }
+			return ArmRecordDataBusFault(core, err, address);
 		}
-		return bus_get_data32(core->core_id, address, value);
+		err = bus_get_data32(core->core_id, address, value);
+		return ArmRecordDataBusFault(core, err, address);
 	}
 	v = 0U;
 	for (i = 0U; i < size; i++) {
 		err = bus_get_data8(core->core_id, address + i, &v8);
 		if (err != STD_E_OK) {
-			return err;
+			return ArmRecordDataBusFault(core, err, address + i);
 		}
 		v |= (uint32)v8 << (8U * i);
 	}
@@ -184,26 +195,30 @@ static inline Std_ReturnType ArmMemU_W(TargetCoreType *core, uint32 address, uin
 	}
 	if ((address & (size - 1U)) == 0U) {
 		if (size == 1U) {
-			return bus_put_data8(core->core_id, address, (uint8)value);
+			err = bus_put_data8(core->core_id, address, (uint8)value);
+			return ArmRecordDataBusFault(core, err, address);
 		}
 		if (size == 2U) {
-			return bus_put_data16(core->core_id, address, (uint16)value);
+			err = bus_put_data16(core->core_id, address, (uint16)value);
+			return ArmRecordDataBusFault(core, err, address);
 		}
-		return bus_put_data32(core->core_id, address, value);
+		err = bus_put_data32(core->core_id, address, value);
+		return ArmRecordDataBusFault(core, err, address);
 	}
 	for (i = 0U; i < size; i++) {
 		err = bus_put_data8(core->core_id, address + i, (uint8)(value >> (8U * i)));
 		if (err != STD_E_OK) {
-			return err;
+			return ArmRecordDataBusFault(core, err, address + i);
 		}
 	}
 	return STD_E_OK;
 }
 
-/* MemA[]: an unaligned access is a UsageFault (UNALIGNED); it stops the run. */
+/* MemA[]: an unaligned access is a UsageFault (UNALIGNED). */
 static inline Std_ReturnType ArmMemA_R(TargetCoreType *core, uint32 address, uint32 size, uint32 *value)
 {
 	if ((address & (size - 1U)) != 0U) {
+		core->alignment_fault = TRUE;
 		return STD_E_SEGV;
 	}
 	return ArmMemU_R(core, address, size, value);
@@ -212,6 +227,7 @@ static inline Std_ReturnType ArmMemA_R(TargetCoreType *core, uint32 address, uin
 static inline Std_ReturnType ArmMemA_W(TargetCoreType *core, uint32 address, uint32 size, uint32 value)
 {
 	if ((address & (size - 1U)) != 0U) {
+		core->alignment_fault = TRUE;
 		return STD_E_SEGV;
 	}
 	return ArmMemU_W(core, address, size, value);
@@ -262,6 +278,7 @@ static inline void ArmSetExclusiveMonitors(TargetCoreType *core, uint32 address,
 static inline Std_ReturnType ArmExclusiveMonitorsPass(TargetCoreType *core, uint32 address, uint32 size, bool *pass)
 {
 	if ((address & (size - 1U)) != 0U) {
+		core->alignment_fault = TRUE;
 		return STD_E_SEGV;
 	}
 	*pass = core->exclusive_valid && (core->exclusive_address == address);
