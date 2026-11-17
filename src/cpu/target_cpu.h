@@ -33,6 +33,9 @@ typedef struct TargetCoreTypeTag {
     std_bool is_halt;
     std_bool reset_pending;	/* SP and PC still to be read from the vector table */
     std_bool access_fault;
+    std_bool data_fault_valid;	/* failed data access has a precise fault address */
+    uint32 data_fault_address;
+    std_bool alignment_fault;	/* MemA/LDREX misalignment is a UsageFault */
     std_bool exclusive_valid;	/* local exclusive monitor (LDREX/STREX) */
     uint32 exclusive_address;
     std_bool it_written;	/* this instruction was IT: the IT state does not advance */
