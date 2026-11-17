@@ -73,7 +73,9 @@ python3 fly_and_attack.py --device 2
 The script **aborts without attacking** if EKF, arming, takeoff, or stable hover
 cannot be verified. The launcher redirects Athrill's stderr to
 `logs/athrill.err`. The script reads only new `IWDG_RESET` events written after
-the attack starts, then compares them with the reboot `STATUSTEXT` banner.
+the attack starts, then compares them with the reboot `STATUSTEXT` banner from
+the selected flight-controller system/component. A MAVLink transport failure or
+stale flight-controller heartbeat makes the result **INCONCLUSIVE**.
 Use `--watchdog-log <path>` for a manual Athrill run with stderr redirected
 elsewhere; without the diagnostic, a reboot or descent remains **INCONCLUSIVE**.
 For a controlled no-attack check, pass `--attack-sec 0` and verify the script
