@@ -382,7 +382,14 @@ Std_ReturnType cpu_supply_clocks(CoreIdType core_id, uint64 max_clocks, uint64 *
 			core->internal_cycle += k;
 			virtual_cpu.cores[core_id].elaps += k;
 			run_steps += k;
-			if (err != STD_E_OK) {
+			if (err == STD_E_EXEC && core->m.lockup) {
+				/* The fast execution path must not stop the scheduler on ARM
+				 * lockup. Keep advancing the virtual clock so the watchdog can
+				 * request a system reset, as in the single-clock path below. */
+				report_stop(core, err);
+				err = STD_E_OK;
+			}
+			else if (err != STD_E_OK) {
 				if ((err == STD_E_DECODE) || (err == STD_E_INVALID) || (err == STD_E_EXEC)) {
 					report_stop(core, err);
 				}
