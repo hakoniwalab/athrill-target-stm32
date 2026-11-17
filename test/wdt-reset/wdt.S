@@ -13,6 +13,7 @@
     .equ USART_ISR,   0x1C
     .equ USART_TDR,   0x28
     .equ WDT_BASE,    0x40003000
+    .equ BOOT_COUNT,  0x20000000
 
     .section .vectors, "a"
     .word _estack
@@ -22,6 +23,10 @@
     .thumb_func
     .global reset_handler
 reset_handler:
+    ldr   r6, =BOOT_COUNT
+    ldr   r7, [r6, #0]
+    adds  r7, #1
+    str   r7, [r6, #0]
     ldr   r0, =USART3_BASE
     movs  r1, #0x9                  /* CR1: UE, TE */
     str   r1, [r0, #0]
@@ -43,6 +48,11 @@ loop:
 spin:
 #ifdef KICK
     str   r5, [r4, #0]              /* any write reloads the watchdog */
+#else
+    cmp   r7, #2                    /* after the one expected reboot, keep it alive */
+    blo   no_kick
+    str   r5, [r4, #0]
+no_kick:
 #endif
     b     spin
 

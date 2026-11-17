@@ -13,6 +13,9 @@ void device_raise_int(uint16 intno);
  * the batch already ends at the next event the devices reported.
  */
 extern std_bool stm32_device_accessed;
+/* Schedule the peripheral side of a system reset at the end of the current
+ * device tick. Safe to call from an athrill-device model callback. */
+void stm32_device_request_system_reset(void);
 /* Whether interrupt intno is active (its handler running or preempted). */
 std_bool intc_irq_active(uint32 intno);
 #endif
