@@ -292,13 +292,19 @@ COLD_PATH static Std_ReturnType complete(TargetCoreType *core, Std_ReturnType er
 	}
 	if (err == STD_E_SEGV) {
 		core->access_fault = TRUE;
-		/* A data access to an unmapped address is a precise BusFault
-		 * (BFSR.PRECISERR). Raise it so it escalates to HardFault and, if it
-		 * cannot be taken, to lockup -- as real hardware does -- instead of the
-		 * model returning a value and the firmware looping on the bad address.
-		 * Fault-tolerant code (e.g. ArduPilot's CrashCatcher memory dump) then
-		 * skips the unreadable location rather than spinning on it. */
-		core->m.cfsr |= (1U << 9);	/* BFSR.PRECISERR */
+		if (core->alignment_fault) {
+			/* Required-alignment violations are UsageFaults, not BusFaults. */
+			core->alignment_fault = FALSE;
+			core->data_fault_valid = FALSE;
+			core->m.cfsr |= ARM_M_UFSR_UNALIGNED << 16;
+			return take(core, ArmMTakeSynchronous(core, ARM_M_EXC_USAGEFAULT, core->reg.pc));
+		}
+		core->m.cfsr |= ARM_M_BFSR_PRECISERR;
+		if (core->data_fault_valid) {
+			core->m.bfar = core->data_fault_address;
+			core->m.cfsr |= ARM_M_BFSR_BFARVALID;
+		}
+		core->data_fault_valid = FALSE;
 		return take(core, ArmMTakeSynchronous(core, ARM_M_EXC_BUSFAULT, core->reg.pc));
 	}
 	if (err != STD_E_OK) {
@@ -392,6 +398,9 @@ static inline Std_ReturnType execute_one(TargetCoreType *core)
 	uint32 pc = core->reg.pc;
 	std_bool in_it = core->reg.itstate != 0U;
 
+	/* The address/alignment information is scoped to this instruction. */
+	core->data_fault_valid = FALSE;
+	core->alignment_fault = FALSE;
 	if (core->m.pending_check || core->m.priority_check || core->m.lockup || !core->m.epsr_t) {
 		return execute_slow(core);
 	}
