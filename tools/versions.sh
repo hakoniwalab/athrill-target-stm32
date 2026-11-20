@@ -5,9 +5,11 @@ _athrill_v() { awk -v k="$1" '$1 == k { print $2 }' athrill-target-stm32/version
 ATHRILL_RELEASE=$(_athrill_v athrill-target-stm32)
 ATHRILL_RELEASE_URL=https://github.com/hakoniwalab/athrill-target-stm32/releases/download/$ATHRILL_RELEASE
 case "$(uname -s)" in
-Darwin) ATHRILL_PLATFORM=macos-arm64; ATHRILL_SHA256="shasum -a 256" ;;
-*) ATHRILL_PLATFORM=linux-x86_64; ATHRILL_SHA256=sha256sum ;;
+Darwin) ATHRILL_PLATFORM=macos-arm64 ;;
+*) ATHRILL_PLATFORM=linux-x86_64 ;;
 esac
+# athrill_sha256 -c --ignore-missing SHA256SUMS: shasum on macOS, sha256sum on Linux (a function, so zsh runs it too)
+athrill_sha256() { if [ "$(uname -s)" = Darwin ]; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
 ATHRILL3_DIR=athrill3-$ATHRILL_RELEASE-$ATHRILL_PLATFORM
 ATHRILL3=$ATHRILL3_DIR/athrill3
 ZEPHYR_SAMPLES_RELEASE=$(_athrill_v zephyr-samples)

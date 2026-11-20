@@ -56,10 +56,10 @@ git -C athrill-target-stm32 checkout -q "$ATHRILL_RELEASE"
 curl -LO "$ATHRILL_RELEASE_URL/$ATHRILL3_DIR.tar.gz"
 curl -LO "$ATHRILL_RELEASE_URL/px4_fmu-v5_default.elf"
 curl -L -o SHA256SUMS "$ATHRILL_RELEASE_URL/SHA256SUMS"
-$ATHRILL_SHA256 -c --ignore-missing SHA256SUMS
+athrill_sha256 -c --ignore-missing SHA256SUMS
 curl -LO "$ZEPHYR_SAMPLES_URL/$ZEPHYR_SAMPLES.tar.gz"
 curl -L -o SHA256SUMS.zephyr "$ZEPHYR_SAMPLES_URL/SHA256SUMS"
-$ATHRILL_SHA256 -c --ignore-missing SHA256SUMS.zephyr
+athrill_sha256 -c --ignore-missing SHA256SUMS.zephyr
 tar xzf "$ATHRILL3_DIR.tar.gz"
 tar xzf "$ZEPHYR_SAMPLES.tar.gz"
 git clone https://github.com/hakoniwalab/athrill-device.git
@@ -86,7 +86,7 @@ V4.7.2 for the Pixhawk 4):
 
 ```sh
 curl -LO https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk4/arducopter.elf
-$ATHRILL_SHA256 arducopter.elf   # cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c
+athrill_sha256 arducopter.elf   # cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c
 athrill-target-stm32/examples/ardupilot-bench/run.sh arducopter.elf 4320000000 "$ATHRILL3"
 python3 athrill-target-stm32/examples/ardupilot-bench/check-mavlink.py athrill-target-stm32/examples/ardupilot-bench/mavlink.raw
 ```

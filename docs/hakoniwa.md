@@ -109,7 +109,7 @@ cd "$HOME/athrill-hakoniwa"
 curl -LO "$ATHRILL_RELEASE_URL/$ATHRILL3_DIR.tar.gz"
 curl -LO "$ATHRILL_RELEASE_URL/px4_fmu-v5_default.elf"
 curl -LO "$ATHRILL_RELEASE_URL/SHA256SUMS"
-$ATHRILL_SHA256 -c --ignore-missing SHA256SUMS
+athrill_sha256 -c --ignore-missing SHA256SUMS
 tar xzf "$ATHRILL3_DIR.tar.gz"
 ```
 
