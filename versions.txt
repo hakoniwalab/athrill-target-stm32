@@ -1,9 +1,11 @@
 # The one place for versions. The docs, the CI and tools/release/build-release.sh
 # read this file; nothing else names these releases or commits.
-#   athrill-target-stm32  the release whose files the docs download (athrill3, the PX4 ELF, Zephyr's samples)
+#   athrill-target-stm32  the release whose files the docs download (athrill3, the PX4 ELF)
+#   zephyr-samples        the release that holds zephyr-samples-<it>.tar.gz (the samples change less often)
 #   athrill ... sljit     the commits that release and main build from (the CI checks them out)
 #   hakoniwa-drone-core   the Hakoniwa Drone release the Hakoniwa docs use
 athrill-target-stm32 v0.4.0
+zephyr-samples v0.3.0
 athrill a63d4cd9b6bcbfea7ad411e590b5b3107b1ce41c
 athrill-arm-common fbfc3c9062afe6fcc51efa83b545dd11a6eb3e1d
 athrill-device ab3c22e02748fed104972edc93afd5bd4aef51cb
