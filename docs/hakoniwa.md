@@ -41,39 +41,9 @@ in process (below) and the DShot ESCs ([dshot.md](dshot.md)):
 - the emulated ESC stops motor 3 at 40 s: PX4 reports `Motor failure detected` from the ESC telemetry and the x500
   comes down.
 
-macOS on Apple silicon, with Python 3.12, CMake, git and a C/C++ compiler (the Business Pack's
-[getting started](https://github.com/hakoniwalab/hakoniwa-business-pack/blob/main/docs/getting-started-ja.md) lists
-them). In an empty directory:
-
-```bash
-git clone https://github.com/hakoniwalab/hakoniwa-business-pack.git
-cd hakoniwa-business-pack
-python3.12 tools/recipe/athrill_studio_px4.py configure
-python3.12 tools/recipe/athrill_studio_px4.py fetch
-python3.12 tools/recipe/athrill_studio_px4.py build
-python3.12 tools/recipe/athrill_studio_px4.py prepare
-python3.12 tools/recipe/athrill_studio_px4.py scenario
-```
-
-`configure` builds the Foundation and clones the repositories next to `hakoniwa-business-pack`; `fetch` takes the
-release files and checks their SHA-256; `build` builds the in-process sensor device; `prepare` runs PX4's first boot
-with the x500 and DShot parameters. `scenario` runs both flights through Studio's API and prints `PASS` for each.
-
-To watch them:
-
-```bash
-python3.12 tools/recipe/athrill_studio_px4.py start
-```
-
-Open `http://127.0.0.1:8765/`, choose **Holybro Pixhawk 4**, turn **Real time** on, and open the **Flight** tab:
-- "PX4 v1.17.0 flying the x500 (in process, DShot ESCs)": **Run**, then **Take off 2.5 m** and **Land**;
-- "PX4 v1.17.0 x500, motor 3 stops at 40 s": **Run**; Studio takes off by itself and motor 3 stops at 40 s.
-
-Stop Studio with:
-
-```bash
-python3.12 tools/recipe/athrill_studio_px4.py stop
-```
+What it does, what it does not do yet, which computers run it (Apple silicon Mac, Windows 11 with WSL2), and the
+commands are in Athrill Studio's README:
+[Try the PX4 motor-failure demo on your PC](https://github.com/hakoniwalab/athrill-studio#try-the-px4-motor-failure-demo-on-your-pc).
 
 ## Run it by hand (Hakoniwa link)
 
