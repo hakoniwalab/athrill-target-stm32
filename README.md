@@ -201,7 +201,9 @@ every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
 The release's `athrill3` has both built in. They are off by default; a run turns them on with two lines in its
 device configuration ([Build from source](#build-from-source) ends with them).
 
-The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time waiting for its
+The JIT is an experiment. It is tested on Apple silicon and on x86_64 Linux (WSL2, Ubuntu 24.04): there too the PX4
+bench and the SIH flight give the same instruction count, console, F-RAM and SD card image with it as without it
+(2026-11-20). Zephyr's `philosophers` spends its time waiting for its
 console: the UART model takes the frame time of each character at the configured baud rate, and Zephyr polls it.
 Neither option shortens that wait.
 
