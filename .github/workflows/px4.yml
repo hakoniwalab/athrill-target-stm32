@@ -29,25 +29,34 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: athrill-target-stm32
-      # the core and the shared Arm pseudo-code, at the commits the README pins
+      # the commits of the other repositories, from versions.txt
+      - name: versions.txt
+        id: v
+        working-directory: athrill-target-stm32
+        run: |
+          v() { awk -v k="$1" '$1 == k { print $2 }' versions.txt; }
+          echo "athrill=$(v athrill)" >> "$GITHUB_OUTPUT"
+          echo "arm_common=$(v athrill-arm-common)" >> "$GITHUB_OUTPUT"
+          echo "device=$(v athrill-device)" >> "$GITHUB_OUTPUT"
+      # the core and the shared Arm pseudo-code, at the commits of versions.txt
       - name: "athrill after 3.1.0 (host functions, idle/spin halt, GDB server, block JIT)"
         uses: actions/checkout@v4
         with:
           repository: toppers/athrill
-          ref: a63d4cd9b6bcbfea7ad411e590b5b3107b1ce41c
+          ref: ${{ steps.v.outputs.athrill }}
           path: athrill
       - name: athrill-arm-common
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-arm-common
-          ref: fbfc3c9062afe6fcc51efa83b545dd11a6eb3e1d
+          ref: ${{ steps.v.outputs.arm_common }}
           path: athrill-arm-common
           fetch-depth: 0
       - name: athrill-device
         uses: actions/checkout@v4
         with:
           repository: hakoniwalab/athrill-device
-          ref: b9736e7a1c654bfb5d7e25f938b4b4299d64204f
+          ref: ${{ steps.v.outputs.device }}
           path: athrill-device
       - name: libyaml (athrill-device bindings loader)
         run: |
