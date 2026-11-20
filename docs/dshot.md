@@ -120,24 +120,23 @@ with `motor_failure_mask` 4 (motor 3).
 To record every frame the ESCs accept, add `DEVICE_CONFIG_DSHOT_ESC_FILE` and a file path to the same file: one line
 per frame (time, ESC, value, telemetry bit), and one per telemetry record.
 
-## Hakoniwa Drone PRO (experimental build)
-
-The rest was verified with an experimental build of Hakoniwa Drone PRO that reports the state of each rotor to
-the sensor device (rotor speed, current, voltage). It is not in the public release.
-
-### In process, with the aircraft's motor status
+## In process, with the aircraft's motor status
 
 The aircraft runs inside Athrill, as in [In process](hakoniwa.md#in-process), and the ESC telemetry is the
-aircraft's. Compared with the steps above:
-- the sensor device is athrill-device's in-process build with the motor status, `libhako_sensor_device_inproc_motor`
-  (`-DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON -DHAKO_SENSOR_DEVICE_BUILD_INPROC_MOTOR=ON`, built against Drone PRO);
-- `HAKO_DRONE_ROOT` is the Drone PRO directory and `HAKO_AIRCRAFT_CONFIG_PATH` its `config/drone/x500-athrill-px4`
-  (for ArduCopter, `examples/ardupilot-hakoniwa/x500-athrill-ardupilot`); `run.sh` then runs the aircraft in
-  process: no aircraft service, no `hako-cmd`;
-- the flight scripts are the same.
+aircraft's: the in-process sensor device built with the motor status (`libhako_sensor_device_inproc_motor`,
+`-DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON -DHAKO_SENSOR_DEVICE_BUILD_INPROC_MOTOR=ON`) against the free edition of
+Hakoniwa Drone ([versions.txt](../versions.txt)). `run.sh` then runs the aircraft in process: no aircraft service,
+no `hako-cmd`; the flight scripts are the same.
+
+The PX4 flight and the motor failure run this way in Athrill Studio with a Hakoniwa Business Pack Recipe:
+[Run it with Hakoniwa Business Pack](hakoniwa.md#run-it-with-hakoniwa-business-pack).
 
 In the ULog's `esc_status`, the stopped motor's rpm runs down over about 0.15 s, the aircraft's rotor coming to
 rest, and its current drops to 0.
+
+## Hakoniwa Drone PRO (experimental build)
+
+The next part was verified with an experimental build of Hakoniwa Drone PRO.
 
 ### Athrill as the Hakoniwa asset: watch and stop a motor from a browser
 

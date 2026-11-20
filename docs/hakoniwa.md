@@ -29,7 +29,56 @@ What you need, all public:
   without it the readings at rest never change and PX4 takes the barometer
   as stale ("BARO #0 failed: STALE!", arming denied).
 
-## Run it
+## Run it with Hakoniwa Business Pack
+
+The way to start: a [Hakoniwa Business Pack](https://github.com/hakoniwalab/hakoniwa-business-pack) Recipe,
+`athrill-studio-px4-motor-fault`. It fetches and builds everything inside the Business Pack workspace, at pinned
+releases and commits (this repository's release, athrill-device, the free edition of Hakoniwa Drone, the Hakoniwa
+core as the workspace's Foundation), with no `sudo` and nothing installed outside the workspace. Then
+[Athrill Studio](https://github.com/hakoniwalab/athrill-studio) shows two flights in the browser, with the aircraft
+in process (below) and the DShot ESCs ([dshot.md](dshot.md)):
+- PX4 takes off, holds 2.5 m and lands;
+- the emulated ESC stops motor 3 at 40 s: PX4 reports `Motor failure detected` from the ESC telemetry and the x500
+  comes down.
+
+macOS on Apple silicon, with Python 3.12, CMake, git and a C/C++ compiler (the Business Pack's
+[getting started](https://github.com/hakoniwalab/hakoniwa-business-pack/blob/main/docs/getting-started-ja.md) lists
+them). In an empty directory:
+
+```bash
+git clone https://github.com/hakoniwalab/hakoniwa-business-pack.git
+cd hakoniwa-business-pack
+python3.12 tools/recipe/athrill_studio_px4.py configure
+python3.12 tools/recipe/athrill_studio_px4.py fetch
+python3.12 tools/recipe/athrill_studio_px4.py build
+python3.12 tools/recipe/athrill_studio_px4.py prepare
+python3.12 tools/recipe/athrill_studio_px4.py scenario
+```
+
+`configure` builds the Foundation and clones the repositories next to `hakoniwa-business-pack`; `fetch` takes the
+release files and checks their SHA-256; `build` builds the in-process sensor device; `prepare` runs PX4's first boot
+with the x500 and DShot parameters. `scenario` runs both flights through Studio's API and prints `PASS` for each.
+
+To watch them:
+
+```bash
+python3.12 tools/recipe/athrill_studio_px4.py start
+```
+
+Open `http://127.0.0.1:8765/`, choose **Holybro Pixhawk 4**, turn **Real time** on, and open the **Flight** tab:
+- "PX4 v1.17.0 flying the x500 (in process, DShot ESCs)": **Run**, then **Take off 2.5 m** and **Land**;
+- "PX4 v1.17.0 x500, motor 3 stops at 40 s": **Run**; Studio takes off by itself and motor 3 stops at 40 s.
+
+Stop Studio with:
+
+```bash
+python3.12 tools/recipe/athrill_studio_px4.py stop
+```
+
+## Run it by hand (Hakoniwa link)
+
+These steps run Athrill and Hakoniwa Drone's aircraft service as two Hakoniwa assets. They install the Hakoniwa
+core system-wide (`sudo`), unlike the Recipe above, and will move to a Business Pack Recipe too.
 
 The commands are for macOS on Apple silicon. On Linux x86_64, see [On Linux](#on-linux) for the few differences.
 
@@ -300,6 +349,7 @@ cannot join.
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+git -C hakoniwa-drone-core submodule update --init thirdparty/glm
 cmake -S athrill-device/board/common -B athrill-device/build-stm32-inproc -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32 -DATHRILL_SOURCE_DIR="$PWD/athrill" \
   -DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON -DHAKO_DRONE_ROOT="$PWD/hakoniwa-drone-core" \
