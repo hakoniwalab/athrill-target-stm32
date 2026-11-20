@@ -134,7 +134,8 @@ Earlier rows, interpreter only, the same `fly.py`, not measured again:
   gives 0.91 and the JIT with tick skip 1.19 (3 runs each, 2026-11-11). Every run is bit-identical to the regression
   reference (console, PWM and sensor-device traces). These figures are not comparable with the `fly.py` rows.
 
-[docs/hakoniwa.md](docs/hakoniwa.md) has the setup, with the free edition of Hakoniwa Drone v5.0.0. The sensor
+[docs/hakoniwa.md](docs/hakoniwa.md) has the setup: a Hakoniwa Business Pack Recipe runs the flight and the motor failure
+in Athrill Studio with the free edition of Hakoniwa Drone. The sensor
 device and both links are in athrill-device
 ([in-process aircraft](https://github.com/hakoniwalab/athrill-device/blob/main/docs/in-process-aircraft.md)).
 
