@@ -43,7 +43,13 @@ rm -rf "$B"
 cmake -S "$T" -B "$B" -DCMAKE_BUILD_TYPE=Release -DATHRILL_DEVICE_STATIC_YAML=ON \
 	-DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON $EXTRA
 cmake --build "$B" --parallel
-TESTS=$(cd "$B" && ctest 2>&1 | grep 'tests passed') || { (cd "$B" && ctest --output-on-failure); exit 1; }
+# The release needs every test: ctest's exit status decides (a "99% tests passed" line is a failure).
+if ! (cd "$B" && ctest --output-on-failure > ctest.log 2>&1); then
+	grep -A20 'tests failed' "$B/ctest.log" >&2 || tail -40 "$B/ctest.log" >&2
+	echo "ctest failed: no tarball ($B/ctest.log)" >&2
+	exit 1
+fi
+TESTS=$(grep 'tests passed' "$B/ctest.log")
 
 NAME=athrill3-$REL-$PLATFORM
 P=$W/dist/$NAME
