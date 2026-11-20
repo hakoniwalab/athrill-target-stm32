@@ -8,8 +8,8 @@ The stock `px4_fmu-v5_default` firmware flies the Hakoniwa Drone x500 in MuJoCo:
 Both sides move in lockstep on the data: Athrill runs the CPU up to the time of each sensor sample.
 
 What you need, all public:
-- [Hakoniwa Drone](https://github.com/toppers/hakoniwa-drone-core) v5.0.0 or later: the free edition, or
-  Hakoniwa Drone PRO. It provides the aircraft service, the airframe `config/drone/x500-athrill-px4` and the PDU
+- [Hakoniwa Drone](https://github.com/toppers/hakoniwa-drone-core), the release named in
+  [versions.txt](../versions.txt) (`hakoniwa-drone-core`): the free edition, or Hakoniwa Drone PRO. It provides the aircraft service, the airframe `config/drone/x500-athrill-px4` and the PDU
   definition `config/pdudef/drone-pdudef-athrill-px4.json`.
 - [athrill-device](https://github.com/hakoniwalab/athrill-device): the board's Devicetree
   (`boards/pixhawk4/pixhawk4-hakoniwa.dtb`) and the Hakoniwa sensor device (`board/common`), which Athrill loads
@@ -39,14 +39,19 @@ Drone (`brew install glfw`). Everything goes into one workspace:
 ```bash
 mkdir -p "$HOME/athrill-hakoniwa"
 cd "$HOME/athrill-hakoniwa"
-git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
+git clone https://github.com/hakoniwalab/athrill-target-stm32.git
+. athrill-target-stm32/tools/versions.sh
+git -C athrill-target-stm32 checkout -q "$ATHRILL_RELEASE"
 ```
+
+The release and the commits come from [versions.txt](../versions.txt). Each command block below starts in the
+workspace and sources `tools/versions.sh`, which reads it.
 
 ### 1. Hakoniwa core
 
 Hakoniwa Drone's binaries carry the core's libraries, but the sensor device is built against the core, and
 `hako-cmd` starts the simulation. Install the same revision of
-[hakoniwa-core-pro](https://github.com/hakoniwalab/hakoniwa-core-pro) as Hakoniwa Drone v5.0.0 was built with:
+[hakoniwa-core-pro](https://github.com/hakoniwalab/hakoniwa-core-pro) as the Hakoniwa Drone release was built with:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
@@ -61,15 +66,16 @@ git -C hakoniwa-core-pro submodule update --init --recursive
 
 ### 2. Hakoniwa Drone
 
-The free edition, [hakoniwa-drone-core](https://github.com/toppers/hakoniwa-drone-core) v5.0.0: its repository
-for the airframe and the PDU definition, and the binaries of its release.
+The free edition, [hakoniwa-drone-core](https://github.com/toppers/hakoniwa-drone-core), at the release of
+versions.txt: its repository for the airframe and the PDU definition, and the binaries of its release (`mac.zip`,
+or `lnx.zip` on Linux).
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
-git clone --branch v5.0.0 https://github.com/toppers/hakoniwa-drone-core.git
-cd hakoniwa-drone-core
-curl -LO https://github.com/toppers/hakoniwa-drone-core/releases/download/v5.0.0/mac.zip
-unzip -q mac.zip
+. athrill-target-stm32/tools/versions.sh
+git clone --branch "$HAKONIWA_DRONE_RELEASE" https://github.com/toppers/hakoniwa-drone-core.git
+curl -L -o "hakoniwa-drone-core/$HAKONIWA_DRONE_ZIP" "$HAKONIWA_DRONE_RELEASE_URL/$HAKONIWA_DRONE_ZIP"
+(cd hakoniwa-drone-core && unzip -q "$HAKONIWA_DRONE_ZIP")
 ```
 
 ### 3. The sensor device
@@ -80,10 +86,11 @@ Devicetree from this athrill-device checkout, next to `athrill-target-stm32`:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 git clone https://github.com/toppers/athrill.git
-git -C athrill checkout a63d4cd
+git -C athrill checkout -q "$ATHRILL_COMMIT"
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ab4de28
+git -C athrill-device checkout -q "$ATHRILL_DEVICE_COMMIT"
 cmake -S athrill-device/board/common -B athrill-device/build-stm32 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32 \
   -DHAKO_PDU_REGISTRY_DIR="$PWD/hakoniwa-core-pro/hakoniwa-pdu-registry"
@@ -94,15 +101,16 @@ The result is `athrill-device/build-stm32/libhako_sensor_device.dylib`.
 
 ### 4. athrill3 and PX4
 
-From this repository's release v0.3.0:
+From this repository's release (versions.txt):
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/athrill3-v0.3.0-macos-arm64.tar.gz
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/px4_fmu-v5_default.elf
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/SHA256SUMS
-shasum -a 256 -c --ignore-missing SHA256SUMS
-tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
+. athrill-target-stm32/tools/versions.sh
+curl -LO "$ATHRILL_RELEASE_URL/$ATHRILL3_DIR.tar.gz"
+curl -LO "$ATHRILL_RELEASE_URL/px4_fmu-v5_default.elf"
+curl -LO "$ATHRILL_RELEASE_URL/SHA256SUMS"
+athrill_sha256 -c --ignore-missing SHA256SUMS
+tar xzf "$ATHRILL3_DIR.tar.gz"
 ```
 
 ### 5. Fly
@@ -130,8 +138,9 @@ In the second, PX4 on Athrill:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-hakoniwa/run.sh \
-  px4_fmu-v5_default.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  px4_fmu-v5_default.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run makes the emulated SD card with the x500 parameters (`docs/px4/x500-hakoniwa-params.sh`) and runs
@@ -158,7 +167,7 @@ To stop, press Ctrl+C in the first two terminals, then run `/usr/local/hakoniwa/
   does not carry the core's libraries: put `/usr/local/hakoniwa/lib` on `LD_LIBRARY_PATH` for it too. It needs
   `libglfw3` and `libopengl0`.
 - The sensor device is `libhako_sensor_device.so`.
-- `athrill3-v0.3.0-linux-x86_64.tar.gz`, checked with `sha256sum -c --ignore-missing SHA256SUMS`.
+- `tools/versions.sh` picks the Linux files (`lnx.zip`, the `linux-x86_64` athrill3, `sha256sum`) by itself.
 - `LD_LIBRARY_PATH` in place of `DYLD_LIBRARY_PATH` for `run.sh`.
 
 ## ArduPilot
@@ -196,8 +205,9 @@ In the second, ArduCopter on Athrill:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-hakoniwa/run.sh \
-  arducopter.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  arducopter.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run boots ArduCopter on the test vehicle and writes the x500 parameters over MAVLink
@@ -237,8 +247,8 @@ differ from the Pixhawk 4:
   frames come out wrong;
 - MAVLink is on TELEM1 (UART7), still TCP `127.0.0.1:5760`.
 
-It needs athrill-device `367619f` or later (the SD card's data path started by DCTRL, as ArduPilot's driver does);
-build the sensor device and `athrill3` from it as in [dshot.md](dshot.md#pixhawk-6c). The firmware:
+It needs athrill-device `367619f` or later (the SD card's data path started by DCTRL, as ArduPilot's driver does):
+the release's `athrill3` and the sensor device of step 3 have it. The firmware:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
@@ -253,8 +263,9 @@ In the first terminal, the aircraft service as in [A2](#a2-fly). In the second:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-v6c-hakoniwa/run.sh \
-  ardupilot-6c/arducopter.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  ardupilot-6c/arducopter.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run writes the x500 parameters as on the Pixhawk 4, on the test vehicle at rest where the x500 starts.
@@ -283,11 +294,19 @@ firmware, the board and `fly.py` are the same. It is the faster way for one vehi
 cannot join.
 
 **What it needs:**
-- the in-process sensor device, `libhako_sensor_device_inproc.dylib`. It is built from athrill-device with
-  `-DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON`, against the unpacked Hakoniwa Drone release of step 2
-  ([athrill-device's README](https://github.com/hakoniwalab/athrill-device#build-the-device)).
-  **It does not compile with the public Hakoniwa Drone v5.0.0 yet:** a header of that release includes a file the
-  release does not ship. It will be fixed in the next release of Hakoniwa Drone.
+- the in-process sensor device, `libhako_sensor_device_inproc.dylib` (macOS for now), built from athrill-device
+  against the Hakoniwa Drone release of step 2
+  ([athrill-device's README](https://github.com/hakoniwalab/athrill-device#build-the-device)):
+
+```bash
+cd "$HOME/athrill-hakoniwa"
+cmake -S athrill-device/board/common -B athrill-device/build-stm32-inproc -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH=/usr/local/hakoniwa -DATHRILL_ADDRESS_WIDTH=32 -DATHRILL_SOURCE_DIR="$PWD/athrill" \
+  -DHAKO_SENSOR_DEVICE_BUILD_INPROC=ON -DHAKO_DRONE_ROOT="$PWD/hakoniwa-drone-core" \
+  -DHAKO_PDU_REGISTRY_DIR="$PWD/hakoniwa-core-pro/hakoniwa-pdu-registry"
+cmake --build athrill-device/build-stm32-inproc -j
+```
+
 - `HAKO_DRONE_ROOT`: the unpacked release (`hakoniwa-drone-core`, with `mac.zip`).
 - `HAKO_AIRCRAFT_CONFIG_PATH`: the airframe. PX4 flies Hakoniwa Drone's `config/drone/x500-athrill-px4`; ArduPilot
   flies the example's `x500-athrill-ardupilot`.
@@ -295,21 +314,15 @@ cannot join.
 The first run writes the parameters as with the Hakoniwa link (the test vehicle, no aircraft). `run.sh` then runs
 Athrill in the release directory, where the airframe names its model, and keeps MAVLink on TCP `127.0.0.1:5760`.
 
-The in-process mode of `run.sh` is on main, after release v0.3.0:
-
-```bash
-cd "$HOME/athrill-hakoniwa"
-git -C athrill-target-stm32 checkout main
-```
-
 PX4, in one terminal:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 HAKO_DRONE_ROOT="$PWD/hakoniwa-drone-core" \
 HAKO_AIRCRAFT_CONFIG_PATH="$PWD/hakoniwa-drone-core/config/drone/x500-athrill-px4" \
   athrill-target-stm32/examples/px4-hakoniwa/run.sh \
-  px4_fmu-v5_default.elf athrill3-v0.3.0-macos-arm64/athrill3 athrill-device/build-stm32-inproc/libhako_sensor_device_inproc.dylib
+  px4_fmu-v5_default.elf "$ATHRILL3" athrill-device/build-stm32-inproc/libhako_sensor_device_inproc.dylib
 ```
 
 In a second, once it prints `PX4 on Athrill with the aircraft in process`:
@@ -323,7 +336,7 @@ ArduCopter is the same with `examples/ardupilot-hakoniwa/run.sh`, `arducopter.el
 `athrill-target-stm32/examples/ardupilot-hakoniwa/x500-athrill-ardupilot` and its `fly.py`.
 
 **With the JIT and tick skip:**
-- Use the `build-fast/athrill3` of the README's *Build from source* in place of the release's `athrill3`.
+- The release's `athrill3` has both built in.
 - Give `run.sh` a file with the two lines as a fourth argument, for example `fast.txt`:
 
 ```text

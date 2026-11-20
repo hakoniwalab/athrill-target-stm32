@@ -41,26 +41,10 @@ of the PWM outputs. The examples are [examples/px4-hakoniwa-dshot](../examples/p
 
 ## Build
 
-Do steps 1 to 3 of [hakoniwa.md](hakoniwa.md#run-it) first (the Hakoniwa core, Hakoniwa Drone v5.0.0, the
-sensor device), in the same workspace. The DShot ESCs are not in release v0.3.0's `athrill3`: build `athrill3` from
-this repository's main with athrill-device `73a0f4d`, and the sensor device again from that revision.
-
-```bash
-cd "$HOME/athrill-hakoniwa"
-git -C athrill-device fetch
-git -C athrill-device checkout 73a0f4d
-cmake --build athrill-device/build-stm32 -j
-git clone https://github.com/hakoniwalab/athrill-arm-common.git
-git -C athrill-arm-common checkout 60d8098
-git -C athrill-target-stm32 fetch
-git -C athrill-target-stm32 checkout main
-cmake -S athrill-target-stm32 -B athrill-target-stm32/build -DCMAKE_BUILD_TYPE=Release
-cmake --build athrill-target-stm32/build --parallel
-```
-
-`athrill`, `athrill-arm-common` and `athrill-device` are next to `athrill-target-stm32`, where its build finds them.
-The result is `athrill-target-stm32/build/athrill3`. The PX4 ELF is the one of release v0.3.0 (step 4 of
-[hakoniwa.md](hakoniwa.md#4-athrill3-and-px4)), stock PX4 v1.17.0 `px4_fmu-v5_default`.
+Do steps 1 to 4 of [hakoniwa.md](hakoniwa.md#run-it) first (the Hakoniwa core, Hakoniwa Drone, the sensor device,
+`athrill3` and the PX4 ELF), in the same workspace. The release's `athrill3` and the athrill-device commit of
+[versions.txt](../versions.txt) have the DShot ESCs; nothing more to build. The PX4 ELF is stock PX4 v1.17.0
+`px4_fmu-v5_default`.
 
 ## PX4
 
@@ -78,8 +62,9 @@ In the second, PX4 on Athrill with the DShot board:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-hakoniwa-dshot/run.sh \
-  px4_fmu-v5_default.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib
+  px4_fmu-v5_default.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib
 ```
 
 The first run writes the x500 parameters and the DShot ones (`dshot-params.sh`: `PWM_AUX_TIM0 -3` for DShot600 on
@@ -113,8 +98,9 @@ Start the aircraft service again in the first terminal (the command above), then
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-hakoniwa-dshot/run.sh \
-  px4_fmu-v5_default.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  px4_fmu-v5_default.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib \
   motor3-stop.txt
 ```
 
@@ -193,9 +179,10 @@ In the second, ArduCopter, with a stop of motor 3 at 70 s (ArduCopter waits long
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 printf 'DEVICE_CONFIG_ESC_MOTOR_STOP 2@70000\n' > motor3-stop-ap.txt
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-hakoniwa-dshot/run.sh \
-  arducopter.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  arducopter.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib \
   motor3-stop-ap.txt
 ```
 
@@ -221,16 +208,8 @@ The example is [examples/px4-v6c-hakoniwa-dshot](../examples/px4-v6c-hakoniwa-ds
 `127.0.0.1:5760` (TELEM1).
 
 The 6C needs athrill-device `6b6f588` or later: its DShot board, the transmit DMA of its MAVLink port (a one-byte
-transfer completes as on the chip) and its SD card's busy line (each write ends without waiting for a timeout).
-Build the sensor device and `athrill3` again from it:
-
-```bash
-cd "$HOME/athrill-hakoniwa"
-git -C athrill-device fetch
-git -C athrill-device checkout 6b6f588
-cmake --build athrill-device/build-stm32 -j
-cmake --build athrill-target-stm32/build --parallel
-```
+transfer completes as on the chip) and its SD card's busy line (each write ends without waiting for a timeout). The
+release's `athrill3` and the sensor device of [hakoniwa.md](hakoniwa.md#3-the-sensor-device) step 3 have it.
 
 The firmware is the release [px4-v1.17.0-fmu-v6c](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/px4-v1.17.0-fmu-v6c):
 
@@ -253,8 +232,9 @@ In the second, PX4 on the 6C, with motor 3 stopped at 40 s:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/px4-v6c-hakoniwa-dshot/run.sh \
-  px4_fmu-v6c_default.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  px4_fmu-v6c_default.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib \
   motor3-stop.txt
 ```
 
@@ -287,9 +267,10 @@ second, with motor 3 stopped at 70 s:
 
 ```bash
 cd "$HOME/athrill-hakoniwa"
+. athrill-target-stm32/tools/versions.sh
 printf 'DEVICE_CONFIG_ESC_MOTOR_STOP 2@70000\n' > motor3-stop-ap.txt
 DYLD_LIBRARY_PATH=/usr/local/hakoniwa/lib athrill-target-stm32/examples/ardupilot-v6c-hakoniwa-dshot/run.sh \
-  ardupilot-6c/arducopter.elf athrill-target-stm32/build/athrill3 athrill-device/build-stm32/libhako_sensor_device.dylib \
+  ardupilot-6c/arducopter.elf "$ATHRILL3" athrill-device/build-stm32/libhako_sensor_device.dylib \
   motor3-stop-ap.txt
 ```
 

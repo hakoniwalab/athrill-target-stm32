@@ -45,28 +45,35 @@ To add a board, see
 
 ## Try it in two minutes
 
-The release has `athrill3` for macOS (arm64) and Linux (x86_64), the PX4 ELF and the Zephyr sample ELFs:
+The release has `athrill3` for macOS (arm64) and Linux (x86_64) and the PX4 ELF; Zephyr's sample ELFs are in their
+own release. [versions.txt](versions.txt) names both, and `tools/versions.sh` reads it, so the commands below take the
+current release and pick the file for your system (macOS arm64 or Linux x86_64):
 
 ```sh
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/athrill3-v0.3.0-macos-arm64.tar.gz
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/zephyr-samples-v0.3.0.tar.gz
-curl -LO https://github.com/hakoniwalab/athrill-target-stm32/releases/download/v0.3.0/SHA256SUMS
-shasum -a 256 -c --ignore-missing SHA256SUMS
-tar xzf athrill3-v0.3.0-macos-arm64.tar.gz
-tar xzf zephyr-samples-v0.3.0.tar.gz
-git clone --branch v0.3.0 https://github.com/hakoniwalab/athrill-target-stm32.git
+git clone https://github.com/hakoniwalab/athrill-target-stm32.git
+. athrill-target-stm32/tools/versions.sh
+git -C athrill-target-stm32 checkout -q "$ATHRILL_RELEASE"
+curl -LO "$ATHRILL_RELEASE_URL/$ATHRILL3_DIR.tar.gz"
+curl -LO "$ATHRILL_RELEASE_URL/px4_fmu-v5_default.elf"
+curl -L -o SHA256SUMS "$ATHRILL_RELEASE_URL/SHA256SUMS"
+athrill_sha256 -c --ignore-missing SHA256SUMS
+curl -LO "$ZEPHYR_SAMPLES_URL/$ZEPHYR_SAMPLES.tar.gz"
+curl -L -o SHA256SUMS.zephyr "$ZEPHYR_SAMPLES_URL/SHA256SUMS"
+athrill_sha256 -c --ignore-missing SHA256SUMS.zephyr
+tar xzf "$ATHRILL3_DIR.tar.gz"
+tar xzf "$ZEPHYR_SAMPLES.tar.gz"
 git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout ab4de28
-athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi zephyr-samples-v0.3.0/philosophers-nucleo_f767zi.elf 10 athrill3-v0.3.0-macos-arm64/athrill3
+git -C athrill-device checkout -q "$ATHRILL_DEVICE_COMMIT"
+athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi "$ZEPHYR_SAMPLES/philosophers-nucleo_f767zi.elf" 10 "$ATHRILL3"
 ```
 
-On Linux, use `athrill3-v0.3.0-linux-x86_64.tar.gz` and `sha256sum -c --ignore-missing SHA256SUMS`.
-[examples/zephyr](examples/zephyr) checks all six Zephyr runs and builds the ELFs yourself.
+The later commands of this README run in the same shell, in the same directory (or source `tools/versions.sh` again
+there). [examples/zephyr](examples/zephyr) checks all six Zephyr runs and builds the ELFs yourself.
 
-For PX4 SIH with QGroundControl, also download `px4_fmu-v5_default.elf` and run
+For PX4 SIH with QGroundControl, run
 
 ```sh
-athrill-target-stm32/examples/px4-sih/run.sh px4_fmu-v5_default.elf athrill3-v0.3.0-macos-arm64/athrill3
+athrill-target-stm32/examples/px4-sih/run.sh px4_fmu-v5_default.elf "$ATHRILL3"
 ```
 
 then add a TCP link to `127.0.0.1:5760` in QGroundControl, arm and take off. The vehicle starts at PX4's SIH home
@@ -79,8 +86,8 @@ V4.7.2 for the Pixhawk 4):
 
 ```sh
 curl -LO https://firmware.ardupilot.org/Copter/stable-4.7.2/Pixhawk4/arducopter.elf
-shasum -a 256 arducopter.elf   # cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c
-athrill-target-stm32/examples/ardupilot-bench/run.sh arducopter.elf 4320000000 athrill3-v0.3.0-macos-arm64/athrill3
+athrill_sha256 arducopter.elf   # cfa1b3f04f326ab91760c53b93503b669d4d62e2d43dd1ffc4d09cb15198eb2c
+athrill-target-stm32/examples/ardupilot-bench/run.sh arducopter.elf 4320000000 "$ATHRILL3"
 python3 athrill-target-stm32/examples/ardupilot-bench/check-mavlink.py athrill-target-stm32/examples/ardupilot-bench/mavlink.raw
 ```
 
@@ -191,9 +198,12 @@ the published run), ArduCopter's MAVLink bytes, Zephyr's console, and the number
 differential test runs the interpreter and the JIT side by side on the same state and compares the whole core after
 every call ([test/cpu/test_stm32_jit_diff.c](test/cpu/test_stm32_jit_diff.c)).
 
-Both are off by default: [Build from source](#build-from-source) ends with how to build and enable them.
+The release's `athrill3` has both built in. They are off by default; a run turns them on with two lines in its
+device configuration ([Build from source](#build-from-source) ends with them).
 
-The JIT is an experiment, so far tested on Apple Silicon only. Zephyr's `philosophers` spends its time waiting for its
+The JIT is an experiment. It is tested on Apple silicon and on x86_64 Linux (WSL2, Ubuntu 24.04): there too the PX4
+bench and the SIH flight give the same instruction count, console, F-RAM and SD card image with it as without it
+(2026-11-20). Zephyr's `philosophers` spends its time waiting for its
 console: the UART model takes the frame time of each character at the configured baud rate, and Zephyr polls it.
 Neither option shortens that wait.
 
@@ -230,16 +240,20 @@ has the steps.
 
 ## Build from source
 
-Place four repositories side by side, at the versions these results come from:
+Place five repositories side by side, at the commits of [versions.txt](versions.txt) (the ones the release and the
+CI build from):
 
 ```sh
-git clone https://github.com/toppers/athrill.git
-git -C athrill checkout a63d4cd
-git clone https://github.com/hakoniwalab/athrill-arm-common.git
-git -C athrill-arm-common checkout fbfc3c9
-git clone https://github.com/hakoniwalab/athrill-device.git
-git -C athrill-device checkout 6b6f588
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
+. athrill-target-stm32/tools/versions.sh
+git clone https://github.com/toppers/athrill.git
+git -C athrill checkout -q "$ATHRILL_COMMIT"
+git clone https://github.com/hakoniwalab/athrill-arm-common.git
+git -C athrill-arm-common checkout -q "$ATHRILL_ARM_COMMON_COMMIT"
+git clone https://github.com/hakoniwalab/athrill-device.git
+git -C athrill-device checkout -q "$ATHRILL_DEVICE_COMMIT"
+git clone https://github.com/zherczeg/sljit.git
+git -C sljit checkout -q "$SLJIT_COMMIT"
 cd athrill-target-stm32
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -256,17 +270,16 @@ Pixhawk 4 Devicetree, for its USART3):
 
 It prints `Hello, Athrill STM32!` and stops at its clock limit (`EXIT for timeout(100000).`, exit status 1).
 
-The JIT and tick skip ([above](#faster-a-block-jit-and-tick-skip)) need the [sljit](https://github.com/zherczeg/sljit)
-checkout next to `athrill`. Still in `athrill-target-stm32`:
+The JIT and tick skip ([above](#faster-a-block-jit-and-tick-skip)) use the `sljit` checkout next to `athrill`. Still in
+`athrill-target-stm32`:
 
 ```sh
-git clone https://github.com/zherczeg/sljit.git ../sljit
-git -C ../sljit checkout 23d64b7
 cmake -S . -B build-fast -DCMAKE_BUILD_TYPE=Release -DATHRILL_ENABLE_JIT=ON -DATHRILL_DEVICE_ENABLE_TICK_SKIP=ON
 cmake --build build-fast --parallel
 ```
 
-`build-fast/athrill3` then runs with both when the run's device configuration has these two lines:
+`build-fast/athrill3`, like the release's `athrill3`, then runs with both when the run's device configuration has these
+two lines:
 
 ```text
 DEVICE_CONFIG_STM32_JIT 1
