@@ -250,6 +250,9 @@ if(BUILD_TESTING)
     add_test(NAME ardupilot-dos-oracle
       COMMAND Python3::Interpreter -I
               "${CMAKE_CURRENT_SOURCE_DIR}/test/ardupilot/test_dos_oracle.py")
+    add_test(NAME sd-file-reader
+      COMMAND Python3::Interpreter -I
+              "${CMAKE_CURRENT_SOURCE_DIR}/test/sd/test_get_sd_file.py")
     add_test(NAME console-input
       COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/test/console/run.py"
               $<TARGET_FILE:athrill3> "${CMAKE_CURRENT_BINARY_DIR}/test-hello-config.txt")
