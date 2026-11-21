@@ -29,3 +29,6 @@ Two differences from the flight examples are intended, because the reference rec
 The firmware is the release
 [px4-v1.17.0-fmu-v6c](https://github.com/hakoniwalab/athrill-target-stm32/releases/tag/px4-v1.17.0-fmu-v6c); with
 another build the values are not compared (`firmware_sha256` in the reference).
+
+After a run, list or copy its logs with `../px4-hakoniwa/get-sd-file.py WORK/dt/sd.img --list` or
+`../px4-hakoniwa/get-sd-file.py WORK/dt/sd.img --newest '*.ulg' flight.ulg`, replacing `WORK` with the run directory.

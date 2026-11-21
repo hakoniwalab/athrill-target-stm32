@@ -166,6 +166,8 @@ The first run makes the emulated SD card with the x500 parameters (`docs/px4/x50
 them once, without Hakoniwa: a few minutes, then the parameters are in the emulated F-RAM (`fram.bin`). Wait for
 `PX4 on Athrill with Hakoniwa`. Later runs start at once. To start again from scratch, delete `fram.bin` and
 `sd.img` in `examples/px4-hakoniwa`.
+List its files with `python3 examples/px4-hakoniwa/get-sd-file.py examples/px4-hakoniwa/sd.img --list`, or replace
+`--list` with `--newest '*.ulg' flight.ulg` to copy the newest PX4 log without mounting the image.
 
 In the third, start the simulation, then take off to 2.5 m and check the hover:
 
