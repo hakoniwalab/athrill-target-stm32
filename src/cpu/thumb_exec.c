@@ -511,6 +511,7 @@ static ThumbJitDiffStats thumb_jit_diff_stats;
 #define TJ_T0 athrill_jit_temp(0U, 8)
 #define TJ_T1 athrill_jit_temp(1U, 8)
 
+
 static void thumb_jit_report(void)
 {
 	AthrillJitCacheStats st;
@@ -639,6 +640,47 @@ static void thumb_jit_exit_to(AthrillJitBuilder *b, uint32 pc)
 static void thumb_jit_exit_if_set(AthrillJitBuilder *b, AthrillJitOperand flag)
 {
 	athrill_jit_exit_if(b, ATHRILL_JIT_NE, flag, athrill_jit_imm(0));
+}
+
+/*
+ * ArmMPendingToTakeFast() for the case it settles alone: only the execution
+ * priority changed (MSR, CPS; priority_check without pending_check) and the
+ * pending exception of the last check (if any) is still not taken at the new
+ * priority. Then priority_check is cleared, as there, and the instructions go
+ * on: 0. Otherwise nothing is changed and the C path decides: 1.
+ */
+static std_bool thumb_priority_settled(TargetCoreType *core)
+{
+	ArmMStateType *m = &core->m;
+
+	if (!m->priority_check) {
+		return TRUE;
+	}
+	if (m->pending_check) {
+		return FALSE;
+	}
+	if ((m->pending_group == ARM_M_NO_PENDING) || (m->pending_group >= ArmMExecutionPriority(m))) {
+		m->priority_check = FALSE;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static int thumb_jit_priority_quick(void *core, uint32 unused)
+{
+	(void)unused;
+	return thumb_priority_settled((TargetCoreType *)core) ? 0 : 1;
+}
+
+/* exit only when a priority change may take an exception (thumb_priority_settled) */
+static void thumb_jit_priority_check(AthrillJitBuilder *b)
+{
+	AthrillJitLabel *settled = athrill_jit_label_new(b);
+
+	athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_CORE(m.priority_check, 4), athrill_jit_imm(0), settled);
+	athrill_jit_call_value(b, thumb_jit_priority_quick, 0U);
+	athrill_jit_exit_if(b, ATHRILL_JIT_NE, athrill_jit_result(), athrill_jit_imm(0));
+	athrill_jit_label_place(b, settled);
 }
 
 /*
@@ -940,7 +982,7 @@ static void thumb_jit_checks(AthrillJitBuilder *b, uint32 kind)
 	}
 	thumb_jit_exit_if_set(b, athrill_jit_abs(&stm32_device_accessed, 4));
 	thumb_jit_exit_if_set(b, TJ_CORE(m.pending_check, 4));
-	thumb_jit_exit_if_set(b, TJ_CORE(m.priority_check, 4));
+	thumb_jit_priority_check(b);
 	if (kind == THUMB_JIT_MEMORY) {
 		return;
 	}
@@ -972,7 +1014,7 @@ static std_bool thumb_jit_is_unconditional_branch(const ThumbDecodedType *e)
  * needs (complete(), a taken branch, the checks before the next one).
  */
 static void thumb_jit_emit_call(AthrillJitBuilder *b, const ThumbDecodedType *e, uint32 kind,
-				AthrillJitLabel *complete_exit, AthrillJitLabel *taken)
+				AthrillJitLabel *complete_exit, AthrillJitLabel *taken, sint32 it_after)
 {
 	uint32 next = e->pc + e->length;
 
@@ -995,6 +1037,10 @@ static void thumb_jit_emit_call(AthrillJitBuilder *b, const ThumbDecodedType *e,
 	if (kind != THUMB_JIT_PURE) {
 		athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_CORE(exc_return_pending, 4), athrill_jit_imm(0), complete_exit);
 		athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_CORE(sync_exception, 4), athrill_jit_imm(0), complete_exit);
+	}
+	if (it_after >= 0) {
+		/* inside an IT block: ITAdvance() after the instruction, as execute_one() (complete() does it itself) */
+		athrill_jit_mov(b, TJ_CORE(reg.itstate, 4), athrill_jit_imm((sint64)it_after));
 	}
 	athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)next), taken);
 	athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)next));
@@ -1833,6 +1879,8 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 	AthrillJitBuilder *b;
 	AthrillAddrType idle_pc = athrill_idle_spin_halt_idle_pc();
 	ThumbDecodedType *list[THUMB_JIT_MAX_LENGTH];
+	sint32 it_before[THUMB_JIT_MAX_LENGTH];	/* inside an IT block: ITSTATE when it runs; -1 outside */
+	std_bool it_head[THUMB_JIT_MAX_LENGTH];	/* an IT whose block is in this translation */
 	uint32 length = 0U;
 	uint32 pc = start;
 	uint32 i;
@@ -1853,11 +1901,53 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 			break;
 		}
 		list[length] = e;
+		it_before[length] = -1;
+		it_head[length] = FALSE;
 		length++;
 		pc += e->length;
 		if (thumb_jit_is_it(e)) {
-			ends_with_it = TRUE;
-			break;
+			/* the IT block with it when it fits (cached, not a host function, no IT, not the idle PC) */
+			uint32 st = e->insn & 0xFFU;
+			uint32 n = 0U;
+			uint32 k;
+			uint32 body_pc = pc;
+			std_bool fits = TRUE;
+
+			for (k = st; k != 0U; k = ArmITAdvance(k)) {
+				n++;
+			}
+			if ((length + n) > THUMB_JIT_MAX_LENGTH) {
+				fits = FALSE;
+			}
+			for (k = 0U; fits && (k < n); k++) {
+				ThumbDecodedType *f = thumb_jit_entry(body_pc);
+
+				if ((f == NULL) || thumb_jit_is_host(f) || thumb_jit_is_it(f)
+					|| ((AthrillAddrType)body_pc == idle_pc)) {
+					fits = FALSE;
+					break;
+				}
+				body_pc += f->length;
+			}
+			if (!fits) {
+				ends_with_it = TRUE;
+				break;
+			}
+			it_head[length - 1U] = TRUE;
+			for (k = 0U; k < n; k++) {
+				ThumbDecodedType *f = thumb_jit_entry(pc);
+
+				list[length] = f;
+				it_before[length] = (sint32)st;
+				it_head[length] = FALSE;
+				st = ArmITAdvance(st);
+				length++;
+				pc += f->length;
+			}
+			if (thumb_jit_is_unconditional_branch(list[length - 1U])) {
+				break;
+			}
+			continue;
 		}
 		if (thumb_jit_is_unconditional_branch(e)) {
 			break;
@@ -1893,6 +1983,17 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 		std_bool ends = FALSE;
 
 		athrill_jit_count(b, 1U);
+		if (it_before[i] >= 0) {
+			/* in an IT block: the executor takes its condition from ITSTATE; then ITAdvance() */
+			thumb_jit_emit_call(b, e, kind, complete_exit, taken, (sint32)ArmITAdvance((uint32)it_before[i]));
+			continue;
+		}
+		if (it_head[i]) {
+			/* IT: the executor writes ITSTATE; it_written is for complete() of this instruction only */
+			thumb_jit_emit_call(b, e, kind, complete_exit, taken, -1);
+			athrill_jit_mov(b, TJ_CORE(it_written, 4), athrill_jit_imm(0));
+			continue;
+		}
 		if (thumb_jit_native(b, e, &ends, taken_exits, &taken_count)) {
 			if (ends) {
 				native_end = TRUE;
@@ -1906,7 +2007,7 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 			continue;
 		}
 		(void)next;
-		thumb_jit_emit_call(b, e, kind, complete_exit, taken);
+		thumb_jit_emit_call(b, e, kind, complete_exit, taken, -1);
 	}
 	if (!native_end) {
 		/* PC after the last instruction (a native one does not write it) */
@@ -1922,7 +2023,7 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 	/* the C paths of the native loads and stores: the instruction called, then back */
 	for (i = 0U; i < slow_count; i++) {
 		athrill_jit_label_place(b, slows[i].start);
-		thumb_jit_emit_call(b, slows[i].entry, THUMB_JIT_MEMORY, complete_exit, taken);
+		thumb_jit_emit_call(b, slows[i].entry, THUMB_JIT_MEMORY, complete_exit, taken, -1);
 		athrill_jit_jump(b, slows[i].resume);
 	}
 	/* the taken exits of the native conditional branches */
@@ -1975,6 +2076,9 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 		/* plain memory for the native loads and stores: every RAM region (the stack's first), the code's ROM */
 		thumb_jit_find_rams(core->reg.r[13]);
 		thumb_jit_find_region(&thumb_jit_rom, pc, FALSE);
+	}
+	if (core->m.priority_check && !core->m.pending_check) {
+		(void)thumb_priority_settled(core);	/* as execute_slow() would before the instruction */
 	}
 	if ((clock != thumb_jit_clock) || core->m.pending_check || core->m.priority_check || core->m.lockup
 		|| !core->m.epsr_t || (core->reg.itstate != 0U)) {
