@@ -83,6 +83,27 @@ std_bool memory_window_region(uint32 address, MemoryWindowType *region)
 	return FALSE;
 }
 
+uint32 memory_window_regions(MemoryWindowType *regions, uint32 max)
+{
+	uint32 n = 0U;
+
+	if (n < max) {
+		regions[n].start = RAM_BASE;
+		regions[n].size = RAM_SIZE;
+		regions[n].data = active_ram;
+		regions[n].writable = TRUE;
+		n++;
+	}
+	if (n < max) {
+		regions[n].start = ROM_BASE;
+		regions[n].size = ROM_SIZE;
+		regions[n].data = rom;
+		regions[n].writable = FALSE;
+		n++;
+	}
+	return n;
+}
+
 uint8 *memory_window_code_lookup(uint32 address, uint32 size)
 {
 	if (!holds(ROM_BASE, ROM_SIZE, address, size)) {
@@ -890,7 +911,8 @@ static void test_it(void)
 	put16(CODE_BASE + 0xA2U, mov_i(0U, 1U));
 	stats = run_pair("IT EQ", &core, 2U);
 	for (i = 0U; i < THUMB_JIT_DIFF_NATIVE_COUNT; i++) native_total += stats.native[i];
-	if ((stats.called == 0U) || (stats.it_fallbacks == 0U) || (native_total != 0U)) {
+	/* the IT block runs inside the block: both called (the executors read ITSTATE), none native, no fallback */
+	if ((stats.called < 2U) || (stats.it_fallbacks != 0U) || (native_total != 0U)) {
 		printf("FAIL IT EQ path: called=%llu fallback=%llu native=%llu\n",
 			(unsigned long long)stats.called, (unsigned long long)stats.it_fallbacks,
 			(unsigned long long)native_total); failures++;
@@ -905,9 +927,36 @@ static void test_it(void)
 	stats = run_pair("ITTE conditional instructions", &core, 4U);
 	native_total = 0U;
 	for (i = 0U; i < THUMB_JIT_DIFF_NATIVE_COUNT; i++) native_total += stats.native[i];
-	if ((stats.it_fallbacks < 3U) || (native_total != 0U)) {
-		printf("FAIL ITTE ran inside JIT: fallback=%llu native=%llu\n",
-			(unsigned long long)stats.it_fallbacks, (unsigned long long)native_total); failures++;
+	if ((stats.it_fallbacks != 0U) || (stats.called < 4U) || (native_total != 0U)) {
+		printf("FAIL ITTE did not run inside the JIT: called=%llu fallback=%llu native=%llu\n",
+			(unsigned long long)stats.called, (unsigned long long)stats.it_fallbacks,
+			(unsigned long long)native_total); failures++;
+	}
+
+	/* the same with the condition false: the then-instructions skipped, the else one run */
+	init_core(&core, CODE_BASE + 0xC0U);
+	core.reg.apsr &= ~ARM_APSR_Z;
+	put16(CODE_BASE + 0xC0U, 0xBF06U); /* ITTE EQ */
+	put16(CODE_BASE + 0xC2U, mov_i(0U, 3U));
+	put16(CODE_BASE + 0xC4U, add_i8(1U, 4U));
+	put16(CODE_BASE + 0xC6U, sub_i8(2U, 5U));
+	(void)run_pair("ITTE condition false", &core, 4U);
+
+	/* instructions after the IT block in the same block; a 16-bit ADD inside IT sets no flags, after it does */
+	init_core(&core, CODE_BASE + 0xD0U);
+	core.reg.apsr |= ARM_APSR_Z;
+	core.reg.r[1] = 0xFFFFFFFFU;
+	put16(CODE_BASE + 0xD0U, 0xBF04U); /* ITT EQ */
+	put16(CODE_BASE + 0xD2U, add_i8(1U, 1U));	/* ADD (no flags in IT): r1 = 0 */
+	put16(CODE_BASE + 0xD4U, mov_i(3U, 7U));
+	put16(CODE_BASE + 0xD6U, add_i8(1U, 1U));	/* ADDS after the block: flags from 0 + 1 */
+	put16(CODE_BASE + 0xD8U, cmp_i(3U, 7U));
+	put16(CODE_BASE + 0xDAU, 0xBF18U);		/* IT NE (false after CMP equal) */
+	put16(CODE_BASE + 0xDCU, mov_i(4U, 9U));
+	put16(CODE_BASE + 0xDEU, mov_i(5U, 2U));
+	stats = run_pair("two IT blocks and instructions between", &core, 8U);
+	if (stats.it_fallbacks != 0U) {
+		printf("FAIL two IT blocks fell back: %llu\n", (unsigned long long)stats.it_fallbacks); failures++;
 	}
 }
 
