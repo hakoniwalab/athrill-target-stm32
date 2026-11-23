@@ -815,6 +815,20 @@ static std_bool thumb_jit_rom_word(uint32 address, uint32 *value)
 	return TRUE;
 }
 
+/* a conditional branch to target (taken when cond holds for APSR.NZCV): its taken exit added to taken */
+static void thumb_jit_cond_branch(AthrillJitBuilder *b, uint32 cond, uint32 target, ThumbJitTaken *taken,
+				  uint32 *taken_count)
+{
+	athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T0W, TJ_APSR, athrill_jit_imm(28));
+	athrill_jit_mov(b, TJ_T1W, athrill_jit_imm((sint64)thumb_jit_cond_mask(cond)));
+	athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T1W, TJ_T1W, TJ_T0W);
+	athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1W, TJ_T1W, athrill_jit_imm(1));
+	taken[*taken_count].label = athrill_jit_label_new(b);
+	taken[*taken_count].target = target;
+	athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_T1W, athrill_jit_imm(0), taken[*taken_count].label);
+	(*taken_count)++;
+}
+
 /*
  * Emits e natively; FALSE: not one of these (it is called). *ends: the block
  * ends after it (an unconditional branch, written as a chain exit to its
@@ -833,7 +847,59 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 
 	*ends = FALSE;
 	if (e->length == 4U) {
-		if (t32_decode32(e->insn) != T32_32_BL_i_T1) {
+		switch (t32_decode32(e->insn)) {
+		case T32_32_DMB_T1:
+		case T32_32_DSB_T1:
+		case T32_32_ISB_T1:
+			/* barriers: no effect here (one core, accesses in order), as their executors */
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_BARRIER);
+			return TRUE;
+		case T32_32_MOV_i_T3:
+			d = t32w_MOV_i_T3_Rd(e->insn);
+			if ((d == 13U) || (d == 15U)) {
+				return FALSE;	/* UNPREDICTABLE: the executor's result */
+			}
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MOVW);
+			value = (t32w_MOV_i_T3_imm4(e->insn) << 12)
+				| (t32w_MOV_i_T3_i(e->insn) << 11) | (t32w_MOV_i_T3_imm3(e->insn) << 8) | t32w_MOV_i_T3_imm8(e->insn);
+			athrill_jit_mov(b, TJ_R(d), athrill_jit_imm((sint64)value));
+			return TRUE;
+		case T32_32_B_T3:
+			{
+				uint32 imm21 = (t32w_B_T3_S(e->insn) << 20) | (t32w_B_T3_J2(e->insn) << 19)
+					| (t32w_B_T3_J1(e->insn) << 18) | (t32w_B_T3_imm6(e->insn) << 12)
+					| (t32w_B_T3_imm11(e->insn) << 1);
+
+				target = (pc4 + SignExtend(imm21, 21U)) & ~1U;
+			}
+			if ((target == pc) || (*taken_count >= THUMB_JIT_MAX_LENGTH)) {
+				return FALSE;	/* to itself: the spin-halt check in C */
+			}
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_B_COND_W);
+			thumb_jit_cond_branch(b, t32w_B_T3_cond(e->insn), target, taken, taken_count);
+			return TRUE;
+		case T32_32_B_T4:
+			{
+				uint32 sbit = t32w_B_T4_S(e->insn);
+				uint32 i1 = (t32w_B_T4_J1(e->insn) ^ sbit) ^ 1U;
+				uint32 i2 = (t32w_B_T4_J2(e->insn) ^ sbit) ^ 1U;
+				uint32 imm25 = (sbit << 24) | (i1 << 23) | (i2 << 22) | (t32w_B_T4_imm10(e->insn) << 12)
+					| (t32w_B_T4_imm11(e->insn) << 1);
+
+				target = (pc4 + SignExtend(imm25, 25U)) & ~1U;
+			}
+			if (target == pc) {
+				return FALSE;
+			}
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_B_W);
+			athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)target));
+			athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
+			thumb_jit_exit_to(b, target);
+			*ends = TRUE;
+			return TRUE;
+		case T32_32_BL_i_T1:
+			break;
+		default:
 			return FALSE;
 		}
 		{
@@ -929,14 +995,7 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 			return FALSE;	/* to itself: the spin-halt check in C */
 		}
 		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_B_COND);
-		athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T0W, TJ_APSR, athrill_jit_imm(28));
-		athrill_jit_mov(b, TJ_T1W, athrill_jit_imm((sint64)thumb_jit_cond_mask(t32_B_T1_cond(insn))));
-		athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T1W, TJ_T1W, TJ_T0W);
-		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1W, TJ_T1W, athrill_jit_imm(1));
-		taken[*taken_count].label = athrill_jit_label_new(b);
-		taken[*taken_count].target = target;
-		athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_T1W, athrill_jit_imm(0), taken[*taken_count].label);
-		(*taken_count)++;
+		thumb_jit_cond_branch(b, t32_B_T1_cond(insn), target, taken, taken_count);
 		return TRUE;
 	case T32_16_CBZ_T1:
 	case T32_16_CBNZ_T1:
@@ -968,6 +1027,96 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
 		thumb_jit_exit_to(b, target);
 		*ends = TRUE;
+		return TRUE;
+	case T32_16_CMP_r_T2:
+		d = (t32_CMP_r_T2_N(insn) << 3) | t32_CMP_r_T2_Rn(insn);
+		m = t32_CMP_r_T2_Rm(insn);
+		if (((d < 8U) && (m < 8U)) || (d == 15U) || (m == 15U)) {
+			return FALSE;	/* UNPREDICTABLE */
+		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_CMP_HI);
+		thumb_jit_add_sub(b, -1, TJ_R(d), TJ_R(m), TRUE);
+		return TRUE;
+	case T32_16_ADD_r_T2:
+		d = (t32_ADD_r_T2_DN(insn) << 3) | t32_ADD_r_T2_Rdn(insn);
+		m = t32_ADD_r_T2_Rm(insn);
+		if ((d == 15U) || (m == 15U)) {
+			return FALSE;	/* ALUWritePC, or PC read */
+		}
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_ADD_HI);
+		athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_R(d), TJ_R(d), TJ_R(m));	/* no flags */
+		return TRUE;
+	case T32_16_ADD_SP_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SP_IMM);
+		athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_R(t32_ADD_SP_i_T1_Rd(insn)), TJ_R(13U),
+				athrill_jit_imm((sint64)(t32_ADD_SP_i_T1_imm8(insn) << 2)));
+		return TRUE;
+	case T32_16_ADD_SP_i_T2:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SP_IMM);
+		athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_R(13U), TJ_R(13U),
+				athrill_jit_imm((sint64)(t32_ADD_SP_i_T2_imm7(insn) << 2)));
+		return TRUE;
+	case T32_16_SUB_SP_i_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_SP_IMM);
+		athrill_jit_alu(b, ATHRILL_JIT_SUB, TJ_R(13U), TJ_R(13U),
+				athrill_jit_imm((sint64)(t32_SUB_SP_i_T1_imm7(insn) << 2)));
+		return TRUE;
+	case T32_16_UXTB_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_EXTEND);
+		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_R(t32_UXTB_T1_Rd(insn)), TJ_R(t32_UXTB_T1_Rm(insn)), athrill_jit_imm(0xFF));
+		return TRUE;
+	case T32_16_UXTH_T1:
+		THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_EXTEND);
+		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_R(t32_UXTH_T1_Rd(insn)), TJ_R(t32_UXTH_T1_Rm(insn)), athrill_jit_imm(0xFFFF));
+		return TRUE;
+	case T32_16_SXTB_T1:
+	case T32_16_SXTH_T1:
+		{
+			std_bool half = (t32_decode16(insn) == T32_16_SXTH_T1);
+			uint32 bits = half ? 16U : 24U;
+
+			d = half ? t32_SXTH_T1_Rd(insn) : t32_SXTB_T1_Rd(insn);
+			m = half ? t32_SXTH_T1_Rm(insn) : t32_SXTB_T1_Rm(insn);
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_EXTEND);
+			athrill_jit_alu(b, ATHRILL_JIT_SHL, TJ_T0W, TJ_R(m), athrill_jit_imm(bits));
+			athrill_jit_alu(b, ATHRILL_JIT_SAR, TJ_R(d), TJ_T0W, athrill_jit_imm(bits));
+		}
+		return TRUE;
+	case T32_16_MOV_r_T2:
+		{
+			/* MOVS Rd, Rm and LSLS/LSRS/ASRS Rd, Rm, #1..31: N, Z of the result, C the last bit out (none: kept) */
+			uint32 op = t32_MOV_r_T2_op(insn);
+			uint32 n = t32_MOV_r_T2_imm5(insn);
+			AthrillJitAluOp shift = (op == 0U) ? ATHRILL_JIT_SHL : (op == 1U) ? ATHRILL_JIT_SHR : ATHRILL_JIT_SAR;
+			uint32 flags = ARM_APSR_N | ARM_APSR_Z;
+
+			if ((op > 2U) || ((op != 0U) && (n == 0U))) {
+				return FALSE;	/* RRX/ROR elsewhere; LSR/ASR #32 */
+			}
+			d = t32_MOV_r_T2_Rd(insn);
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MOVS_SHIFT);
+			athrill_jit_mov(b, TJ_CTX(fx, 4), TJ_R(t32_MOV_r_T2_Rm(insn)));
+			if (n == 0U) {
+				athrill_jit_mov(b, TJ_CTX(fr, 4), TJ_CTX(fx, 4));
+			} else {
+				athrill_jit_alu(b, shift, TJ_CTX(fr, 4), TJ_CTX(fx, 4), athrill_jit_imm((sint64)n));
+				athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_CTX(ft, 4), TJ_CTX(fx, 4),
+						athrill_jit_imm((sint64)((op == 0U) ? (32U - n) : (n - 1U))));
+				athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CTX(ft, 4), TJ_CTX(ft, 4), athrill_jit_imm(1));
+				athrill_jit_alu(b, ATHRILL_JIT_SHL, TJ_CTX(ft, 4), TJ_CTX(ft, 4), athrill_jit_imm(ARM_APSR_BITPOS_C));
+				flags |= ARM_APSR_C;
+			}
+			athrill_jit_mov(b, TJ_R(d), TJ_CTX(fr, 4));
+			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T0W, TJ_CTX(fr, 4), athrill_jit_imm((sint64)ARM_APSR_N));
+			athrill_jit_set_if(b, ATHRILL_JIT_EQ, TJ_T1W, TJ_CTX(fr, 4), athrill_jit_imm(0));
+			athrill_jit_alu(b, ATHRILL_JIT_SHL, TJ_T1W, TJ_T1W, athrill_jit_imm(ARM_APSR_BITPOS_Z));
+			athrill_jit_alu(b, ATHRILL_JIT_OR, TJ_T0W, TJ_T0W, TJ_T1W);
+			if (n != 0U) {
+				athrill_jit_alu(b, ATHRILL_JIT_OR, TJ_T0W, TJ_T0W, TJ_CTX(ft, 4));
+			}
+			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_APSR, TJ_APSR, athrill_jit_imm((sint64)(~flags & 0xFFFFFFFFU)));
+			athrill_jit_alu(b, ATHRILL_JIT_OR, TJ_APSR, TJ_APSR, TJ_T0W);
+		}
 		return TRUE;
 	default:
 		return FALSE;
@@ -1003,7 +1152,9 @@ static std_bool thumb_jit_is_unconditional_branch(const ThumbDecodedType *e)
 	T32Decode16Id id;
 
 	if (e->length == 4U) {
-		return t32_decode32(e->insn) == T32_32_BL_i_T1;
+		T32Decode32Id id32 = t32_decode32(e->insn);
+
+		return (id32 == T32_32_BL_i_T1) || (id32 == T32_32_B_T4) || (id32 == T32_32_B_T3);
 	}
 	id = t32_decode16((uint16)e->insn);
 	return (id == T32_16_B_T2) || (id == T32_16_B_T1) || (id == T32_16_CBZ_T1) || (id == T32_16_CBNZ_T1);

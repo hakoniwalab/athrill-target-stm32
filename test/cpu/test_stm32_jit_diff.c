@@ -515,6 +515,87 @@ static void test_branches(void)
 	require_counter("BL backward", &stats, THUMB_JIT_DIFF_BL);
 }
 
+/* one 32-bit instruction (then a NOP), run with a budget of one */
+static void one_native32(const char *name, TargetCoreType *core, uint32 insn, uint32 counter)
+{
+	ThumbJitDiffStats stats;
+
+	put_insn32(core->reg.pc, insn);
+	put16(core->reg.pc + 4U, 0xBF00U);
+	stats = run_pair(name, core, 1U);
+	require_counter(name, &stats, counter);
+}
+
+/* the high-register, SP, extend, shift, barrier, MOVW and wide-branch forms the JIT emits natively */
+static void test_more_natives(void)
+{
+	static const uint32 edge[] = { 0U, 1U, 0x7FFFFFFFU, 0x80000000U, 0xFFFFFFFFU, 0x12345678U, 0x80FF7F01U };
+	static const uint32 amounts[] = { 0U, 1U, 5U, 16U, 31U };
+	static const uint32 imm16s[] = { 0U, 0xFFFFU, 0x1234U, 0x8A5CU };
+	TargetCoreType core;
+	uint32 i, j, k, op, c, cond, nzcv;
+
+	for (i = 0U; i < 7U; i++) {
+		for (j = 0U; j < 7U; j++) {
+			init_core(&core, CODE_BASE);
+			core.reg.r[2] = edge[i]; core.reg.r[3] = edge[j]; core.reg.r[9] = edge[j]; core.reg.r[12] = edge[i];
+			core.reg.apsr = (core.reg.apsr & 0x0FFFFFFFU) | (((i * 7U + j) & 0xFU) << 28);
+			one_native("CMP high Rn", &core, (uint16)(0x4500U | (1U << 7) | (3U << 3) | 1U), THUMB_JIT_DIFF_CMP_HI);	/* CMP r9, r3 */
+			one_native("CMP high Rm", &core, (uint16)(0x4500U | (12U << 3) | 2U), THUMB_JIT_DIFF_CMP_HI);		/* CMP r2, r12 */
+			one_native("ADD high Rd", &core, (uint16)(0x4400U | (1U << 7) | (3U << 3) | 1U), THUMB_JIT_DIFF_ADD_HI);	/* ADD r9, r3 */
+			one_native("ADD high Rm", &core, (uint16)(0x4400U | (12U << 3) | 2U), THUMB_JIT_DIFF_ADD_HI);		/* ADD r2, r12 */
+		}
+		init_core(&core, CODE_BASE);
+		core.reg.r[5] = edge[i];
+		one_native("UXTB", &core, (uint16)(0xB2C0U | (5U << 3) | 1U), THUMB_JIT_DIFF_EXTEND);
+		one_native("UXTH", &core, (uint16)(0xB280U | (5U << 3) | 1U), THUMB_JIT_DIFF_EXTEND);
+		one_native("SXTB", &core, (uint16)(0xB240U | (5U << 3) | 1U), THUMB_JIT_DIFF_EXTEND);
+		one_native("SXTH", &core, (uint16)(0xB200U | (5U << 3) | 5U), THUMB_JIT_DIFF_EXTEND);
+		for (op = 0U; op < 3U; op++) {
+			for (k = 0U; k < 5U; k++) {
+				for (c = 0U; c < 2U; c++) {
+					if ((op != 0U) && (amounts[k] == 0U)) {
+						continue;	/* LSR/ASR #32: called */
+					}
+					init_core(&core, CODE_BASE);
+					core.reg.r[6] = edge[i];
+					core.reg.apsr = (core.reg.apsr & 0x0FFFFFFFU) | (c ? ARM_APSR_C : 0U) | ARM_APSR_V;
+					one_native(op == 0U ? "LSLS/MOVS imm" : op == 1U ? "LSRS imm" : "ASRS imm", &core,
+						(uint16)((op << 11) | (amounts[k] << 6) | (6U << 3) | 4U), THUMB_JIT_DIFF_MOVS_SHIFT);
+				}
+			}
+		}
+	}
+	for (k = 0U; k < 4U; k++) {
+		init_core(&core, CODE_BASE + 0x40U);
+		one_native("ADD Rd, SP, imm", &core, (uint16)(0xA800U | (3U << 8) | (k * 77U)), THUMB_JIT_DIFF_SP_IMM);
+		one_native("ADD SP, imm", &core, (uint16)(0xB000U | (k * 31U)), THUMB_JIT_DIFF_SP_IMM);
+		one_native("SUB SP, imm", &core, (uint16)(0xB080U | (k * 31U)), THUMB_JIT_DIFF_SP_IMM);
+		init_core(&core, CODE_BASE + 0x40U);
+		one_native32("MOVW", &core, (((uint32)(0xF240U | (((imm16s[k] >> 11) & 1U) << 10) | (imm16s[k] >> 12))) << 16)
+			| (((imm16s[k] >> 8) & 7U) << 12) | (7U << 8) | (imm16s[k] & 0xFFU), THUMB_JIT_DIFF_MOVW);
+	}
+	init_core(&core, CODE_BASE + 0x40U);
+	one_native32("DMB", &core, 0xF3BF8F5FU, THUMB_JIT_DIFF_BARRIER);
+	one_native32("DSB", &core, 0xF3BF8F4FU, THUMB_JIT_DIFF_BARRIER);
+	one_native32("ISB", &core, 0xF3BF8F6FU, THUMB_JIT_DIFF_BARRIER);
+	for (cond = 0U; cond < 14U; cond++) {
+		for (nzcv = 0U; nzcv < 16U; nzcv++) {
+			init_core(&core, CODE_BASE + 0x40U);
+			core.reg.apsr = (core.reg.apsr & 0x0FFFFFFFU) | (nzcv << 28);
+			one_native32("B.W conditional forward", &core, ((uint32)(0xF000U | (cond << 6)) << 16) | 0x8000U | 4U,
+				THUMB_JIT_DIFF_B_COND_W);
+			one_native32("B.W conditional backward", &core,
+				((uint32)(0xF000U | (1U << 10) | (cond << 6) | 0x3FU) << 16) | 0x8000U | (1U << 13) | (1U << 11) | 0x7F8U,
+				THUMB_JIT_DIFF_B_COND_W);
+		}
+	}
+	init_core(&core, CODE_BASE + 0x40U);
+	one_native32("B.W forward", &core, (0xF000U << 16) | 0x9000U | (1U << 13) | (1U << 11) | 4U, THUMB_JIT_DIFF_B_W);
+	one_native32("B.W backward", &core, ((uint32)(0xF000U | (1U << 10) | 0x3FFU) << 16) | 0x9000U | (1U << 13) | (1U << 11) | 0x7F8U,
+		THUMB_JIT_DIFF_B_W);
+}
+
 static void test_literals(void)
 {
 	TargetCoreType core;
@@ -1337,6 +1418,7 @@ int main(void)
 	test_fault_classification();
 	test_data();
 	test_branches();
+	test_more_natives();
 	test_literals();
 	test_load_extensions();
 	test_wide_immediate();
