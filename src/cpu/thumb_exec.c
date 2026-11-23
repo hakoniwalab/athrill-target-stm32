@@ -815,6 +815,27 @@ static std_bool thumb_jit_rom_word(uint32 address, uint32 *value)
 	return TRUE;
 }
 
+static void thumb_jit_checks(AthrillJitBuilder *b, uint32 kind);
+
+/* jumps to skip unless CurrentModeIsPrivileged() (Handler mode, or CONTROL.nPRIV 0) */
+static void thumb_jit_skip_unprivileged(AthrillJitBuilder *b, AthrillJitLabel *skip)
+{
+	AthrillJitLabel *privileged = athrill_jit_label_new(b);
+
+	athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_CORE(m.handler_mode, 4), athrill_jit_imm(0), privileged);
+	athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T0W, TJ_CORE(m.control, 4), athrill_jit_imm((sint64)ARM_M_CONTROL_NPRIV));
+	athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_T0W, athrill_jit_imm(0), skip);
+	athrill_jit_label_place(b, privileged);
+}
+
+/* after a native instruction that may change the execution priority: on at next, with the checks of a called one */
+static void thumb_jit_after_priority(AthrillJitBuilder *b, uint32 next)
+{
+	athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)next));
+	athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)next));
+	thumb_jit_checks(b, THUMB_JIT_OTHER);
+}
+
 /* a conditional branch to target (taken when cond holds for APSR.NZCV): its taken exit added to taken */
 static void thumb_jit_cond_branch(AthrillJitBuilder *b, uint32 cond, uint32 target, ThumbJitTaken *taken,
 				  uint32 *taken_count)
@@ -896,6 +917,115 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 			athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
 			thumb_jit_exit_to(b, target);
 			*ends = TRUE;
+			return TRUE;
+		case T32_32_ADD_i_T3:
+		case T32_32_ADDS_i_T3:
+		case T32_32_SUB_i_T3:
+		case T32_32_SUBS_i_T3:
+		case T32_32_CMP_i_T2:
+			{
+				/* ADD{S}.W / SUB{S}.W / CMP.W #<const>: the constant from ThumbExpandImm(), as their executors */
+				T32Decode32Id id32 = t32_decode32(e->insn);
+				std_bool sub = (id32 == T32_32_SUB_i_T3) || (id32 == T32_32_SUBS_i_T3) || (id32 == T32_32_CMP_i_T2);
+				std_bool setflags = (id32 == T32_32_ADDS_i_T3) || (id32 == T32_32_SUBS_i_T3) || (id32 == T32_32_CMP_i_T2);
+				uint32 n = (e->insn >> 16) & 0xFU;	/* Rn: first halfword bits 3:0 */
+				uint32 imm12 = (((e->insn >> 26) & 1U) << 11) | (((e->insn >> 12) & 7U) << 8) | (e->insn & 0xFFU);
+				uint32 imm32 = ThumbExpandImm(imm12);
+
+				d = (id32 == T32_32_CMP_i_T2) ? 16U : ((e->insn >> 8) & 0xFU);
+				if ((n == 15U) || ((d != 16U) && ((d == 13U) || (d == 15U)))) {
+					return FALSE;	/* UNPREDICTABLE: the executor's result */
+				}
+				THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_DP_IMM_W);
+				if (setflags) {
+					thumb_jit_add_sub(b, (d == 16U) ? -1 : (sint32)d, TJ_R(n), athrill_jit_imm((sint64)imm32), sub);
+				} else {
+					athrill_jit_alu(b, sub ? ATHRILL_JIT_SUB : ATHRILL_JIT_ADD, TJ_R(d), TJ_R(n),
+							athrill_jit_imm((sint64)imm32));
+				}
+			}
+			return TRUE;
+		case T32_32_MOV_i_T2:
+		case T32_32_MOVS_i_T2:
+			{
+				/* MOV{S}.W #<const>: MOVS sets N, Z of the constant and C to its carry (kept for an unrotated one) */
+				uint32 imm12 = (((e->insn >> 26) & 1U) << 11) | (((e->insn >> 12) & 7U) << 8) | (e->insn & 0xFFU);
+				bool carry = FALSE;
+				uint32 imm32 = ThumbExpandImm_C(imm12, FALSE, &carry);
+				std_bool rotated = ((imm12 >> 10) & 3U) != 0U;
+				uint32 clear = ARM_APSR_N | ARM_APSR_Z | (rotated ? ARM_APSR_C : 0U);
+				uint32 set = (imm32 & ARM_APSR_N) | ((imm32 == 0U) ? ARM_APSR_Z : 0U) | ((rotated && carry) ? ARM_APSR_C : 0U);
+
+				d = (e->insn >> 8) & 0xFU;
+				if ((d == 13U) || (d == 15U)) {
+					return FALSE;
+				}
+				THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_DP_IMM_W);
+				athrill_jit_mov(b, TJ_R(d), athrill_jit_imm((sint64)imm32));
+				if (t32_decode32(e->insn) == T32_32_MOVS_i_T2) {
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_APSR, TJ_APSR, athrill_jit_imm((sint64)(~clear & 0xFFFFFFFFU)));
+					if (set != 0U) {
+						athrill_jit_alu(b, ATHRILL_JIT_OR, TJ_APSR, TJ_APSR, athrill_jit_imm((sint64)set));
+					}
+				}
+			}
+			return TRUE;
+		case T32_32_MRS_T1_AS:
+			/* PRIMASK, BASEPRI, BASEPRI_MAX, FAULTMASK: readable in any mode; nothing else changes */
+			d = t32w_MRS_T1_AS_Rd(e->insn);
+			value = e->insn & 0xFFU;
+			if ((d == 13U) || (d == 15U) || (t32w_MRS_T1_AS_R(e->insn) != 0U) || (value < 16U) || (value > 19U)) {
+				return FALSE;
+			}
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MRS);
+			if (value == 16U) {
+				athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_R(d), TJ_CORE(m.primask, 4), athrill_jit_imm(1));
+			} else if (value == 19U) {
+				athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_R(d), TJ_CORE(m.faultmask, 4), athrill_jit_imm(1));
+			} else {
+				athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_R(d), TJ_CORE(m.basepri, 4), athrill_jit_imm(0xFF));
+			}
+			return TRUE;
+		case T32_32_MSR_r_T1_AS:
+			{
+				/* PRIMASK, BASEPRI, BASEPRI_MAX (privileged only): then the checks after a priority change */
+				uint32 n = t32w_MSR_r_T1_AS_Rn(e->insn);
+				uint32 mask = t32w_MSR_r_T1_AS_mask(e->insn);
+				AthrillJitLabel *skip;
+
+				value = e->insn & 0xFFU;
+				if ((n == 13U) || (n == 15U) || (t32w_MSR_r_T1_AS_R(e->insn) != 0U) || ((mask & 3U) != 0U)
+				    || ((mask >> 2) != 2U) || (value < 16U) || (value > 18U)) {
+					return FALSE;
+				}
+				THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_MSR);
+				skip = athrill_jit_label_new(b);
+				thumb_jit_skip_unprivileged(b, skip);
+				athrill_jit_mov(b, TJ_CORE(m.priority_check, 4), athrill_jit_imm(1));
+				if (value == 16U) {
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CORE(m.primask, 4), TJ_R(n), athrill_jit_imm(1));
+				} else {
+					/* the implemented priority bits: (0xFF00 >> priority_bits) & 0xFF */
+					athrill_jit_mov(b, TJ_T1W, athrill_jit_imm(0xFF00));
+					athrill_jit_alu(b, ATHRILL_JIT_SHR, TJ_T1W, TJ_T1W, TJ_CORE(m.priority_bits, 4));
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1W, TJ_T1W, athrill_jit_imm(0xFF));
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1W, TJ_T1W, TJ_R(n));
+					if (value == 17U) {
+						athrill_jit_mov(b, TJ_CORE(m.basepri, 4), TJ_T1W);
+					} else {
+						/* BASEPRI_MAX: only a nonzero value that raises the priority (or BASEPRI 0) */
+						AthrillJitLabel *write = athrill_jit_label_new(b);
+
+						athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_T1W, athrill_jit_imm(0), skip);
+						athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_CORE(m.basepri, 4), athrill_jit_imm(0), write);
+						athrill_jit_jump_if(b, ATHRILL_JIT_GEU, TJ_T1W, TJ_CORE(m.basepri, 4), skip);
+						athrill_jit_label_place(b, write);
+						athrill_jit_mov(b, TJ_CORE(m.basepri, 4), TJ_T1W);
+					}
+				}
+				athrill_jit_label_place(b, skip);
+				thumb_jit_after_priority(b, pc + 4U);
+			}
 			return TRUE;
 		case T32_32_BL_i_T1:
 			break;
@@ -1027,6 +1157,28 @@ static std_bool thumb_jit_native(AthrillJitBuilder *b, const ThumbDecodedType *e
 		athrill_jit_mov(b, TJ_CORE(reg.next_pc, 4), athrill_jit_imm((sint64)target));
 		thumb_jit_exit_to(b, target);
 		*ends = TRUE;
+		return TRUE;
+	case T32_16_CPSID_T1_AS:
+	case T32_16_CPSIE_T1_AS:
+		{
+			/* CPSID i / CPSIE i (PRIMASK only; privileged only): then the checks after a priority change */
+			std_bool disable = (t32_decode16(insn) == T32_16_CPSID_T1_AS);
+			uint32 i_bit = disable ? t32_CPSID_T1_AS_I(insn) : t32_CPSIE_T1_AS_I(insn);
+			uint32 f_bit = disable ? t32_CPSID_T1_AS_F(insn) : t32_CPSIE_T1_AS_F(insn);
+			uint32 a_bit = disable ? t32_CPSID_T1_AS_A(insn) : t32_CPSIE_T1_AS_A(insn);
+			AthrillJitLabel *skip;
+
+			if ((i_bit == 0U) || (f_bit != 0U) || (a_bit != 0U)) {
+				return FALSE;	/* FAULTMASK (ExecutionPriority), or UNPREDICTABLE */
+			}
+			THUMB_JIT_DIFF_COUNT(b, THUMB_JIT_DIFF_CPS);
+			skip = athrill_jit_label_new(b);
+			thumb_jit_skip_unprivileged(b, skip);
+			athrill_jit_mov(b, TJ_CORE(m.priority_check, 4), athrill_jit_imm(1));
+			athrill_jit_mov(b, TJ_CORE(m.primask, 4), athrill_jit_imm(disable ? 1 : 0));
+			athrill_jit_label_place(b, skip);
+			thumb_jit_after_priority(b, pc + 2U);
+		}
 		return TRUE;
 	case T32_16_CMP_r_T2:
 		d = (t32_CMP_r_T2_N(insn) << 3) | t32_CMP_r_T2_Rn(insn);
@@ -2120,13 +2272,11 @@ static AthrillJitCode *thumb_jit_translate(uint32 start, uint32 *length_out)
 	/* entry check: a chained run stops before a block that would go over its budget */
 	athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, athrill_jit_done(), athrill_jit_imm((sint64)length));
 	athrill_jit_exit_if(b, ATHRILL_JIT_GTU, TJ_T0, TJ_CTX(budget, 8));
-	/* set by an instruction only when the block ends right after it (complete()) */
-	athrill_jit_mov(b, TJ_CORE(it_written, 4), athrill_jit_imm(0));
-	athrill_jit_mov(b, TJ_CORE(sync_exception, 4), athrill_jit_imm(0));
-	athrill_jit_mov(b, TJ_CORE(exc_return_pending, 4), athrill_jit_imm(0));
-	/* Match execute_one(): fault details belong only to the instruction that set them. */
-	athrill_jit_mov(b, TJ_CORE(data_fault_valid, 4), athrill_jit_imm(0));
-	athrill_jit_mov(b, TJ_CORE(alignment_fault, 4), athrill_jit_imm(0));
+	/*
+	 * it_written, sync_exception, exc_return_pending, data_fault_valid and alignment_fault are 0 here:
+	 * thumb_jit_run() clears them before a run, and an instruction that sets one ends the block (an
+	 * error or complete()), so a chained block is entered with them still 0.
+	 */
 	for (i = 0U; i < length; i++) {
 		const ThumbDecodedType *e = list[i];
 		uint32 next = e->pc + e->length;
@@ -2294,6 +2444,13 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 	thumb_jit_ctx.indirect_miss = 0U;
 	thumb_jit_ctx.exit_kind = THUMB_JIT_EXIT_NONE;
 	thumb_jit_ctx.err = 0U;
+	/* set by an instruction only when the block ends right after it (complete()); fault details, as in
+	 * execute_one(), belong only to the instruction that set them: none for the blocks of this run */
+	core->it_written = FALSE;
+	core->sync_exception = 0U;
+	core->exc_return_pending = FALSE;
+	core->data_fault_valid = FALSE;
+	core->alignment_fault = FALSE;
 	done = athrill_jit_code_run(code, core, &thumb_jit_ctx);
 	*clock = thumb_jit_ctx.clock_base + done;
 	thumb_jit_runs++;
