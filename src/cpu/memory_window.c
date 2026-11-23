@@ -41,6 +41,28 @@ std_bool memory_window_region(uint32 addr, MemoryWindowType *region)
 	return find_region(addr, 1U, region);
 }
 
+uint32 memory_window_regions(MemoryWindowType *regions, uint32 max)
+{
+	uint32 i;
+	uint32 n = 0U;
+
+	for (i = 0U; (i < mpu_address_map.dynamic_map_num) && (n < max); i++) {
+		const MpuAddressRegionType *r = &mpu_address_map.dynamic_map[i];
+
+		/* plain memory, without address aliasing (as find_region) */
+		if ((r->ops != &default_memory_operation) || (r->data == NULL)
+			|| (r->mask != MPU_ADDRESS_REGION_MASK_ALL)) {
+			continue;
+		}
+		regions[n].start = (uint32)r->start;
+		regions[n].size = (uint32)r->size;
+		regions[n].data = r->data;
+		regions[n].writable = (r->type != READONLY_MEMORY);
+		n++;
+	}
+	return n;
+}
+
 uint8 *memory_window_lookup(uint32 addr, uint32 size)
 {
 	MemoryWindowType found;

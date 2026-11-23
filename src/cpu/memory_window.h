@@ -26,6 +26,8 @@ extern MemoryWindowType memory_code_window;
 uint8 *memory_window_lookup(uint32 addr, uint32 size);
 /* The plain memory region holding addr into *region, the windows unchanged; FALSE: none. */
 std_bool memory_window_region(uint32 addr, MemoryWindowType *region);
+/* All plain memory regions, in the bus's order, at most max into regions; returns how many. */
+uint32 memory_window_regions(MemoryWindowType *regions, uint32 max);
 /* The same for instruction fetch: the region becomes the code window. */
 uint8 *memory_window_code_lookup(uint32 addr, uint32 size);
 

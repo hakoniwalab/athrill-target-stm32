@@ -83,6 +83,27 @@ std_bool memory_window_region(uint32 address, MemoryWindowType *region)
 	return FALSE;
 }
 
+uint32 memory_window_regions(MemoryWindowType *regions, uint32 max)
+{
+	uint32 n = 0U;
+
+	if (n < max) {
+		regions[n].start = RAM_BASE;
+		regions[n].size = RAM_SIZE;
+		regions[n].data = active_ram;
+		regions[n].writable = TRUE;
+		n++;
+	}
+	if (n < max) {
+		regions[n].start = ROM_BASE;
+		regions[n].size = ROM_SIZE;
+		regions[n].data = rom;
+		regions[n].writable = FALSE;
+		n++;
+	}
+	return n;
+}
+
 uint8 *memory_window_code_lookup(uint32 address, uint32 size)
 {
 	if (!holds(ROM_BASE, ROM_SIZE, address, size)) {

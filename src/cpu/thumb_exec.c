@@ -1015,7 +1015,11 @@ typedef struct {
 	uint8 *data;
 } ThumbJitRegion;
 
-static ThumbJitRegion thumb_jit_ram;
+/* the plain RAM regions, the stack's first; an access tries them in this order */
+#define THUMB_JIT_MAX_RAMS 8U
+static ThumbJitRegion thumb_jit_rams[THUMB_JIT_MAX_RAMS];
+static uint32 thumb_jit_ram_count;
+static const ThumbJitRegion *thumb_jit_cur;	/* the RAM region the access being emitted is for */
 static ThumbJitRegion thumb_jit_rom;
 
 typedef struct {
@@ -1038,6 +1042,35 @@ static void thumb_jit_find_region(ThumbJitRegion *r, uint32 addr, std_bool writa
 	r->known = TRUE;
 }
 
+/* thumb_jit_rams: every writable plain memory region of at least a word, the one holding sp first */
+static void thumb_jit_find_rams(uint32 sp)
+{
+	MemoryWindowType all[32];
+	ThumbJitRegion stack;
+	uint32 n = memory_window_regions(all, 32U);
+	uint32 i;
+
+	memset(&stack, 0, sizeof(stack));
+	thumb_jit_find_region(&stack, sp, TRUE);
+	thumb_jit_ram_count = 0U;
+	if (stack.known) {
+		thumb_jit_rams[thumb_jit_ram_count++] = stack;
+	}
+	for (i = 0U; (i < n) && (thumb_jit_ram_count < THUMB_JIT_MAX_RAMS); i++) {
+		if (!all[i].writable || (all[i].size < 4U) || (stack.known && (all[i].start == stack.start))) {
+			continue;
+		}
+		thumb_jit_rams[thumb_jit_ram_count].known = TRUE;
+		thumb_jit_rams[thumb_jit_ram_count].start = all[i].start;
+		thumb_jit_rams[thumb_jit_ram_count].size = all[i].size;
+		thumb_jit_rams[thumb_jit_ram_count].data = all[i].data;
+		thumb_jit_ram_count++;
+	}
+	for (i = 0U; i < thumb_jit_ram_count; i++) {
+		fprintf(stderr, "INFO: JIT native RAM %u: 0x%08x size 0x%x\n", i, thumb_jit_rams[i].start, thumb_jit_rams[i].size);
+	}
+}
+
 /* T0 = (R[n] + imm) mod 2^32 */
 static void thumb_jit_address(AthrillJitBuilder *b, uint32 n, uint32 imm)
 {
@@ -1058,17 +1091,68 @@ static sint64 thumb_jit_bias(const ThumbJitRegion *r, uint32 offset)
 	return (sint64)((uint64)(uintptr_t)r->data - r->start + offset);
 }
 
+/*
+ * One native access per RAM region:
+ *   for (thumb_jit_ram_begin(b, &t, size, miss, done); thumb_jit_ram_guard(b, &t); thumb_jit_ram_end(b, &t)) {
+ *       the access of [T0, T0 + size) in thumb_jit_cur
+ *   }
+ * Each region's copy runs when [T0, T0 + size) lies in that region and jumps to done after the access; when no
+ * region holds it, miss. The caller places done (after its miss path, if that falls through to done).
+ */
+typedef struct {
+	uint32 index;
+	uint32 size;
+	AthrillJitLabel *miss;
+	AthrillJitLabel *done;
+	AthrillJitLabel *next;
+} ThumbJitRamTry;
+
+static void thumb_jit_ram_begin(AthrillJitBuilder *b, ThumbJitRamTry *t, uint32 size, AthrillJitLabel *miss,
+				AthrillJitLabel *done)
+{
+	(void)b;
+	t->index = 0U;
+	t->size = size;
+	t->miss = miss;
+	t->done = done;
+	t->next = NULL;
+}
+
+static std_bool thumb_jit_ram_guard(AthrillJitBuilder *b, ThumbJitRamTry *t)
+{
+	if (t->index >= thumb_jit_ram_count) {
+		if (thumb_jit_ram_count == 0U) {
+			athrill_jit_jump(b, t->miss);
+		}
+		return FALSE;
+	}
+	thumb_jit_cur = &thumb_jit_rams[t->index];
+	t->next = ((t->index + 1U) < thumb_jit_ram_count) ? athrill_jit_label_new(b) : t->miss;
+	thumb_jit_guard(b, thumb_jit_cur, t->size, t->next);
+	return TRUE;
+}
+
+static void thumb_jit_ram_end(AthrillJitBuilder *b, ThumbJitRamTry *t)
+{
+	athrill_jit_jump(b, t->done);
+	if (t->next != t->miss) {
+		athrill_jit_label_place(b, t->next);
+	}
+	t->index++;
+}
+
 
 /* R[t] = MemU[T0, size] (zero-extended) from RAM or ROM; else slow */
 static void thumb_jit_load(AthrillJitBuilder *b, uint32 t, uint32 size, AthrillJitLabel *slow)
 {
 	AthrillJitLabel *not_ram = athrill_jit_label_new(b);
 	AthrillJitLabel *done = athrill_jit_label_new(b);
+	ThumbJitRamTry r;
 
-	thumb_jit_guard(b, &thumb_jit_ram, size, not_ram);
-	athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), (uint8)size, FALSE);
-	athrill_jit_mov(b, TJ_R(t), TJ_T1);
-	athrill_jit_jump(b, done);
+	for (thumb_jit_ram_begin(b, &r, size, not_ram, done); thumb_jit_ram_guard(b, &r); thumb_jit_ram_end(b, &r)) {
+		athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), (uint8)size, FALSE);
+		athrill_jit_mov(b, TJ_R(t), TJ_T1);
+	}
 	athrill_jit_label_place(b, not_ram);
 	if (!thumb_jit_rom.known) {
 		athrill_jit_jump(b, slow);
@@ -1083,8 +1167,13 @@ static void thumb_jit_load(AthrillJitBuilder *b, uint32 t, uint32 size, AthrillJ
 /* MemU[T0, size] = R[t] in RAM; else slow */
 static void thumb_jit_store(AthrillJitBuilder *b, uint32 t, uint32 size, AthrillJitLabel *slow)
 {
-	thumb_jit_guard(b, &thumb_jit_ram, size, slow);
-	athrill_jit_store_host(b, TJ_R(t), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), (uint8)size);
+	AthrillJitLabel *done = athrill_jit_label_new(b);
+	ThumbJitRamTry r;
+
+	for (thumb_jit_ram_begin(b, &r, size, slow, done); thumb_jit_ram_guard(b, &r); thumb_jit_ram_end(b, &r)) {
+		athrill_jit_store_host(b, TJ_R(t), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), (uint8)size);
+	}
+	athrill_jit_label_place(b, done);
 }
 
 /* jump to slow unless T0 is a multiple of align (MemA: an unaligned access faults) */
@@ -1126,10 +1215,10 @@ static void thumb_jit_transfer_list(AthrillJitBuilder *b, uint32 registers, std_
 			continue;
 		}
 		if (load) {
-			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U, FALSE);
+			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U, FALSE);
 			athrill_jit_mov(b, TJ_R(i), TJ_T1);
 		} else {
-			athrill_jit_store_host(b, TJ_R(i), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U);
+			athrill_jit_store_host(b, TJ_R(i), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U);
 		}
 		k++;
 	}
@@ -1292,38 +1381,62 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 	case T32_32_STRD_i_T1_off:
 		thumb_jit_address(b, n, imm);
 		thumb_jit_aligned(b, 4U, slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 8U, slow->start);
-		if (id == T32_32_LDRD_i_T1_off) {
-			/* both words read before either register is written (n may be t or t2) */
-			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U)), 4U, FALSE);
-			athrill_jit_mov(b, TJ_CTX(fy, 4), TJ_T1);
-			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), 4U, FALSE);
-			athrill_jit_mov(b, TJ_R(t), TJ_T1);
-			athrill_jit_mov(b, TJ_R(t2), TJ_CTX(fy, 4));
-		} else {
-			athrill_jit_store_host(b, TJ_R(t), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), 4U);
-			athrill_jit_store_host(b, TJ_R(t2), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U)), 4U);
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 8U, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				if (id == T32_32_LDRD_i_T1_off) {
+					/* both words read before either register is written (n may be t or t2) */
+					athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U)), 4U, FALSE);
+					athrill_jit_mov(b, TJ_CTX(fy, 4), TJ_T1);
+					athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), 4U, FALSE);
+					athrill_jit_mov(b, TJ_R(t), TJ_T1);
+					athrill_jit_mov(b, TJ_R(t2), TJ_CTX(fy, 4));
+				} else {
+					athrill_jit_store_host(b, TJ_R(t), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), 4U);
+					athrill_jit_store_host(b, TJ_R(t2), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U)), 4U);
+				}
+			}
+			athrill_jit_label_place(b, ram_done);
 		}
 		break;
 	case T32_32_LDM_T2:
 		count = (uint32)__builtin_popcount(registers);
 		thumb_jit_address(b, n, 0U);
 		thumb_jit_aligned(b, 4U, slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 4U * count, slow->start);
-		thumb_jit_transfer_list(b, registers, TRUE);
-		if (t32w_LDM_T2_W(insn) != 0U) {
-			athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
-			athrill_jit_mov(b, TJ_R(n), TJ_T0);
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U * count, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				thumb_jit_transfer_list(b, registers, TRUE);
+				if (t32w_LDM_T2_W(insn) != 0U) {
+					athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
+					athrill_jit_mov(b, TJ_R(n), TJ_T0);
+				}
+			}
+			athrill_jit_label_place(b, ram_done);
 		}
 		break;
 	case T32_32_STMDB_T1:
 		count = (uint32)__builtin_popcount(registers);
 		thumb_jit_address(b, n, (uint32)(0U - 4U * count));
 		thumb_jit_aligned(b, 4U, slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 4U * count, slow->start);
-		thumb_jit_transfer_list(b, registers, FALSE);
-		if (t32w_STMDB_T1_W(insn) != 0U) {
-			athrill_jit_mov(b, TJ_R(n), TJ_T0);
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U * count, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				thumb_jit_transfer_list(b, registers, FALSE);
+				if (t32w_STMDB_T1_W(insn) != 0U) {
+					athrill_jit_mov(b, TJ_R(n), TJ_T0);
+				}
+			}
+			athrill_jit_label_place(b, ram_done);
 		}
 		break;
 	case T32_32_VLDR_T1_S:
@@ -1335,9 +1448,12 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 			AthrillJitLabel *not_ram = athrill_jit_label_new(b);
 			AthrillJitLabel *loaded = athrill_jit_label_new(b);
 
-			thumb_jit_guard(b, &thumb_jit_ram, 4U, not_ram);
-			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), 4U, FALSE);
-			athrill_jit_jump(b, loaded);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U, not_ram, loaded); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), 4U, FALSE);
+			}
 			athrill_jit_label_place(b, not_ram);
 			if (!thumb_jit_rom.known) {
 				athrill_jit_jump(b, slow->start);
@@ -1348,8 +1464,14 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 			athrill_jit_label_place(b, loaded);
 			athrill_jit_mov(b, TJ_S(d), TJ_T1);
 		} else {
-			thumb_jit_guard(b, &thumb_jit_ram, 4U, slow->start);
-			athrill_jit_store_host(b, TJ_S(d), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 0U)), 4U);
+			AthrillJitLabel *stored = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U, slow->start, stored); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				athrill_jit_store_host(b, TJ_S(d), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 0U)), 4U);
+			}
+			athrill_jit_label_place(b, stored);
 		}
 		break;
 	case T32_32_VLDM_T2:
@@ -1357,19 +1479,27 @@ static std_bool thumb_jit_native_memory32(AthrillJitBuilder *b, const ThumbDecod
 		thumb_jit_fp_ready(b, slow->start);
 		thumb_jit_address(b, n, 0U);
 		thumb_jit_aligned(b, 4U, slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 4U * count, slow->start);
-		/* Armv7-M: the base register is written before the transfers */
-		if (((id == T32_32_VLDM_T2) ? t32w_VLDM_T2_W(insn) : t32w_VSTM_T2_W(insn)) != 0U) {
-			athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T1, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
-			athrill_jit_mov(b, TJ_R(n), TJ_T1);
-		}
-		for (k = 0U; k < count; k++) {
-			if (id == T32_32_VLDM_T2) {
-				athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U, FALSE);
-				athrill_jit_mov(b, TJ_S(d + k), TJ_T1);
-			} else {
-				athrill_jit_store_host(b, TJ_S(d + k), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U);
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U * count, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				/* Armv7-M: the base register is written before the transfers */
+				if (((id == T32_32_VLDM_T2) ? t32w_VLDM_T2_W(insn) : t32w_VSTM_T2_W(insn)) != 0U) {
+					athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T1, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
+					athrill_jit_mov(b, TJ_R(n), TJ_T1);
+				}
+				for (k = 0U; k < count; k++) {
+					if (id == T32_32_VLDM_T2) {
+						athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U, FALSE);
+						athrill_jit_mov(b, TJ_S(d + k), TJ_T1);
+					} else {
+						athrill_jit_store_host(b, TJ_S(d + k), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U);
+					}
+				}
 			}
+			athrill_jit_label_place(b, ram_done);
 		}
 		break;
 	default:
@@ -1521,7 +1651,7 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 	uint32 memory_class;
 #endif
 
-	if (!thumb_jit_ram.known) {
+	if (thumb_jit_ram_count == 0U) {
 		return FALSE;
 	}
 	if (e->length == 4U) {
@@ -1619,14 +1749,22 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 		thumb_jit_address(b, 13U, (uint32)(0U - 4U * count));
 		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_T0, athrill_jit_imm(3));
 		athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_T1, athrill_jit_imm(0), slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 4U * count, slow->start);
-		for (i = 0U, k = 0U; i < 15U; i++) {
-			if ((registers & (1U << i)) != 0U) {
-				athrill_jit_store_host(b, TJ_R(i), TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U);
-				k++;
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U * count, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				for (i = 0U, k = 0U; i < 15U; i++) {
+					if ((registers & (1U << i)) != 0U) {
+						athrill_jit_store_host(b, TJ_R(i), TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U);
+						k++;
+					}
+				}
+				athrill_jit_mov(b, TJ_R(13U), TJ_T0);
 			}
+			athrill_jit_label_place(b, ram_done);
 		}
-		athrill_jit_mov(b, TJ_R(13U), TJ_T0);
 		break;
 	case T32_16_POP_T1:
 #ifdef ATHRILL_STM32_JIT_DIFF_TEST
@@ -1641,34 +1779,42 @@ static std_bool thumb_jit_native_memory(AthrillJitBuilder *b, const ThumbDecoded
 		thumb_jit_address(b, 13U, 0U);
 		athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_T0, athrill_jit_imm(3));
 		athrill_jit_jump_if(b, ATHRILL_JIT_NE, TJ_T1, athrill_jit_imm(0), slow->start);
-		thumb_jit_guard(b, &thumb_jit_ram, 4U * count, slow->start);
-		if ((registers & (1U << 15)) != 0U) {
-			/* the PC value first: an EXC_RETURN value or a clear bit 0 (EPSR.T) takes the C path */
-			athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * (count - 1U))), 4U, FALSE);
-			athrill_jit_mov(b, TJ_CTX(fx, 4), TJ_T1);
-			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_T1, athrill_jit_imm(0xF0000000LL));
-			athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_T1, athrill_jit_imm(0xF0000000LL), slow->start);
-			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_CTX(fx, 4), athrill_jit_imm(1));
-			athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_T1, athrill_jit_imm(0), slow->start);
-		}
-		for (i = 0U, k = 0U; i < 15U; i++) {
-			if ((registers & (1U << i)) != 0U) {
-				athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(&thumb_jit_ram, 4U * k)), 4U, FALSE);
-				athrill_jit_mov(b, TJ_R(i), TJ_T1);
-				k++;
+		{
+			AthrillJitLabel *ram_done = athrill_jit_label_new(b);
+			ThumbJitRamTry ram_try;
+
+			for (thumb_jit_ram_begin(b, &ram_try, 4U * count, slow->start, ram_done); thumb_jit_ram_guard(b, &ram_try);
+			     thumb_jit_ram_end(b, &ram_try)) {
+				if ((registers & (1U << 15)) != 0U) {
+					/* the PC value first: an EXC_RETURN value or a clear bit 0 (EPSR.T) takes the C path */
+					athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * (count - 1U))), 4U, FALSE);
+					athrill_jit_mov(b, TJ_CTX(fx, 4), TJ_T1);
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_T1, athrill_jit_imm(0xF0000000LL));
+					athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_T1, athrill_jit_imm(0xF0000000LL), slow->start);
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_T1, TJ_CTX(fx, 4), athrill_jit_imm(1));
+					athrill_jit_jump_if(b, ATHRILL_JIT_EQ, TJ_T1, athrill_jit_imm(0), slow->start);
+				}
+				for (i = 0U, k = 0U; i < 15U; i++) {
+					if ((registers & (1U << i)) != 0U) {
+						athrill_jit_load_host(b, TJ_T1, TJ_T0, athrill_jit_imm(thumb_jit_bias(thumb_jit_cur, 4U * k)), 4U, FALSE);
+						athrill_jit_mov(b, TJ_R(i), TJ_T1);
+						k++;
+					}
+				}
+				athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
+				athrill_jit_mov(b, TJ_R(13U), TJ_T0);
+				if ((registers & (1U << 15)) != 0U) {
+					/* BXWritePC: EPSR.T stays 1, next_pc = the value without bit 0; on as a taken branch */
+					athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)e->pc));
+					athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CORE(reg.next_pc, 4), TJ_CTX(fx, 4), athrill_jit_imm(0xFFFFFFFELL));
+		#ifdef ATHRILL_STM32_JIT_DIFF_TEST
+					thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
+					thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native_class[memory_class]);
+		#endif
+					athrill_jit_jump(b, taken);
+				}
 			}
-		}
-		athrill_jit_alu(b, ATHRILL_JIT_ADD, TJ_T0, TJ_T0, athrill_jit_imm((sint64)(4U * count)));
-		athrill_jit_mov(b, TJ_R(13U), TJ_T0);
-		if ((registers & (1U << 15)) != 0U) {
-			/* BXWritePC: EPSR.T stays 1, next_pc = the value without bit 0; on as a taken branch */
-			athrill_jit_mov(b, TJ_CORE(reg.pc, 4), athrill_jit_imm((sint64)e->pc));
-			athrill_jit_alu(b, ATHRILL_JIT_AND, TJ_CORE(reg.next_pc, 4), TJ_CTX(fx, 4), athrill_jit_imm(0xFFFFFFFELL));
-#ifdef ATHRILL_STM32_JIT_DIFF_TEST
-			thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native);
-			thumb_jit_diff_count(b, &thumb_jit_diff_stats.memory_native_class[memory_class]);
-#endif
-			athrill_jit_jump(b, taken);
+			athrill_jit_label_place(b, ram_done);
 		}
 		break;
 	default:
@@ -1826,8 +1972,8 @@ static inline uint64 thumb_jit_run(TargetCoreType *core, uint64 budget, uint64 *
 	*err = STD_E_OK;
 	if (thumb_jit_clock == NULL) {
 		thumb_jit_clock = clock;
-		/* plain memory for the native loads and stores: the stack's RAM, the code's ROM */
-		thumb_jit_find_region(&thumb_jit_ram, core->reg.r[13], TRUE);
+		/* plain memory for the native loads and stores: every RAM region (the stack's first), the code's ROM */
+		thumb_jit_find_rams(core->reg.r[13]);
 		thumb_jit_find_region(&thumb_jit_rom, pc, FALSE);
 	}
 	if ((clock != thumb_jit_clock) || core->m.pending_check || core->m.priority_check || core->m.lockup
