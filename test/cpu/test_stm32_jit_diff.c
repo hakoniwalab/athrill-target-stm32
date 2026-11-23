@@ -116,6 +116,8 @@ uint8 *memory_window_code_lookup(uint32 address, uint32 size)
 	return &rom[address - ROM_BASE];
 }
 
+static const uint64 *device_clock;	/* the run's clock, for the clock device at DEVICE_ADDR + 4 */
+
 static Std_ReturnType memory_read(AthrillAddrType address, void *data, uint32 size)
 {
 	uint8 *p = memory_window_lookup((uint32)address, size);
@@ -123,6 +125,13 @@ static Std_ReturnType memory_read(AthrillAddrType address, void *data, uint32 si
 	if (p == NULL) {
 		if ((address == DEVICE_ADDR) && (size == 4U)) {
 			memcpy(data, &device_value, 4U);
+			return STD_E_OK;
+		}
+		if ((address == DEVICE_ADDR + 4U) && (size == 4U) && (device_clock != NULL)) {
+			/* a device that reads the clock: what the instruction reading it must see */
+			uint32 now = (uint32)*device_clock;
+
+			memcpy(data, &now, 4U);
 			return STD_E_OK;
 		}
 		return STD_E_SEGV;
@@ -270,6 +279,7 @@ static ThumbJitDiffStats run_pair(const char *name, const TargetCoreType *initia
 	stm32_device_accessed = FALSE;
 	device_value = 0x13579BDFU;
 	device_writes = 0U;
+	device_clock = &ca;
 	ea = thumb_execute_run(&a, budget, &ca, &xa);
 	dva = device_value;
 	dwa = device_writes;
@@ -279,7 +289,9 @@ static ThumbJitDiffStats run_pair(const char *name, const TargetCoreType *initia
 	stm32_device_accessed = FALSE;
 	device_value = 0x13579BDFU;
 	device_writes = 0U;
+	device_clock = &cb;
 	eb = thumb_execute_run(&b, budget, &cb, &xb);
+	device_clock = NULL;
 	dvb = device_value;
 	dwb = device_writes;
 	same_result(name, ea, eb, ca, cb, xa, xb, dva, dvb, dwa, dwb, &a, &b);
@@ -594,6 +606,41 @@ static void test_more_natives(void)
 	one_native32("B.W forward", &core, (0xF000U << 16) | 0x9000U | (1U << 13) | (1U << 11) | 4U, THUMB_JIT_DIFF_B_W);
 	one_native32("B.W backward", &core, ((uint32)(0xF000U | (1U << 10) | 0x3FFU) << 16) | 0x9000U | (1U << 13) | (1U << 11) | 0x7F8U,
 		THUMB_JIT_DIFF_B_W);
+}
+
+/* ADD{S}.W, SUB{S}.W, CMP.W and MOV{S}.W with a modified immediate (every ThumbExpandImm form) */
+static uint32 dp_imm(uint32 first, uint32 n, uint32 d, uint32 imm12)
+{
+	return ((first | (((imm12 >> 11) & 1U) << 10) | n) << 16) | (((imm12 >> 8) & 7U) << 12) | (d << 8) | (imm12 & 0xFFU);
+}
+
+static void test_wide_dp_imm(void)
+{
+	static const uint32 imm12s[] = { 0x000U, 0x0FFU, 0x1ABU, 0x2CDU, 0x3EFU, 0x100U, 0x400U, 0x4FFU, 0x7FFU, 0xFFFU, 0x8A5U };
+	static const uint32 edge[] = { 0U, 1U, 0x7FFFFFFFU, 0x80000000U, 0xFFFFFFFFU, 0x00AB00ABU };
+	static const struct { const char *name; uint32 first; std_bool cmp; } ops[] = {
+		{ "ADD.W imm", 0xF100U, FALSE }, { "ADDS.W imm", 0xF110U, FALSE }, { "SUB.W imm", 0xF1A0U, FALSE },
+		{ "SUBS.W imm", 0xF1B0U, FALSE }, { "CMP.W imm", 0xF1B0U, TRUE } };
+	TargetCoreType core;
+	uint32 i, j, k, c;
+
+	for (k = 0U; k < sizeof(imm12s) / sizeof(imm12s[0]); k++) {
+		for (j = 0U; j < 6U; j++) {
+			for (i = 0U; i < 5U; i++) {
+				init_core(&core, CODE_BASE + 0x40U);
+				core.reg.r[2] = edge[j];
+				core.reg.apsr = (core.reg.apsr & 0x0FFFFFFFU) | (((j + k) & 0xFU) << 28);
+				one_native32(ops[i].name, &core, dp_imm(ops[i].first, 2U, ops[i].cmp ? 15U : 6U, imm12s[k]),
+					THUMB_JIT_DIFF_DP_IMM_W);
+			}
+		}
+		for (c = 0U; c < 2U; c++) {
+			init_core(&core, CODE_BASE + 0x40U);
+			core.reg.apsr = (core.reg.apsr & 0x0FFFFFFFU) | (c ? (ARM_APSR_C | ARM_APSR_V) : ARM_APSR_N);
+			one_native32("MOV.W imm", &core, dp_imm(0xF040U, 15U, 6U, imm12s[k]), THUMB_JIT_DIFF_DP_IMM_W);
+			one_native32("MOVS.W imm", &core, dp_imm(0xF050U, 15U, 6U, imm12s[k]), THUMB_JIT_DIFF_DP_IMM_W);
+		}
+	}
 }
 
 static void test_literals(void)
@@ -1068,11 +1115,14 @@ static void persistent_call(PersistentPair *pair, const char *name, uint64 budge
 	thumb_jit_diff_set_enabled(FALSE);
 	active_ram = ram_a; reset_windows(); stm32_device_accessed = FALSE;
 	device_value = 0x13579BDFU; device_writes = 0U;
+	device_clock = &pair->ca;
 	ea = thumb_execute_run(&pair->a, budget, &pair->ca, &xa);
 	thumb_jit_diff_set_enabled(TRUE);
 	active_ram = ram_b; reset_windows(); stm32_device_accessed = FALSE;
 	device_value = 0x13579BDFU; device_writes = 0U;
+	device_clock = &pair->cb;
 	eb = thumb_execute_run(&pair->b, budget, &pair->cb, &xb);
+	device_clock = NULL;
 	same_result(name, ea, eb, pair->ca, pair->cb, xa, xb,
 		device_value, device_value, device_writes, device_writes, &pair->a, &pair->b);
 }
@@ -1083,6 +1133,147 @@ static void persistent_set_pc(PersistentPair *pair, uint32 pc)
 	pair->a.reg.next_pc = pc;
 	pair->b.reg.pc = pc;
 	pair->b.reg.next_pc = pc;
+}
+
+/*
+ * A priority change, then the NOP after it: compared once both have settled priority_check (the
+ * JIT right after the instruction, the interpreter before the next one).
+ */
+static void one_priority(const char *name, TargetCoreType *core, uint32 insn, uint32 length, uint32 counter)
+{
+	ThumbJitDiffStats stats;
+
+	if (length == 4U) {
+		put_insn32(core->reg.pc, insn);
+	} else {
+		put16(core->reg.pc, (uint16)insn);
+	}
+	put16(core->reg.pc + length, 0xBF00U);
+	put16(core->reg.pc + length + 2U, 0xBF00U);
+	stats = run_pair(name, core, 2U);
+	require_counter(name, &stats, counter);
+}
+
+/* MRS, MSR and CPS: in each mode, and the pending exception a lowered priority lets in (at the same instruction) */
+static void test_priority_natives(void)
+{
+	static const uint32 values[] = { 0U, 1U, 0x10U, 0x20U, 0x4FU, 0xFFU, 0x80000020U };
+	static const uint32 basepris[] = { 0U, 0x20U, 0x40U };
+	TargetCoreType core;
+	PersistentPair pair;
+	uint32 mode, i, j, sysm;
+	uint32 base = CODE_BASE + 0x2400U;
+	uint32 handler = CODE_BASE + 0x2600U;
+	char name[80];
+
+	for (mode = 0U; mode < 3U; mode++) {	/* privileged Thread, unprivileged Thread, Handler */
+		for (i = 0U; i < 7U; i++) {
+			for (j = 0U; j < 3U; j++) {
+				for (sysm = 16U; sysm <= 19U; sysm++) {
+					init_core(&core, base);
+					core.m.control = (mode == 1U) ? 1U : 0U;
+					core.m.handler_mode = (mode == 2U);
+					core.m.basepri = basepris[j];
+					core.m.primask = i & 1U;
+					core.m.faultmask = (i >> 1) & 1U;
+					core.reg.r[4] = values[i];
+					snprintf(name, sizeof(name), "MRS r3, %u mode %u", sysm, mode);
+					one_native32(name, &core, (0xF3EFU << 16) | 0x8000U | (3U << 8) | sysm, THUMB_JIT_DIFF_MRS);
+					if (sysm <= 18U) {
+						init_core(&core, base);
+						core.m.control = (mode == 1U) ? 1U : 0U;
+						core.m.handler_mode = (mode == 2U);
+						core.m.basepri = basepris[j];
+						core.reg.r[4] = values[i];
+						snprintf(name, sizeof(name), "MSR %u, r4 mode %u", sysm, mode);
+						one_priority(name, &core, ((0xF380U | 4U) << 16) | 0x8800U | sysm, 4U, THUMB_JIT_DIFF_MSR);
+					}
+				}
+			}
+			init_core(&core, base);
+			core.m.control = (mode == 1U) ? 1U : 0U;
+			core.m.handler_mode = (mode == 2U);
+			core.m.primask = i & 1U;
+			one_priority("CPSID i", &core, 0xB672U, 2U, THUMB_JIT_DIFF_CPS);
+			one_priority("CPSIE i", &core, 0xB662U, 2U, THUMB_JIT_DIFF_CPS);
+		}
+	}
+	/* an interrupt held back by BASEPRI or PRIMASK, then let in by MSR or CPSIE: taken before the next instruction */
+	put32(ROM_BASE + 16U * 4U, handler | 1U);
+	put16(handler, 0xBF00U);
+	put16(handler + 2U, 0xBF00U);
+	for (i = 0U; i < 4U; i++) {
+		static const uint32 opener[4] = { ((0xF380U | 0U) << 16) | 0x8811U,	/* MSR BASEPRI, r0 (0) */
+						  ((0xF380U | 0U) << 16) | 0x8810U,	/* MSR PRIMASK, r0 (0) */
+						  ((0xF380U | 1U) << 16) | 0x8812U,	/* MSR BASEPRI_MAX, r1 (0x60: no change) */
+						  0U };					/* CPSIE i */
+		uint32 pc = base + 0x80U;
+
+		init_core(&core, pc);
+		core.m.enabled[16] = 1U;
+		core.m.priority[16] = 0x40U;
+		core.m.basepri = ((i == 1U) || (i == 3U)) ? 0U : 0x20U;
+		core.m.primask = ((i == 1U) || (i == 3U)) ? 1U : 0U;
+		core.reg.r[0] = 0U;
+		core.reg.r[1] = 0x60U;
+		ArmMSetPending(&core.m, 16U);
+		put16(pc, 0xBF00U);	/* NOP: the pending check runs, the interrupt stays held */
+		if (i < 3U) {
+			put_insn32(pc + 2U, opener[i]);
+			put16(pc + 6U, 0xBF00U);
+			put16(pc + 8U, 0xBF00U);
+		} else {
+			put16(pc + 2U, 0xB662U);
+			put16(pc + 4U, 0xBF00U);
+			put16(pc + 6U, 0xBF00U);
+		}
+		persistent_begin(&pair, &core);
+		snprintf(name, sizeof(name), "priority opener %u: held", i);
+		persistent_call(&pair, name, 1U);
+		snprintf(name, sizeof(name), "priority opener %u: let in", i);
+		persistent_call(&pair, name, 4U);
+		persistent_call(&pair, name, 4U);
+		if ((i != 2U) && (pair.a.m.ipsr != 16U)) {
+			printf("FAIL priority opener %u: the interrupt was not taken (IPSR %u)\n", i, pair.a.m.ipsr); failures++;
+		}
+	}
+}
+
+/* straight instructions counted in a batch: a device reading the clock mid-block, exits, budgets */
+static void test_batched_count(void)
+{
+	TargetCoreType core;
+	PersistentPair pair;
+	uint32 base = CODE_BASE + 0x2800U;
+	uint32 pc = base;
+	uint32 i;
+	uint64 budget;
+	char name[64];
+
+	for (i = 0U; i < 4U; i++) {
+		put16(pc, add_i8(i & 3U, i + 1U)); pc += 2U;
+	}
+	put16(pc, ldr_i(5U, 6U, 1U)); pc += 2U;		/* LDR r5, [r6, #4]: the clock device */
+	for (i = 0U; i < 3U; i++) {
+		put16(pc, add_r(i & 3U, (i + 1U) & 3U, 5U)); pc += 2U;
+	}
+	put16(pc, cmp_i(0U, 3U)); pc += 2U;
+	put16(pc, (uint16)(0xD000U | (1U << 8) | 1U)); pc += 2U;	/* BNE +2: taken or not */
+	put16(pc, mov_i(7U, 9U)); pc += 2U;
+	put16(pc, ldr_i(4U, 6U, 1U)); pc += 2U;		/* the clock again, after the branch */
+	put16(pc, 0xE7FEU);				/* B . */
+	for (budget = 1U; budget <= 16U; budget++) {
+		init_core(&core, base);
+		core.reg.r[6] = DEVICE_ADDR;
+		persistent_begin(&pair, &core);
+		for (i = 0U; i < 3U; i++) {	/* cached, translated, then the batched block */
+			persistent_set_pc(&pair, base);
+			pair.a.reg.r[6] = DEVICE_ADDR;
+			pair.b.reg.r[6] = DEVICE_ADDR;
+			snprintf(name, sizeof(name), "batched count budget %llu run %u", (unsigned long long)budget, i);
+			persistent_call(&pair, name, budget);
+		}
+	}
 }
 
 static void test_chaining(void)
@@ -1419,6 +1610,9 @@ int main(void)
 	test_data();
 	test_branches();
 	test_more_natives();
+	test_priority_natives();
+	test_wide_dp_imm();
+	test_batched_count();
 	test_literals();
 	test_load_extensions();
 	test_wide_immediate();
