@@ -45,9 +45,11 @@ To add a board, see
 
 ## Try it in two minutes
 
-The release has `athrill3` for macOS (arm64) and Linux (x86_64) and the PX4 ELF; Zephyr's sample ELFs are in their
-own release. [versions.txt](versions.txt) names both, and `tools/versions.sh` reads it, so the commands below take the
-current release and pick the file for your system (macOS arm64 or Linux x86_64):
+### PX4 on Pixhawk 4
+
+In an empty directory, download `athrill3` for your system (macOS arm64 or Linux x86_64) and the PX4 ELF.
+[versions.txt](versions.txt) gives `tools/versions.sh` the release and the athrill-device commit for the Pixhawk 4
+Devicetree. Keep the two checkouts side by side.
 
 ```sh
 git clone https://github.com/hakoniwalab/athrill-target-stm32.git
@@ -57,18 +59,15 @@ curl -LO "$ATHRILL_RELEASE_URL/$ATHRILL3_DIR.tar.gz"
 curl -LO "$ATHRILL_RELEASE_URL/px4_fmu-v5_default.elf"
 curl -L -o SHA256SUMS "$ATHRILL_RELEASE_URL/SHA256SUMS"
 athrill_sha256 -c --ignore-missing SHA256SUMS
-curl -LO "$ZEPHYR_SAMPLES_URL/$ZEPHYR_SAMPLES.tar.gz"
-curl -L -o SHA256SUMS.zephyr "$ZEPHYR_SAMPLES_URL/SHA256SUMS"
-athrill_sha256 -c --ignore-missing SHA256SUMS.zephyr
 tar xzf "$ATHRILL3_DIR.tar.gz"
-tar xzf "$ZEPHYR_SAMPLES.tar.gz"
 git clone https://github.com/hakoniwalab/athrill-device.git
 git -C athrill-device checkout -q "$ATHRILL_DEVICE_COMMIT"
-athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi "$ZEPHYR_SAMPLES/philosophers-nucleo_f767zi.elf" 10 "$ATHRILL3"
 ```
 
-The later commands of this README run in the same shell, in the same directory (or source `tools/versions.sh` again
-there). [examples/zephyr](examples/zephyr) checks all six Zephyr runs and builds the ELFs yourself.
+Run the later commands from this directory in the same shell. In a new shell, source
+`athrill-target-stm32/tools/versions.sh` again from this directory.
+
+For a headless PX4 SIH flight and a ULog, follow [Repeating a run and comparing it](docs/verification.md#repeating-a-run-and-comparing-it).
 
 For PX4 SIH with QGroundControl, run
 
@@ -79,6 +78,23 @@ athrill-target-stm32/examples/px4-sih/run.sh px4_fmu-v5_default.elf "$ATHRILL3"
 then add a TCP link to `127.0.0.1:5760` in QGroundControl, arm and take off. The vehicle starts at PX4's SIH home
 (Zurich). [docs/sih.md](docs/sih.md) explains each setting. QGroundControl warns that HITL is enabled
 (`SYS_HITL=2` is how SIH runs) and asks for radio setup: both are expected.
+
+### Zephyr samples
+
+Use the `athrill3` download and the pinned athrill-device checkout above. Zephyr's sample ELFs are in their own
+release, also selected by `tools/versions.sh`.
+
+```sh
+curl -LO "$ZEPHYR_SAMPLES_URL/$ZEPHYR_SAMPLES.tar.gz"
+curl -L -o SHA256SUMS.zephyr "$ZEPHYR_SAMPLES_URL/SHA256SUMS"
+athrill_sha256 -c --ignore-missing SHA256SUMS.zephyr
+tar xzf "$ZEPHYR_SAMPLES.tar.gz"
+athrill-target-stm32/examples/zephyr/run.sh nucleo_f767zi "$ZEPHYR_SAMPLES/philosophers-nucleo_f767zi.elf" 10 "$ATHRILL3"
+```
+
+See [examples/zephyr](examples/zephyr) to check all six sample runs or build the ELFs yourself.
+
+### ArduPilot on Pixhawk 4
 
 For ArduPilot, take the official binary from ArduPilot's firmware server. ArduPilot is GPL-3.0, so this project
 does not redistribute it; the version directory and the SHA-256 pin the file the results come from (ArduCopter
@@ -210,24 +226,23 @@ Neither option shortens that wait.
 
 ## Bit-identical, and checked
 
-[examples/px4-sih/verify](examples/px4-sih/verify) flies PX4 SIH end to end with one command (about 2 minutes):
+[docs/verification.md](docs/verification.md) has the setup and command to fly PX4 SIH end to end (about 2 minutes):
 
 - take off, hover and land three times from the NSH console at fixed virtual times. Two runs use the fast mode and
   one the strict mode (Arm pseudo-code only, no host FPU). The F-RAM, the **whole SD card image including the
-  ULog** and the console must be identical;
+  ULog**, normalized console and executed instruction count must match;
 - that flight's ULog: EKF2 against SIH's ground truth, attitude tracking, altitude and position hold;
 - a QGroundControl-style MAVLink flight (arm, take off, go to 5 m north, land), checked by its log;
-- with the release ELF, the SD card image, ULog, F-RAM and console equal to the published run, on any host.
+- with the release ELF, compare those outputs and the instruction count to the published run.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/verification/altitude-dark.png">
   <img alt="Altitude over time: setpoint, SIH ground truth and EKF2 estimate within about 0.1 m of each other from takeoff through the 2.5 m hover to touchdown" src="docs/verification/altitude-light.png" width="720">
 </picture>
 
-CI boots the release PX4 ELF on every change and compares it with the board's regression reference. The thresholds
-and what they do not show are in [docs/verification.md](docs/verification.md). Input timed by the wall clock, such
-as QGroundControl's commands over TCP, arrives at run-dependent virtual times. Such runs are checked by their logs,
-not for identity.
+CI boots the release PX4 ELF on every change and compares it with the board's regression reference.
+[Repeating a run and comparing it](docs/verification.md#repeating-a-run-and-comparing-it) shows how to run the headless
+flight on its own, extract the ULog and compare it. Compare TCP-driven flights by event order and timing in their logs.
 
 On the Mac (M2 Pro) PX4 v1.17.0 SIH hovered at RTF 2.22 with QGroundControl and SD logging (2026-11-04, interpreter;
 the SIH scenario with the JIT and tick skip is in [Faster](#faster-a-block-jit-and-tick-skip))

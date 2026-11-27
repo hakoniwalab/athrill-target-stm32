@@ -5,14 +5,19 @@
 
 Every line matching ERROR, WARN, FAIL, failed or one of Athrill's access errors must match an
 entry of the allow-list (athrill-device boards/<board>/regression/<firmware>.allow; format and
-categories are described at its top). Warnings that mean the emulated system is too slow (the
-logger watchdog, missing CPU load information) are never allowed: they showed a model timing gap
-(athrill-device#103). Exit status 0 when every line is explained, 1 otherwise, 2 on a bad list.
+categories are described at its top). Athrill's JIT statistics with failed=0 are informational.
+Warnings that mean the emulated system is too slow (the logger watchdog, missing CPU load
+information) are never allowed: they showed a model timing gap (athrill-device#103).
+Exit status 0 when every line is explained, 1 otherwise, 2 on a bad list.
 """
 import re
 import sys
 
 FLAGGED = re.compile(r"ERROR|WARN|FAIL|failed|not found error|can not load")
+JIT_STATS = re.compile(
+    r"INFO: JIT block runs from C=[0-9]+ insns=[0-9]+ translated=[0-9]+"
+    r" failed=([0-9]+) held=[0-9]+ code=[0-9]+ bytes links=[0-9]+"
+)
 # uORB field dumps (`listener`), e.g. "rtcm_crc_failed: False", are values, not messages
 FIELD = re.compile(r"^\s*[a-z0-9_]+(\[\d+\])?:\s")
 NEVER = re.compile(r"Watchdog triggers|Writing watchdog data|No CPU and RAM load information")
@@ -46,6 +51,11 @@ def main():
             text = ANSI.sub("", f.read().decode("utf-8", "replace"))
         for line in text.splitlines():
             if not FLAGGED.search(line) or FIELD.match(line):
+                continue
+            stats = JIT_STATS.fullmatch(line)
+            if stats:
+                if stats[1] != "0":
+                    unexplained.append((path, line, "JIT translation failures"))
                 continue
             if NEVER.search(line):
                 unexplained.append((path, line.strip(), "never allowed: the system ran too slowly"))
