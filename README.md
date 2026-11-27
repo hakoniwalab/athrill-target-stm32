@@ -45,6 +45,10 @@ To add a board, see
 
 ## Try it in two minutes
 
+You need macOS 14 or later on Apple silicon, or Linux x86_64 with glibc 2.39 or later (Ubuntu 24.04, also in
+WSL2), with git, curl, tar, a POSIX shell, Python 3 and `shasum` (macOS) or `sha256sum` (Linux). On WSL2, work in
+the Linux file system (for example `~/athrill`), not under `/mnt/c`.
+
 ### PX4 on Pixhawk 4
 
 In an empty directory, download `athrill3` for your system (macOS arm64 or Linux x86_64) and the PX4 ELF.
