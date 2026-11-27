@@ -23,9 +23,9 @@ check that it points to the file:
 ls -l "$ATHRILL3"
 ```
 
-For the full
-verification, install Python 3 and, on Ubuntu or WSL2, install venv support
-and mtools:
+[Repeating a run](#repeating-a-run-and-comparing-it) (`--step-a`) needs only
+Python 3. For the full verification (steps B to D), install Python 3 and, on
+Ubuntu or WSL2, install venv support and mtools:
 
 ```sh
 sudo apt-get update
@@ -61,7 +61,8 @@ It prints the ELF's SHA-256 (the results belong to that firmware), then:
    [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py) (table
    below).
 4. **C. A QGroundControl-style flight**, when pymavlink is installed: PX4
-   runs with MAVLink on TCP, and
+   runs with MAVLink on TCP `127.0.0.1:5760` (the port must be free: close
+   QGroundControl or another `run.sh` first), and
    [fly_scenario.py](../examples/px4-sih/verify/fly_scenario.py) arms,
    takes off, sends "go to" 5 m north (`MAV_CMD_DO_REPOSITION`), hovers
    15 s, lands and waits for the disarm, timing each phase by the
@@ -80,8 +81,10 @@ run puts A's extracted ULog in `work/a.ulg`, C's ULog in
 
 ## Repeating a run and comparing it
 
-From the [PX4 Quick start](../README.md#px4-on-pixhawk-4) directory, run
-the first boot and step A with Python 3. `$ATHRILL3` is set as in
+From the directory of the README's
+[PX4 on Pixhawk 4](../README.md#px4-on-pixhawk-4) (under "Try it in two
+minutes"), run the first boot and step A. It needs only Python 3, no
+packages, and no TCP port. `$ATHRILL3` is set as in
 [What verify.sh does](#what-verifysh-does). Allow about a minute or two,
 depending on the host.
 
@@ -99,14 +102,21 @@ skip off). To enable the JIT and tick skip in the fast runs, append the two
 [device configuration lines](../README.md#build-from-source) directly to
 `athrill-target-stm32/examples/px4-sih/device_config.txt`.
 
-The script prints the comparison as it goes. An excerpt of a run on macOS
-arm64 with the v0.5.0 `athrill3`, the JIT and tick skip on:
+The script prints the comparison as it goes. With `--step-a` it ends like
+this (macOS arm64, the v0.5.0 `athrill3`):
 
 ```text
 A. determinism: 2 runs fast, 1 run strict, in parallel
   [PASS] fast1 = fast2: F-RAM, SD card image and normalized console identical (2904813819 instructions)
   [PASS] fast1 = strict: F-RAM, SD card image and normalized console identical (2904813819 instructions)
 ...
+console check: every error and warning is explained
+STEP A PASS
+```
+
+The full run (without `--step-a`) continues with B to D and ends with:
+
+```text
 D. the same as the published run (release ELF)
   [PASS] SD card image, ULog, F-RAM, normalized console and instruction count match the published run (SD card image sha256 fdf844face8f088a...)
 ALL PASS
