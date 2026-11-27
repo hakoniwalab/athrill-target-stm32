@@ -13,7 +13,17 @@ thresholds are in [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py)
 ## What verify.sh does
 
 Start with [PX4 on Pixhawk 4](../README.md#px4-on-pixhawk-4) in the README.
-Run the commands here from the same directory and shell. For the full
+Run the commands here from the same directory and shell. The README's
+commands set `$ATHRILL3`, the path of the unpacked `athrill3`, with
+`tools/versions.sh`. In a new shell, set it again from that directory and
+check that it points to the file:
+
+```sh
+. athrill-target-stm32/tools/versions.sh
+ls -l "$ATHRILL3"
+```
+
+For the full
 verification, install Python 3 and, on Ubuntu or WSL2, install venv support
 and mtools:
 
@@ -71,7 +81,8 @@ run puts A's extracted ULog in `work/a.ulg`, C's ULog in
 ## Repeating a run and comparing it
 
 From the [PX4 Quick start](../README.md#px4-on-pixhawk-4) directory, run
-the first boot and step A with Python 3. Allow about a minute or two,
+the first boot and step A with Python 3. `$ATHRILL3` is set as in
+[What verify.sh does](#what-verifysh-does). Allow about a minute or two,
 depending on the host.
 
 ```sh
