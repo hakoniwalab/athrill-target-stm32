@@ -1,31 +1,36 @@
 #!/bin/sh
-# Checks PX4 SIH on the emulated Pixhawk 4 (README "Verification"):
-#   examples/px4-sih/verify/verify.sh <px4_fmu-v5_default.elf> [athrill3]
+# Checks PX4 SIH on the emulated Pixhawk 4 (README "Bit-identical, and checked"):
+#   examples/px4-sih/verify/verify.sh [--step-a] <px4_fmu-v5_default.elf> [athrill3]
+# --step-a runs only the first boot and A, with no TCP listener.
 #
 # A. Determinism: the same flight (scenario.nsh: take off, hover, land,
 #    typed into the console at fixed virtual times) three times from the
 #    same F-RAM and SD card images: twice in the default fast mode, once in
 #    strict mode (Arm pseudo-code only). The F-RAM and the whole SD card
-#    image (with the ULog) must be identical, and so must the console output
-#    apart from the two DEVICE_CONFIG_ARM_* lines Athrill echoes at start in
-#    the strict run (its configuration has them, the others do not).
+#    image (with the ULog), normalized console and instruction count must
+#    be identical.
 # B. The flight log of A: EKF2, attitude and position control
 #    (analyze_ulog.py).
 # C. With pymavlink: arm, take off, "go to" 5 m north, hover, land over
 #    MAVLink as QGroundControl does (fly_scenario.py), and its log; with
 #    matplotlib, its charts in work/charts (plot_ulog.py).
 # D. With the release ELF (PX4 v1.17.0 from this repository's Release):
-#    the whole SD card image, the ULog, F-RAM and console of A must be
-#    identical to the published run, on any host.
+#    the whole SD card image, ULog, F-RAM, normalized console and
+#    instruction count of A must match the published run on any host.
 #
-# Needs python3 with numpy and pyulog (pymavlink for C, matplotlib for the
-# charts); on Linux mtools (mcopy) to read the SD card image. Work files:
-# examples/px4-sih/verify/work.
+# Step A needs python3. The full run also needs numpy and pyulog, pymavlink
+# for C, matplotlib for the charts, and mtools on Linux to read the SD card.
+# Work files are in examples/px4-sih/verify/work.
 # Exit status: 0 ALL PASS; 1 SOME CHECKS FAILED; 2 PARTIAL PASS (A and B
 # passed, C skipped for want of pymavlink).
 set -e
-if [ $# -lt 1 ]; then
-	echo "usage: $0 <px4_fmu-v5_default.elf> [athrill3]" >&2
+STEP_A_ONLY=0
+if [ "${1:-}" = --step-a ]; then
+	STEP_A_ONLY=1
+	shift
+fi
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+	echo "usage: $0 [--step-a] <px4_fmu-v5_default.elf> [athrill3]" >&2
 	exit 1
 fi
 ELF=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
@@ -62,16 +67,15 @@ append_device_tree() {
 	fi
 }
 
-# Remove only the two startup lines introduced on the DT path. Guest output,
-# the model inventory on stderr and all other configuration lines remain part
-# of the deterministic comparison.
-# The firmware's console: without Athrill's own lines, the configuration
-# values it echoes when a key is read ("DEVICE_CONFIG_<KEY> = <value>": which
-# keys are echoed depends on who reads them, the target or an athrill-device
-# model) and the Devicetree hash.
+# Strip Athrill's configuration echoes and Devicetree hash from stdout.
+# The JIT statistics go to stderr, which is checked separately for errors.
 normalize_console() {
 	sed -e '/^DEVICE_CONFIG_[A-Z0-9_]* = /d' \
 	    -e '/^DEVICE_TREE sha256=/d' "$1"
+}
+
+instruction_count() {
+	sed -n 's/^SAMPLES halted=[0-9][0-9]* steps=\([0-9][0-9]*\)$/\1/p' "$1"
 }
 
 # copy a file (a clone where the file system can)
@@ -131,16 +135,18 @@ echo "ELF sha256: $ELF_SHA"
 # With the board without the BMI055 the old values return.
 # docs/verification.md keeps the release run's values.
 PUBLISHED_ELF=f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e
+PUBLISHED_STEPS=2904813819
 PUBLISHED_ULOG=c8ad46d873743959c4954bfeff4a6d6215af7054c58ed0ea557e730fd1d06a22
 PUBLISHED_FRAM=44e8812fac951efba3852303948d8e6d8330cb1297c530fc22b913e924646325
-# console: normalised without Athrill's configuration echo lines
+# Console after normalize_console.
 PUBLISHED_CONSOLE=0ffcb425db7d1a40ce0e2c1d0684ee8b7d7a5f38fab4bed8aa49af256bad0fe5
 PUBLISHED_SD=fdf844face8f088aa1d600fb4b794c5dbe6e9aead36cce465859aeff43b4dc1b
 
 rm -rf "$WORK"
 mkdir -p "$WORK/golden"
 cd "$WORK/golden"
-cp "$EXAMPLE/memory.txt" "$EXAMPLE/first-boot-config.txt" "$EXAMPLE/first-boot.nsh" .
+cp "$EXAMPLE/memory.txt" "$EXAMPLE/first-boot.nsh" .
+sed '/^DEVICE_CONFIG_STM32_UART2_TCP_/d' "$EXAMPLE/first-boot-config.txt" > first-boot-config.txt
 append_device_tree first-boot-config.txt
 cp "$EXAMPLE/make-sd-image.sh" . && ./make-sd-image.sh > /dev/null
 echo "golden images: first boot (SYS_AUTOSTART 1100)"
@@ -152,14 +158,18 @@ for run in fast1 fast2 strict; do
 	mkdir -p "$WORK/$run"
 	cd "$WORK/$run"
 	cp "$EXAMPLE/memory.txt" "$HERE/scenario.nsh" .
-	grep -v UART2_TCP "$EXAMPLE/device_config.txt" > config.txt
+	if [ "$run" = strict ]; then
+		sed -e '/^DEVICE_CONFIG_STM32_UART2_TCP_/d' \
+		    -e '/^DEVICE_CONFIG_STM32_JIT[[:space:]]/d' \
+		    -e '/^DEVICE_CONFIG_DEVICE_TICK_SKIP[[:space:]]/d' "$EXAMPLE/device_config.txt" > config.txt
+		echo "DEVICE_CONFIG_ARM_FP_MODE strict" >> config.txt
+		echo "DEVICE_CONFIG_ARM_EXEC_MODE strict" >> config.txt
+	else
+		sed '/^DEVICE_CONFIG_STM32_UART2_TCP_/d' "$EXAMPLE/device_config.txt" > config.txt
+	fi
 	echo "DEVICE_CONFIG_STM32_UART_RX_FILE scenario.nsh" >> config.txt
 	echo "DEVICE_CONFIG_STM32_UART_RX_DELAY_MS 1000" >> config.txt
 	append_device_tree config.txt
-	if [ $run = strict ]; then
-		echo "DEVICE_CONFIG_ARM_FP_MODE strict" >> config.txt
-		echo "DEVICE_CONFIG_ARM_EXEC_MODE strict" >> config.txt
-	fi
 	clone "$WORK/golden/fram.bin" fram.bin
 	clone "$WORK/golden/sd.img" sd.img
 	("$ATHRILL" -c1 -m memory.txt -d config.txt -t 16000000000 "$ELF" > console.txt 2> stderr.txt || true) &
@@ -167,26 +177,39 @@ done
 wait
 cd "$WORK"
 for run in fast1 fast2 strict; do
-	if ! grep -aq "EXIT for timeout" $run/console.txt; then
+	if ! grep -aq "EXIT for timeout" "$run/console.txt"; then
 		echo "  [FAIL] $run did not run to its clock limit"
 		FAILED=1
 	fi
+	normalize_console "$run/console.txt" > "$run/console.normalized.txt"
 done
+STEPS=$(instruction_count fast1/stderr.txt)
 for run in fast2 strict; do
-	normalize_console fast1/console.txt | grep -av "DEVICE_CONFIG_ARM_" > c1.txt
-	normalize_console $run/console.txt | grep -av "DEVICE_CONFIG_ARM_" > c2.txt
-	if cmp -s c1.txt c2.txt && cmp -s fast1/fram.bin $run/fram.bin && cmp -s fast1/sd.img $run/sd.img; then
-		echo "  [PASS] fast1 = $run: F-RAM, SD card image and console (but the mode lines) identical ($(grep -a 'steps=' $run/stderr.txt | sed 's/.*steps=//') instructions)"
+	steps=$(instruction_count "$run/stderr.txt")
+	if [ -n "$STEPS" ] && [ "$STEPS" = "$steps" ] &&
+		cmp -s fast1/console.normalized.txt "$run/console.normalized.txt" &&
+		cmp -s fast1/fram.bin "$run/fram.bin" && cmp -s fast1/sd.img "$run/sd.img"; then
+		echo "  [PASS] fast1 = $run: F-RAM, SD card image and normalized console identical ($steps instructions)"
 	else
-		echo "  [FAIL] fast1 != $run"
+		echo "  [FAIL] fast1 != $run (instruction counts: ${STEPS:-missing} vs ${steps:-missing})"
 		FAILED=1
 	fi
 done
 
 echo "console (athrill-device boards/pixhawk4/regression/px4.allow)"
 if ! python3 "$EXAMPLES/console-check.py" "$(athrill_device_dir)/boards/pixhawk4/regression/px4.allow" \
-	golden/first-boot.log fast1/console.txt fast2/console.txt strict/console.txt fast1/stderr.txt; then
+	golden/first-boot.log fast1/console.txt fast2/console.txt strict/console.txt \
+	fast1/stderr.txt fast2/stderr.txt strict/stderr.txt; then
 	FAILED=1
+fi
+
+if [ "$STEP_A_ONLY" = 1 ]; then
+	if [ "$FAILED" != 0 ]; then
+		echo "STEP A FAILED"
+		exit 1
+	fi
+	echo "STEP A PASS"
+	exit 0
 fi
 
 echo "B. flight log of A"
@@ -223,11 +246,10 @@ if [ "$ELF_SHA" != "$PUBLISHED_ELF" ] && [ "${REGRESSION_STRICT:-0}" = 1 ]; then
 fi
 if [ "$ELF_SHA" = "$PUBLISHED_ELF" ]; then
 	echo "D. the same as the published run (release ELF)"
-	normalize_console fast1/console.txt > c1.txt
-	if [ "$(sha256 fast1/sd.img)" = $PUBLISHED_SD ] && [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 c1.txt)" = $PUBLISHED_CONSOLE ]; then
-		echo "  [PASS] SD card image, ULog, F-RAM and console identical to the published run (SD card image sha256 ${PUBLISHED_SD%"${PUBLISHED_SD#????????????????}"}...)"
+	if [ "$STEPS" = "$PUBLISHED_STEPS" ] && [ "$(sha256 fast1/sd.img)" = $PUBLISHED_SD ] && [ "$(sha256 a.ulg)" = $PUBLISHED_ULOG ] && [ "$(sha256 fast1/fram.bin)" = $PUBLISHED_FRAM ] && [ "$(sha256 fast1/console.normalized.txt)" = $PUBLISHED_CONSOLE ]; then
+		echo "  [PASS] SD card image, ULog, F-RAM, normalized console and instruction count match the published run (SD card image sha256 ${PUBLISHED_SD%"${PUBLISHED_SD#????????????????}"}...)"
 	else
-		echo "  [FAIL] differs from the published run: SD card image $(sha256 fast1/sd.img), ULog $(sha256 a.ulg), F-RAM $(sha256 fast1/fram.bin), console $(sha256 c1.txt)"
+		echo "  [FAIL] differs from the published run: SD card image $(sha256 fast1/sd.img), ULog $(sha256 a.ulg), F-RAM $(sha256 fast1/fram.bin), console $(sha256 fast1/console.normalized.txt), instructions ${STEPS:-missing}"
 		FAILED=1
 	fi
 fi

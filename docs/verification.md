@@ -12,8 +12,27 @@ thresholds are in [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py)
 
 ## What verify.sh does
 
+Start with [PX4 on Pixhawk 4](../README.md#px4-on-pixhawk-4) in the README.
+Run the commands here from the same directory and shell. For the full
+verification, install Python 3 and, on Ubuntu or WSL2, install venv support
+and mtools:
+
 ```sh
-examples/px4-sih/verify/verify.sh ../PX4/build/px4_fmu-v5_default/px4_fmu-v5_default.elf [athrill3]
+sudo apt-get update
+sudo apt-get install -y python3-venv mtools
+```
+
+On macOS, `verify.sh` can read the SD image with `hdiutil`. On both Linux
+and macOS, create and activate a Python virtual environment:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install numpy pyulog pymavlink matplotlib
+```
+
+```sh
+athrill-target-stm32/examples/px4-sih/verify/verify.sh px4_fmu-v5_default.elf "$ATHRILL3"
 ```
 
 It prints the ELF's SHA-256 (the results belong to that firmware), then:
@@ -23,17 +42,10 @@ It prints the ELF's SHA-256 (the results belong to that firmware), then:
    files are the starting state of every flight below: PX4 keeps
    parameters, logs and mission data in them, so a run that starts from a
    used image is a different experiment.
-2. **A. Determinism.** The flight of [scenario.nsh](../examples/px4-sih/verify/scenario.nsh)
-   (wait 12 s, `commander takeoff`, 20 s, `commander land`, 20 s) is typed
-   into the NSH console, which Athrill delivers at fixed virtual times, so
-   nothing depends on the host's clock. It runs three times at once from
-   copies of the golden images, for 16 G clocks (74 s of virtual time):
-   twice in the default mode, once in strict mode. The F-RAM and the whole
-   SD card image must be byte for byte the same, and so must the console
-   output, apart from the two `DEVICE_CONFIG_ARM_*` lines that Athrill
-   echoes at start in the strict run (its configuration has them).
-   Agreement with strict mode also shows that the fast paths (fast
-   executors, host FPU) compute exactly what the Arm pseudo-code does.
+2. **A. Determinism.** Three [headless flights](#repeating-a-run-and-comparing-it)
+   use the same NSH inputs and copies of the golden images. The script
+   compares the F-RAM, whole SD card image, normalized console and
+   instruction count.
 3. **B. Checks of A's flight log.** The ULog is read from the SD card
    image (mtools, or hdiutil on macOS) and checked by
    [analyze_ulog.py](../examples/px4-sih/verify/analyze_ulog.py) (table
@@ -46,12 +58,147 @@ It prints the ELF's SHA-256 (the results belong to that firmware), then:
    vehicle's clock. Its log gets the same checks, plus holding the target.
    With matplotlib, [plot_ulog.py](../examples/px4-sih/verify/plot_ulog.py)
    draws the charts of this page from it.
+5. **D. The published run.** With the release ELF, the script checks A's
+   outputs and instruction count against the values below.
 
 The script ends with `ALL PASS` (exit status 0), `SOME CHECKS FAILED` (1),
-or `PARTIAL PASS` (2) when pymavlink is missing and C was skipped; install
-the Python packages with `pip install numpy pyulog pymavlink matplotlib`. Its files stay in `examples/px4-sih/verify/work/`: `golden/`,
-`fast1/`, `fast2/`, `strict/` and `mavlink/` (each with its console output,
-F-RAM and SD card image), `a.ulg`, `mavlink/c.ulg` and `charts/`.
+or `PARTIAL PASS` (2) when pymavlink is missing and C was skipped. The full
+run puts A's extracted ULog in `work/a.ulg`, C's ULog in
+`work/mavlink/c.ulg`, and C's charts in `work/charts/`.
+
+<a name="determinism"></a>
+
+## Repeating a run and comparing it
+
+From the [PX4 Quick start](../README.md#px4-on-pixhawk-4) directory, run
+the first boot and step A with Python 3. Allow about a minute or two,
+depending on the host.
+
+```sh
+athrill-target-stm32/examples/px4-sih/verify/verify.sh --step-a px4_fmu-v5_default.elf "$ATHRILL3"
+```
+
+Athrill types [scenario.nsh](../examples/px4-sih/verify/scenario.nsh) into
+the NSH console at fixed virtual times. The script waits 12 s, commands
+takeoff, waits 20 s, commands landing, and waits another 20 s. The three
+runs use copies of the same F-RAM and SD images and run in parallel for
+16 billion virtual clocks (74 s). Two use the default fast mode and one
+uses strict mode (Arm pseudo-code only; the host FPU, the JIT and tick
+skip off). To enable the JIT and tick skip in the fast runs, append the two
+[device configuration lines](../README.md#build-from-source) directly to
+`athrill-target-stm32/examples/px4-sih/device_config.txt`.
+
+The script prints the comparison as it goes. An excerpt of a run on macOS
+arm64 with the v0.5.0 `athrill3`, the JIT and tick skip on:
+
+```text
+A. determinism: 2 runs fast, 1 run strict, in parallel
+  [PASS] fast1 = fast2: F-RAM, SD card image and normalized console identical (2904813819 instructions)
+  [PASS] fast1 = strict: F-RAM, SD card image and normalized console identical (2904813819 instructions)
+...
+D. the same as the published run (release ELF)
+  [PASS] SD card image, ULog, F-RAM, normalized console and instruction count match the published run (SD card image sha256 fdf844face8f088a...)
+ALL PASS
+```
+
+Each invocation recreates `athrill-target-stm32/examples/px4-sih/verify/work/`.
+`golden/` holds the first boot and starting images. Each run (`fast1/`,
+`fast2/`, `strict/`) leaves:
+
+| File | Contents |
+| --- | --- |
+| `console.txt` | PX4's console (UART7) as printed |
+| `console.normalized.txt` | the same without Athrill's own start-up lines; the compared file |
+| `sd.img` | the whole microSD card image, with the ULog in `log/sess100/log100.ulg` |
+| `fram.bin` | the F-RAM image (PX4's parameters) |
+| `stderr.txt` | Athrill's messages, including `SAMPLES halted=<n> steps=<executed instructions>` at exit |
+
+The scenario part of `console.normalized.txt` (terminal control characters
+removed):
+
+```text
+nsh> commander takeoff
+nsh> sleep 20
+INFO  [commander] Armed by internal command
+INFO  [navigator] Using default takeoff altitude: 2.5 m
+INFO  [logger] Start file log (type: full)
+INFO  [logger] [logger] /fs/microsd/log/sess100/log100.ulg
+INFO  [logger] Opened full log file: /fs/microsd/log/sess100/log100.ulg
+INFO  [commander] Takeoff detected
+nsh> commander land
+nsh> sleep 20
+INFO  [commander] Landing at current position
+INFO  [commander] Landing detected
+INFO  [commander] Disarmed by landing
+```
+
+and the instruction count Athrill prints to `stderr.txt` at exit:
+
+```text
+SAMPLES halted=0 steps=2904813819
+```
+
+To extract and compare two ULogs using the SD image tool:
+
+```sh
+work=athrill-target-stm32/examples/px4-sih/verify/work
+for run in fast1 fast2; do
+    python3 athrill-target-stm32/examples/px4-hakoniwa/get-sd-file.py \
+        "$work/$run/sd.img" --newest '*.ulg' "$work/$run/flight.ulg"
+done
+cmp "$work/fast1/flight.ulg" "$work/fast2/flight.ulg"
+cmp "$work/fast1/console.normalized.txt" "$work/fast2/console.normalized.txt"
+```
+
+With the release ELF and the same starting images, the whole SD card
+image, the ULog inside it, F-RAM and the normalized console are byte-identical
+on macOS arm64 and Linux x86_64 (WSL2), with or without the JIT and tick
+skip in the fast runs (checked 2026-11-27). Identical ULogs also have
+identical event order and timestamps. The normalized console omits
+Athrill's `DEVICE_CONFIG_* = …` echoes and `DEVICE_TREE sha256=…` line. The
+`INFO: JIT block runs from C=…` statistics go to stderr, outside the
+byte comparison. The executed instruction count also matches across runs.
+
+| Release reference | Value |
+| --- | --- |
+| `px4_fmu-v5_default.elf` SHA-256 | `f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e` |
+| Executed instructions | 2,904,813,819 |
+| Whole SD card image SHA-256 | `fdf844face8f088aa1d600fb4b794c5dbe6e9aead36cce465859aeff43b4dc1b` |
+| Extracted ULog SHA-256 | `c8ad46d873743959c4954bfeff4a6d6215af7054c58ed0ea557e730fd1d06a22` |
+| F-RAM SHA-256 | `44e8812fac951efba3852303948d8e6d8330cb1297c530fc22b913e924646325` |
+| Normalized console SHA-256 | `0ffcb425db7d1a40ce0e2c1d0684ee8b7d7a5f38fab4bed8aa49af256bad0fe5` |
+
+Step D reads these references from the `PUBLISHED_*` constants in
+[verify.sh](../examples/px4-sih/verify/verify.sh). A locally rebuilt PX4
+ELF can give different results because PX4 embeds build information.
+
+A run connected to QGroundControl, or to pymavlink over TCP (step C), is
+not repeatable byte for byte: its commands come at the host's wall clock and
+arrive at different virtual times on each run. For such runs, compare event
+order and elapsed virtual time in the logs. C drives the
+sequence of arming, takeoff, reposition with a mode change, hover, landing
+and disarm. To compare two runs, look at `vehicle_status` (`arming_state`,
+`nav_state`) and `vehicle_land_detected` in their ULogs. C checks the
+flight and target hold, including EKF2 against SIH ground truth using the
+[thresholds below](#the-checks-of-a-flight-log). Athrill's wall time and
+real-time factor describe host performance and can vary between runs.
+Athrill advances virtual time by executed instructions and advances devices
+deterministically, so input timed by the host clock can arrive at different
+virtual times on each run.
+
+What this run emulates: the firmware is the unmodified `px4_fmu-v5_default`
+of PX4 v1.17.0. In SIH, PX4's own `simulator_sih` module computes the vehicle
+and its sensor data, so PX4's sensor drivers do not start, as on a real
+Pixhawk in SIH ([sih.md](sih.md)). Athrill emulates the STM32F765 (Cortex-M7
+with FPU, interrupts, timers, clocks), the F-RAM on SPI2, the microSD card on
+SDMMC1 with DMA, the MAVLink UART (USART2) with DMA and the console UART
+(UART7), as described by the board's Devicetree (athrill-device
+`boards/pixhawk4`). With an external physics engine instead of SIH
+([hakoniwa.md](hakoniwa.md)), the Devicetree adds the IMU (ICM-20689), the
+barometer (MS5611), the magnetometer (IST8310) and the GPS (u-blox M8), and
+PX4's own drivers read them.
+
+## Comparing board paths
 
 For a shorter equivalence regression between the legacy board path and the
 Devicetree path, run:
@@ -91,11 +238,6 @@ flight, not PX4 requirements. "Flying" is from takeoff to touchdown as
 - **Timing of the real board.** Every instruction takes one clock of the
   virtual 216 MHz; PX4's CPU load and its real-time margins on a Pixhawk
   are not modelled.
-- **Identity across hosts.** Each host's runs are identical, but different
-  ELFs give different instruction counts; one ELF on two hosts is not
-  compared here.
-- **Identity of MAVLink runs.** C's commands arrive at wall-clock times,
-  so its runs differ in detail; they are judged by their logs only.
 
 ## The flight
 
@@ -153,57 +295,16 @@ After touchdown, SIH's ground truth ends up to 0.5 m below the takeoff point
 simple ground model (`sih.cpp`, "fake ground") stops the vehicle only once
 it is below the reference altitude. This too is PX4's SIH.
 
-## Determinism
+## Earlier runs with locally built ELFs
 
-The same flight typed into the NSH console at fixed virtual times
-([scenario.nsh](../examples/px4-sih/verify/scenario.nsh): take off, hover,
-land), three times from the same F-RAM and SD card images, in parallel:
-twice in the default mode, once in strict mode (`DEVICE_CONFIG_ARM_FP_MODE`
-and `DEVICE_CONFIG_ARM_EXEC_MODE strict`: Arm pseudo-code only, no fast
-executors, no host FPU). PX4 v1.17.0 on the Mac:
-
-| Run | Instructions | SD card image after the run, SHA-256 | ULog, SHA-256 | F-RAM, SHA-256 | Console without the mode lines, SHA-256 |
-| --- | ---: | --- | --- | --- | --- |
-| fast 1 | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
-| fast 2 | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
-| strict | 2,903,884,344 | `cdce0b68427e967b…` | `5aaa66ebf76d7fde…` | `c1a69ccb3740c797…` | `36a05910bf2ca418…` |
-
-The whole 1 GB SD card image is the same bit for bit, and the fast paths
-give exactly the pseudo-code's results over the whole flight.
-
-These are the values of the release run. Since the SDMMC became an
-athrill-device model, the run differs from them. The F7 SDMMC's write DMA
-now completes when the stream has filled the FIFO, before the data end on
-the bus, as on the chip. Before, it completed at the end of the bus time.
-With the old timing put back, the old values return. `verify.sh` compares
-with the run re-recorded for that change. The determinism shown here still
-holds: the three runs are identical, and every flight check passes. The blank
-SD card image is written by `make-sd-image.sh` the same on every host
-(python3, the macOS `newfs_msdos` layout with a fixed serial). Formatting
-it with the host's tools does not do: `mkfs.vfat` on Linux chooses another
-FAT size, and PX4 then ran 2,903,919,925 instructions instead of
-2,903,884,344 with the same ELF. With the PX4 ELF of the Release (the one in
-this table), `verify.sh` compares the four results with these published
-values (check D), so a run on your computer can be shown to be identical
-to ours, bit for bit. **Across hosts:** on WSL2 (Intel Core Ultra 7 155H),
-the release ELF on the Linux x86_64 athrill3 of the Release gave the same
-2,903,884,344 instructions and passed check D: its SD card image, ULog,
-F-RAM and console are identical to the Mac's (Apple M2 Pro). Every host and version below gave three identical runs. The counts
-belong to the ELF each host built (`verify.sh` prints its SHA-256 first):
+These builds each gave three identical runs with the device models used at
+the time. The counts belong to the listed ELF and model versions.
 
 | Host | PX4 | `px4_fmu-v5_default.elf`, SHA-256 | Instructions of each run |
 | --- | --- | --- | ---: |
-| Mac (arm64 build image) | v1.17.0 | `f8a78a13f3a545305cce45eeef677e4d436325ee6a6065b1753c387283f3d05e` | 2,903,884,344 |
 | Mac (arm64 build image) | main `216039a` | `3b1e760d380493539212d1d414612aabbe7ef2e65197bfe83215caad8c11c482` | 3,507,861,181 |
 | WSL2 (amd64 build image) | v1.17.0 | `0bb9d54bf79d3444c287716043c0e10dece765b855b73730234d68cf3683eb55` | 2,903,946,936 |
 | WSL2 (amd64 build image) | main `216039a` | `2a8a47df1f67c58a3d97de05716c2952a409f080eede6f67d16b1ce0a37c7e72` | 3,507,214,657 |
-
-Different ELFs (PX4 embeds build information, and the images differ) give
-different counts, so the counts are not compared across them.
-
-Input timed by the wall clock, such as QGroundControl's commands over TCP,
-arrives at run-dependent virtual times: those runs are checked by their
-logs, not for identity.
 
 ## QGroundControl
 
