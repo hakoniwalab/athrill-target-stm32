@@ -8,6 +8,6 @@ athrill-target-stm32 v0.5.0
 zephyr-samples v0.3.0
 athrill c78bab17e9515df93c1f75f5e3ba4769f658f1dd
 athrill-arm-common fbfc3c9062afe6fcc51efa83b545dd11a6eb3e1d
-athrill-device 23f5005602cfa7c209e4fdfcdc77aa6c9b953c0f
+athrill-device ba525e233688c4996c2884e4720ddd533d3be958
 sljit 23d64b71b8f5fa51d774a01459770f7e1b68d371
 hakoniwa-drone-core v5.2.0
