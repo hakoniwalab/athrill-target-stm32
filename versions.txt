@@ -4,10 +4,10 @@
 #   zephyr-samples        the release that holds zephyr-samples-<it>.tar.gz (the samples change less often)
 #   athrill ... sljit     the commits that release and main build from (the CI checks them out)
 #   hakoniwa-drone-core   the Hakoniwa Drone release the Hakoniwa docs use
-athrill-target-stm32 v0.4.0
+athrill-target-stm32 v0.5.0
 zephyr-samples v0.3.0
-athrill a63d4cd9b6bcbfea7ad411e590b5b3107b1ce41c
+athrill c78bab17e9515df93c1f75f5e3ba4769f658f1dd
 athrill-arm-common fbfc3c9062afe6fcc51efa83b545dd11a6eb3e1d
-athrill-device ab3c22e02748fed104972edc93afd5bd4aef51cb
+athrill-device 23f5005602cfa7c209e4fdfcdc77aa6c9b953c0f
 sljit 23d64b71b8f5fa51d774a01459770f7e1b68d371
 hakoniwa-drone-core v5.2.0
